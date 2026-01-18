@@ -1,0 +1,228 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Eyewear Management System Design System */
+
+@layer base {
+  :root {
+    /* Primary - Deep Teal */
+    --primary: 195 85% 35%;
+    --primary-foreground: 0 0% 100%;
+    
+    /* Secondary - Warm Gray */
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 220 20% 25%;
+    
+    /* Background */
+    --background: 220 20% 97%;
+    --foreground: 220 20% 15%;
+    
+    /* Card */
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 15%;
+    
+    /* Popover */
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 15%;
+    
+    /* Muted */
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 10% 45%;
+    
+    /* Accent - Warm Orange */
+    --accent: 25 95% 55%;
+    --accent-foreground: 0 0% 100%;
+    
+    /* Destructive */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    
+    /* Success */
+    --success: 145 65% 42%;
+    --success-foreground: 0 0% 100%;
+    
+    /* Warning */
+    --warning: 38 95% 50%;
+    --warning-foreground: 0 0% 100%;
+    
+    /* Info */
+    --info: 205 85% 55%;
+    --info-foreground: 0 0% 100%;
+    
+    /* Border & Input */
+    --border: 220 13% 90%;
+    --input: 220 13% 90%;
+    --ring: 195 85% 35%;
+    
+    /* Radius */
+    --radius: 0.5rem;
+    
+    /* Sidebar */
+    --sidebar-background: 220 25% 18%;
+    --sidebar-foreground: 220 14% 96%;
+    --sidebar-primary: 195 85% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 25% 25%;
+    --sidebar-accent-foreground: 220 14% 96%;
+    --sidebar-border: 220 25% 25%;
+    --sidebar-ring: 195 85% 50%;
+    
+    /* Role Colors */
+    --role-sales: 280 65% 55%;
+    --role-operations: 25 95% 55%;
+    --role-manager: 195 85% 45%;
+    --role-admin: 0 0% 25%;
+  }
+
+  .dark {
+    --background: 220 25% 10%;
+    --foreground: 220 14% 96%;
+    --card: 220 25% 14%;
+    --card-foreground: 220 14% 96%;
+    --popover: 220 25% 14%;
+    --popover-foreground: 220 14% 96%;
+    --primary: 195 85% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 25% 20%;
+    --secondary-foreground: 220 14% 96%;
+    --muted: 220 25% 20%;
+    --muted-foreground: 220 10% 60%;
+    --accent: 25 95% 55%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 25% 25%;
+    --input: 220 25% 25%;
+    --ring: 195 85% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+}
+
+@layer components {
+  /* Stat Card Styles */
+  .stat-card {
+    @apply bg-card rounded-lg p-6 shadow-sm border border-border transition-all duration-200;
+  }
+  
+  .stat-card:hover {
+    @apply shadow-md translate-y-[-2px];
+  }
+  
+  .stat-card-value {
+    @apply text-3xl font-bold text-foreground;
+  }
+  
+  .stat-card-label {
+    @apply text-sm text-muted-foreground mt-1;
+  }
+  
+  .stat-card-icon {
+    @apply w-12 h-12 rounded-lg flex items-center justify-center;
+  }
+  
+  /* Dashboard Section */
+  .dashboard-section {
+    @apply bg-card rounded-lg p-6 shadow-sm border border-border;
+  }
+  
+  .section-title {
+    @apply text-lg font-semibold text-foreground mb-4;
+  }
+  
+  /* Role Badge */
+  .role-badge {
+    @apply px-3 py-1 rounded-full text-xs font-medium uppercase tracking-wide;
+  }
+  
+  .role-badge-sales {
+    background-color: hsl(var(--role-sales) / 0.15);
+    color: hsl(var(--role-sales));
+  }
+  
+  .role-badge-operations {
+    background-color: hsl(var(--role-operations) / 0.15);
+    color: hsl(var(--role-operations));
+  }
+  
+  .role-badge-manager {
+    background-color: hsl(var(--role-manager) / 0.15);
+    color: hsl(var(--role-manager));
+  }
+  
+  .role-badge-admin {
+    background-color: hsl(var(--role-admin) / 0.15);
+    color: hsl(var(--role-admin));
+  }
+}
+
+/* Ant Design Overrides */
+.ant-layout {
+  background: hsl(var(--background)) !important;
+}
+
+.ant-layout-sider {
+  background: hsl(var(--sidebar-background)) !important;
+}
+
+.ant-menu-dark {
+  background: transparent !important;
+}
+
+.ant-menu-dark .ant-menu-item-selected {
+  background: hsl(var(--sidebar-accent)) !important;
+}
+
+.ant-card {
+  border-radius: var(--radius) !important;
+  border: 1px solid hsl(var(--border)) !important;
+}
+
+.ant-table {
+  background: hsl(var(--card)) !important;
+}
+
+.ant-table-thead > tr > th {
+  background: hsl(var(--muted)) !important;
+  color: hsl(var(--foreground)) !important;
+  font-weight: 600 !important;
+}
+
+.ant-btn-primary {
+  background: hsl(var(--primary)) !important;
+  border-color: hsl(var(--primary)) !important;
+}
+
+.ant-btn-primary:hover {
+  background: hsl(195 85% 30%) !important;
+  border-color: hsl(195 85% 30%) !important;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
