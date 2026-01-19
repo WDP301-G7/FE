@@ -120,7 +120,7 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
           <EyeOutlined className="text-2xl text-sidebar-primary" />
           {!collapsed && (
             <span className="text-lg font-bold text-sidebar-foreground">
-              VisionHub
+              EyeCare Store
             </span>
           )}
         </div>

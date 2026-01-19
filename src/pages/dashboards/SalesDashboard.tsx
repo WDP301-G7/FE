@@ -1,5 +1,6 @@
 import React from 'react';
 import { Row, Col, Card, Typography, Statistic, Table, Tag, Button, Space, Badge } from 'antd';
+import { motion } from 'framer-motion';
 import {
   ShoppingCartOutlined,
   FileTextOutlined,
@@ -121,20 +122,30 @@ const SalesDashboard: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-6">
+    <motion.div 
+      className="space-y-6"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+    >
       {/* Page Header */}
-      <div>
+      <motion.div
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: 0.1, duration: 0.5 }}
+      >
         <Title level={2} className="!text-foreground !mb-1">
           Bảng Điều Khiển Bán Hàng
         </Title>
         <Text className="text-muted-foreground">
           Chào mừng trở lại, {user?.name}! Đây là các đơn hàng được giao cho bạn.
         </Text>
-      </div>
+      </motion.div>
 
       {/* Statistics Cards */}
       <Row gutter={[16, 16]}>
         <Col xs={24} sm={12} lg={6}>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.5 }} whileHover={{ y: -5, transition: { duration: 0.2 } }}>
           <Card className="stat-card">
             <Statistic
               title={<span className="text-muted-foreground">Đơn Hàng Của Tôi</span>}
@@ -143,9 +154,11 @@ const SalesDashboard: React.FC = () => {
               valueStyle={{ color: 'hsl(var(--foreground))' }}
             />
           </Card>
+          </motion.div>
         </Col>
 
         <Col xs={24} sm={12} lg={6}>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.5 }} whileHover={{ y: -5, transition: { duration: 0.2 } }}>
           <Card className="stat-card">
             <Statistic
               title={<span className="text-muted-foreground">Chờ Duyệt</span>}
@@ -154,9 +167,11 @@ const SalesDashboard: React.FC = () => {
               valueStyle={{ color: 'hsl(var(--foreground))' }}
             />
           </Card>
+          </motion.div>
         </Col>
 
         <Col xs={24} sm={12} lg={6}>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4, duration: 0.5 }} whileHover={{ y: -5, transition: { duration: 0.2 } }}>
           <Card className="stat-card">
             <Statistic
               title={<span className="text-muted-foreground">Đơn Theo Đơn Thuốc</span>}
@@ -165,9 +180,11 @@ const SalesDashboard: React.FC = () => {
               valueStyle={{ color: 'hsl(var(--foreground))' }}
             />
           </Card>
+          </motion.div>
         </Col>
 
         <Col xs={24} sm={12} lg={6}>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5, duration: 0.5 }} whileHover={{ y: -5, transition: { duration: 0.2 } }}>
           <Card className="stat-card">
             <Badge count={updateRequiredOrders.length} offset={[10, 0]}>
               <Statistic
@@ -178,11 +195,17 @@ const SalesDashboard: React.FC = () => {
               />
             </Badge>
           </Card>
+          </motion.div>
         </Col>
       </Row>
 
       {/* Alerts for orders needing attention */}
       {updateRequiredOrders.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.6, duration: 0.5 }}
+        >
         <Card className="border-l-4 border-l-destructive bg-destructive/5">
           <div className="flex items-center gap-3">
             <WarningOutlined className="text-xl text-destructive" />
@@ -197,10 +220,16 @@ const SalesDashboard: React.FC = () => {
             </div>
           </div>
         </Card>
+        </motion.div>
       )}
 
       {/* Orders Table */}
-      <Card className="dashboard-section">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.7, duration: 0.5 }}
+      >
+        <Card className="dashboard-section">
         <div className="flex items-center justify-between mb-4">
           <Title level={4} className="!text-foreground !mb-0">
             Đơn Hàng Được Giao
@@ -217,7 +246,8 @@ const SalesDashboard: React.FC = () => {
           scroll={{ x: 'max-content' }}
         />
       </Card>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 };
 

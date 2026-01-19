@@ -1,5 +1,6 @@
 import React from 'react';
 import { Row, Col, Card, Typography, Table, Tag, Switch, Space, Button, Divider } from 'antd';
+import { motion } from 'framer-motion';
 import {
   SettingOutlined,
   SafetyCertificateOutlined,
@@ -128,26 +129,41 @@ const AdminDashboard: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-6">
+    <motion.div 
+      className="space-y-6"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+    >
       {/* Page Header */}
-      <div>
+      <motion.div
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: 0.1, duration: 0.5 }}
+      >
         <Title level={2} className="!text-foreground !mb-1">
           Quản Trị Hệ Thống
         </Title>
         <Text className="text-muted-foreground">
           Quản lý cấu hình hệ thống, phân quyền và cài đặt bảo mật
         </Text>
-      </div>
+      </motion.div>
 
       {/* Quick Access Cards */}
       <Row gutter={[16, 16]}>
-        {quickSettings.map((setting) => (
+        {quickSettings.map((setting, index) => (
           <Col xs={24} sm={12} lg={6} key={setting.title}>
-            <Card
-              hoverable
-              className="stat-card cursor-pointer"
-              onClick={() => navigate(setting.path)}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 + index * 0.1, duration: 0.5 }}
+              whileHover={{ y: -5, transition: { duration: 0.2 } }}
             >
+              <Card
+                hoverable
+                className="stat-card cursor-pointer"
+                onClick={() => navigate(setting.path)}
+              >
               <div className="text-center">
                 <div className="mb-3">{setting.icon}</div>
                 <Title level={5} className="!text-foreground !mb-1">
@@ -158,15 +174,21 @@ const AdminDashboard: React.FC = () => {
                 </Text>
               </div>
             </Card>
+            </motion.div>
           </Col>
         ))}
       </Row>
 
       {/* System Modules Status */}
-      <Card className="dashboard-section">
-        <Title level={4} className="!text-foreground !mb-4">
-          Trạng Thái Các Module Hệ Thống
-        </Title>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.6, duration: 0.5 }}
+      >
+        <Card className="dashboard-section">
+          <Title level={4} className="!text-foreground !mb-4">
+            Trạng Thái Các Module Hệ Thống
+          </Title>
         <Row gutter={[16, 16]}>
           {systemModules.map((module) => (
             <Col xs={24} sm={12} md={8} key={module.key}>
@@ -183,9 +205,15 @@ const AdminDashboard: React.FC = () => {
           ))}
         </Row>
       </Card>
+      </motion.div>
 
       {/* Feature Toggles */}
-      <Card className="dashboard-section">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.7, duration: 0.5 }}
+      >
+        <Card className="dashboard-section">
         <div className="flex items-center justify-between mb-4">
           <Title level={4} className="!text-foreground !mb-0">
             Bật/Tắt Tính Năng
@@ -199,9 +227,15 @@ const AdminDashboard: React.FC = () => {
           pagination={false}
         />
       </Card>
+      </motion.div>
 
       {/* Recent Activity */}
-      <Card className="dashboard-section">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.8, duration: 0.5 }}
+      >
+        <Card className="dashboard-section">
         <div className="flex items-center justify-between mb-4">
           <Title level={4} className="!text-foreground !mb-0">
             Hoạt Động Hệ Thống Gần Đây
@@ -216,7 +250,8 @@ const AdminDashboard: React.FC = () => {
           scroll={{ x: 'max-content' }}
         />
       </Card>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 };
 

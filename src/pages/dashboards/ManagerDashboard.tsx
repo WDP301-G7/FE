@@ -1,5 +1,6 @@
 import React from 'react';
 import { Row, Col, Card, Typography, Statistic, Table, Tag, Progress } from 'antd';
+import { motion } from 'framer-motion';
 import {
   ShoppingCartOutlined,
   DollarOutlined,
@@ -57,23 +58,32 @@ const ManagerDashboard: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-6">
-      <div><Title level={2} className="!text-foreground !mb-1">Bảng Điều Khiển Quản Lý</Title><Text className="text-muted-foreground">Tổng quan hiệu suất kinh doanh</Text></div>
+    <motion.div 
+      className="space-y-6"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+    >
+      <motion.div
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: 0.1, duration: 0.5 }}
+      ><Title level={2} className="!text-foreground !mb-1">Bảng Điều Khiển Quản Lý</Title><Text className="text-muted-foreground">Tổng quan hiệu suất kinh doanh</Text></motion.div>
       <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12} lg={6}><Card className="stat-card"><Statistic title="Tổng Đơn Hàng" value={totalOrders} prefix={<ShoppingCartOutlined className="text-primary mr-2" />} /></Card></Col>
-        <Col xs={24} sm={12} lg={6}><Card className="stat-card"><Statistic title="Doanh Thu" value={totalRevenue} precision={2} prefix="$" /></Card></Col>
-        <Col xs={24} sm={12} lg={6}><Card className="stat-card"><Statistic title="Chờ Xử Lý" value={pendingOrders} prefix={<ClockCircleOutlined className="text-warning mr-2" />} /></Card></Col>
-        <Col xs={24} sm={12} lg={6}><Card className="stat-card"><Statistic title="Hoàn Thành" value={completedOrders} prefix={<CheckCircleOutlined className="text-success mr-2" />} /></Card></Col>
+        <Col xs={24} sm={12} lg={6}><motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.5 }} whileHover={{ y: -5, transition: { duration: 0.2 } }}><Card className="stat-card"><Statistic title="Tổng Đơn Hàng" value={totalOrders} prefix={<ShoppingCartOutlined className="text-primary mr-2" />} /></Card></motion.div></Col>
+        <Col xs={24} sm={12} lg={6}><motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.5 }} whileHover={{ y: -5, transition: { duration: 0.2 } }}><Card className="stat-card"><Statistic title="Doanh Thu" value={totalRevenue} precision={2} prefix="$" /></Card></motion.div></Col>
+        <Col xs={24} sm={12} lg={6}><motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4, duration: 0.5 }} whileHover={{ y: -5, transition: { duration: 0.2 } }}><Card className="stat-card"><Statistic title="Chờ Xử Lý" value={pendingOrders} prefix={<ClockCircleOutlined className="text-warning mr-2" />} /></Card></motion.div></Col>
+        <Col xs={24} sm={12} lg={6}><motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5, duration: 0.5 }} whileHover={{ y: -5, transition: { duration: 0.2 } }}><Card className="stat-card"><Statistic title="Hoàn Thành" value={completedOrders} prefix={<CheckCircleOutlined className="text-success mr-2" />} /></Card></motion.div></Col>
       </Row>
       <Row gutter={[16, 16]}>
-        <Col xs={24} lg={12}><Card className="dashboard-section"><Title level={4}>Đơn Hàng Theo Loại</Title><ResponsiveContainer width="100%" height={250}><PieChart><Pie data={ordersByType} cx="50%" cy="50%" innerRadius={60} outerRadius={90} dataKey="value" label>{ordersByType.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></Card></Col>
-        <Col xs={24} lg={12}><Card className="dashboard-section"><Title level={4}>Đơn Hàng Theo Trạng Thái</Title><ResponsiveContainer width="100%" height={250}><BarChart data={ordersByStatus}><XAxis dataKey="status" /><YAxis /><Tooltip /><Bar dataKey="count" fill="#0891b2" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></Card></Col>
+        <Col xs={24} lg={12}><motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.6, duration: 0.5 }}><Card className="dashboard-section"><Title level={4}>Đơn Hàng Theo Loại</Title><ResponsiveContainer width="100%" height={250}><PieChart><Pie data={ordersByType} cx="50%" cy="50%" innerRadius={60} outerRadius={90} dataKey="value" label>{ordersByType.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></Card></motion.div></Col>
+        <Col xs={24} lg={12}><motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.6, duration: 0.5 }}><Card className="dashboard-section"><Title level={4}>Đơn Hàng Theo Trạng Thái</Title><ResponsiveContainer width="100%" height={250}><BarChart data={ordersByStatus}><XAxis dataKey="status" /><YAxis /><Tooltip /><Bar dataKey="count" fill="#0891b2" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></Card></motion.div></Col>
       </Row>
       <Row gutter={[16, 16]}>
-        <Col xs={24} lg={12}><Card className="dashboard-section"><Title level={4}>Đơn Hàng Gần Đây</Title><Table dataSource={recentOrders} columns={orderColumns} rowKey="id" pagination={false} size="small" /></Card></Col>
-        <Col xs={24} lg={12}><Card className="dashboard-section"><Title level={4}>Tồn Kho Sản Phẩm</Title><Table dataSource={topProducts} columns={productColumns} rowKey="id" pagination={false} size="small" /></Card></Col>
+        <Col xs={24} lg={12}><motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7, duration: 0.5 }}><Card className="dashboard-section"><Title level={4}>Đơn Hàng Gần Đây</Title><Table dataSource={recentOrders} columns={orderColumns} rowKey="id" pagination={false} size="small" /></Card></motion.div></Col>
+        <Col xs={24} lg={12}><motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8, duration: 0.5 }}><Card className="dashboard-section"><Title level={4}>Tồn Kho Sản Phẩm</Title><Table dataSource={topProducts} columns={productColumns} rowKey="id" pagination={false} size="small" /></Card></motion.div></Col>
       </Row>
-    </div>
+    </motion.div>
   );
 };
 

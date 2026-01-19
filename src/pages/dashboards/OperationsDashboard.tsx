@@ -1,5 +1,6 @@
 import React from 'react';
 import { Row, Col, Card, Typography, Statistic, Table, Tag, Button, Space, Steps } from 'antd';
+import { motion } from 'framer-motion';
 import {
   InboxOutlined,
   CarOutlined,
@@ -101,20 +102,30 @@ const OperationsDashboard: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-6">
+    <motion.div 
+      className="space-y-6"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+    >
       {/* Page Header */}
-      <div>
+      <motion.div
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: 0.1, duration: 0.5 }}
+      >
         <Title level={2} className="!text-foreground !mb-1">
           Bảng Điều Khiển Vận Hành
         </Title>
         <Text className="text-muted-foreground">
           Quản lý xử lý đơn hàng, vận chuyển và theo dõi giao hàng
         </Text>
-      </div>
+      </motion.div>
 
       {/* Statistics Cards */}
       <Row gutter={[16, 16]}>
         <Col xs={24} sm={12} lg={6}>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.5 }} whileHover={{ y: -5, transition: { duration: 0.2 } }}>
           <Card className="stat-card">
             <Statistic
               title={<span className="text-muted-foreground">Chờ Xử Lý</span>}
@@ -123,9 +134,11 @@ const OperationsDashboard: React.FC = () => {
               valueStyle={{ color: 'hsl(var(--foreground))' }}
             />
           </Card>
+          </motion.div>
         </Col>
 
         <Col xs={24} sm={12} lg={6}>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.5 }} whileHover={{ y: -5, transition: { duration: 0.2 } }}>
           <Card className="stat-card">
             <Statistic
               title={<span className="text-muted-foreground">Đơn Thuốc Đang Xử Lý</span>}
@@ -134,9 +147,11 @@ const OperationsDashboard: React.FC = () => {
               valueStyle={{ color: 'hsl(var(--foreground))' }}
             />
           </Card>
+          </motion.div>
         </Col>
 
         <Col xs={24} sm={12} lg={6}>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4, duration: 0.5 }} whileHover={{ y: -5, transition: { duration: 0.2 } }}>
           <Card className="stat-card">
             <Statistic
               title={<span className="text-muted-foreground">Đơn Đặt Trước Chờ</span>}
@@ -145,9 +160,11 @@ const OperationsDashboard: React.FC = () => {
               valueStyle={{ color: 'hsl(var(--foreground))' }}
             />
           </Card>
+          </motion.div>
         </Col>
 
         <Col xs={24} sm={12} lg={6}>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5, duration: 0.5 }} whileHover={{ y: -5, transition: { duration: 0.2 } }}>
           <Card className="stat-card">
             <Statistic
               title={<span className="text-muted-foreground">Sẵn Sàng Giao Hàng</span>}
@@ -156,11 +173,17 @@ const OperationsDashboard: React.FC = () => {
               valueStyle={{ color: 'hsl(var(--foreground))' }}
             />
           </Card>
+          </motion.div>
         </Col>
       </Row>
 
       {/* Workflow Progress */}
-      <Card className="dashboard-section">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.6, duration: 0.5 }}
+      >
+        <Card className="dashboard-section">
         <Title level={4} className="!text-foreground !mb-6">
           Quy Trình Xử Lý Đơn Hàng
         </Title>
@@ -181,9 +204,15 @@ const OperationsDashboard: React.FC = () => {
           }))}
         />
       </Card>
+      </motion.div>
 
       {/* Processing Queue */}
-      <Card className="dashboard-section">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.7, duration: 0.5 }}
+      >
+        <Card className="dashboard-section">
         <div className="flex items-center justify-between mb-4">
           <Title level={4} className="!text-foreground !mb-0">
             Đơn Hàng Chờ Xử Lý
@@ -200,10 +229,12 @@ const OperationsDashboard: React.FC = () => {
           scroll={{ x: 'max-content' }}
         />
       </Card>
+      </motion.div>
 
       {/* Quick Actions */}
       <Row gutter={[16, 16]}>
         <Col xs={24} md={8}>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8, duration: 0.5 }} whileHover={{ y: -5, transition: { duration: 0.2 } }}>
           <Card className="dashboard-section text-center">
             <InboxOutlined className="text-4xl text-primary mb-3" />
             <Title level={5} className="!text-foreground">
@@ -216,9 +247,11 @@ const OperationsDashboard: React.FC = () => {
               Xem Đơn Thuốc
             </Button>
           </Card>
+          </motion.div>
         </Col>
 
         <Col xs={24} md={8}>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.9, duration: 0.5 }} whileHover={{ y: -5, transition: { duration: 0.2 } }}>
           <Card className="dashboard-section text-center">
             <CarOutlined className="text-4xl text-success mb-3" />
             <Title level={5} className="!text-foreground">
@@ -231,9 +264,11 @@ const OperationsDashboard: React.FC = () => {
               Tạo Nhãn
             </Button>
           </Card>
+          </motion.div>
         </Col>
 
         <Col xs={24} md={8}>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.0, duration: 0.5 }} whileHover={{ y: -5, transition: { duration: 0.2 } }}>
           <Card className="dashboard-section text-center">
             <RocketOutlined className="text-4xl text-warning mb-3" />
             <Title level={5} className="!text-foreground">
@@ -246,9 +281,10 @@ const OperationsDashboard: React.FC = () => {
               Xem Hàng Đặt Trước
             </Button>
           </Card>
+          </motion.div>
         </Col>
       </Row>
-    </div>
+    </motion.div>
   );
 };
 
