@@ -8,6 +8,9 @@ import { AuthProvider } from "@/context/AuthContext";
 import MainLayout from "@/components/layout/MainLayout";
 import LoginPage from "@/pages/LoginPage";
 import Dashboard from "@/pages/Dashboard";
+import AdminOrdersManagement from "@/pages/dashboards/admin-components/AdminOrdersManagement";
+import AdminUsersManagement from "@/pages/dashboards/admin-components/AdminUsersManagement";
+import AdminSystemsManagement from "@/pages/dashboards/admin-components/AdminSystemsManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,6 +36,9 @@ const App = () => (
                 <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="orders" element={<Dashboard />} />
+                <Route path="admin/orders" element={<AdminOrdersManagement />} />
+                <Route path="admin/users" element={<AdminUsersManagement />} />
+                <Route path="admin/systems" element={<AdminSystemsManagement />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>

@@ -38,13 +38,6 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
       label: 'Dashboard',
     });
 
-    // Orders - available to all
-    items.push({
-      key: '/orders',
-      icon: <ShoppingCartOutlined />,
-      label: 'Orders',
-    });
-
     // Products - Manager only
     if (hasRole(['manager'])) {
       items.push({
@@ -63,38 +56,37 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
       });
     }
 
-    // Users - Manager and Admin
-    if (hasRole(['manager', 'admin'])) {
-      items.push({
-        key: '/users',
-        icon: <TeamOutlined />,
-        label: 'Users',
-      });
-    }
 
-    // System Settings - Admin only
+    // Admin Management - Admin only
     if (hasRole(['admin'])) {
       items.push({
-        key: 'system',
+        key: '/admin/orders',
+        icon: <ShoppingCartOutlined />,
+        label: 'Quản Lý Đơn Hàng',
+      });
+      
+      items.push({
+        key: '/admin/users',
+        icon: <TeamOutlined />,
+        label: 'Quản Lý Người Dùng',
+      });
+      
+      items.push({
+        key: '/admin/systems',
         icon: <SettingOutlined />,
-        label: 'System',
-        children: [
-          {
-            key: '/system-settings',
-            icon: <SettingOutlined />,
-            label: 'Settings',
-          },
-          {
-            key: '/audit-logs',
-            icon: <AuditOutlined />,
-            label: 'Audit Logs',
-          },
-          {
-            key: '/permissions',
-            icon: <SafetyCertificateOutlined />,
-            label: 'Permissions',
-          },
-        ],
+        label: 'Quản Lý Hệ Thống',
+      });
+      
+      items.push({
+        key: '/audit-logs',
+        icon: <AuditOutlined />,
+        label: 'Audit Logs',
+      });
+      
+      items.push({
+        key: '/permissions',
+        icon: <SafetyCertificateOutlined />,
+        label: 'Permissions',
       });
     }
 

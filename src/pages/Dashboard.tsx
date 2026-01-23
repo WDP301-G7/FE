@@ -3,7 +3,7 @@ import { useAuth } from '@/context/AuthContext';
 import ManagerDashboard from './dashboards/ManagerDashboard';
 import SalesDashboard from './dashboards/SalesDashboard';
 import OperationsDashboard from './dashboards/OperationsDashboard';
-import AdminDashboard from './dashboards/AdminDashboard';
+import AdminDashboard from './dashboards/admin-components/AdminDashboard';
 
 /**
  * Dashboard page that renders role-specific content
