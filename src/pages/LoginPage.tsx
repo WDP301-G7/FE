@@ -1,31 +1,36 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { UserRole } from '@/mock-data/users';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Card, CardContent } from '@/components/ui/card';
+import { useToast } from '@/hooks/use-toast';
+import { authService } from '@/services/auth.service';
 import { 
-  CircleUserRound, 
-  Users, 
-  CheckCircle, 
-  PenLine, 
   Eye, 
-  EyeOff 
+  EyeOff
 } from 'lucide-react';
-import { EyeOutlined } from '@ant-design/icons';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 const LoginPage: React.FC = () => {
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('admin@company.com');
+  const { toast } = useToast();
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Load remembered email on mount
+  React.useEffect(() => {
+    const rememberedEmail = localStorage.getItem('rememberedEmail');
+    if (rememberedEmail) {
+      setEmail(rememberedEmail);
+      setRememberMe(true);
+    }
+  }, []);
 
   // Redirect if already logged in
   React.useEffect(() => {
@@ -34,61 +39,66 @@ const LoginPage: React.FC = () => {
     }
   }, [isAuthenticated, navigate]);
 
-  const handleLogin = async (role: UserRole) => {
-    setIsLoading(true);
-    // Simulate loading for smooth transition
-    await new Promise(resolve => setTimeout(resolve, 800));
-    login(role);
-    navigate('/dashboard');
-  };
-
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    // Simulate loading for smooth transition
-    await new Promise(resolve => setTimeout(resolve, 800));
-    login('admin');
-    navigate('/dashboard');
-  };
+    
+    if (!email || !password) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please fill in all fields',
+        variant: 'destructive',
+      });
+      return;
+    }
 
-  const demoRoles = [
-    { 
-      role: 'admin' as UserRole, 
-      label: 'Quản trị viên', 
-      subtitle: 'Quản lý người dùng',
-      icon: CircleUserRound,
-      color: 'text-red-500',
-      bgColor: 'bg-red-50 hover:bg-red-100',
-      borderColor: 'border-red-200 hover:border-red-300'
-    },
-    { 
-      role: 'manager' as UserRole, 
-      label: 'Quản lý', 
-      subtitle: 'Quản lý công việc',
-      icon: Users,
-      color: 'text-blue-500',
-      bgColor: 'bg-blue-50 hover:bg-blue-100',
-      borderColor: 'border-blue-200 hover:border-blue-300'
-    },
-    { 
-      role: 'sales' as UserRole, 
-      label: 'Nhân viên bán hàng', 
-      subtitle: 'Bán hàng',
-      icon: CheckCircle,
-      color: 'text-purple-500',
-      bgColor: 'bg-purple-50 hover:bg-purple-100',
-      borderColor: 'border-purple-200 hover:border-purple-300'
-    },
-    { 
-      role: 'operations' as UserRole, 
-      label: 'Nhân viên vận hành', 
-      subtitle: 'Vận hành',
-      icon: PenLine,
-      color: 'text-green-500',
-      bgColor: 'bg-green-50 hover:bg-green-100',
-      borderColor: 'border-green-200 hover:border-green-300'
-    },
-  ];
+    setIsLoading(true);
+
+    try {
+      const response = await authService.login({ email, password });
+      
+      // Check if user has permission to access admin panel
+      const allowedRoles = ['ADMIN', 'MANAGER', 'STAFF'];
+      if (!allowedRoles.includes(response.user.role)) {
+        toast({
+          title: 'Access Denied',
+          description: 'You do not have permission to access the admin panel. Only staff members can login here.',
+          variant: 'destructive',
+        });
+        setIsLoading(false);
+        return;
+      }
+      
+      // Save tokens to localStorage
+      localStorage.setItem('accessToken', response.tokens.accessToken);
+      localStorage.setItem('refreshToken', response.tokens.refreshToken);
+      localStorage.setItem('user', JSON.stringify(response.user));
+
+      // Handle Remember Me
+      if (rememberMe) {
+        localStorage.setItem('rememberedEmail', email);
+      } else {
+        localStorage.removeItem('rememberedEmail');
+      }
+
+      toast({
+        title: 'Success',
+        description: 'Login successful!',
+      });
+
+      // Pass user data to login function
+      login(response.user);
+      navigate('/dashboard');
+    } catch (error: any) {
+      console.error('Login error:', error);
+      toast({
+        title: 'Login Failed',
+        description: error.response?.data?.message || 'Invalid email or password',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 flex items-center justify-center p-4 overflow-hidden">
@@ -136,16 +146,26 @@ const LoginPage: React.FC = () => {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.2, duration: 0.6, type: "spring" }}
           >
-            <EyeOutlined 
-              className="bg-gradient-to-r text-sidebar-primary" 
-              style={{ 
-                fontSize: '80px',
-                background: 'linear-gradient(to right, rgb(147, 51, 234), rgb(37, 99, 235))',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text'
-              }} 
-            /> 
+            <div className="relative">
+              <Eye 
+                className="text-sidebar-primary" 
+                style={{ 
+                  fontSize: '80px',
+                  width: '80px',
+                  height: '80px',
+                  stroke: 'url(#gradient)',
+                  strokeWidth: 1.5
+                }} 
+              />
+              <svg width="0" height="0">
+                <defs>
+                  <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" style={{ stopColor: 'rgb(147, 51, 234)', stopOpacity: 1 }} />
+                    <stop offset="100%" style={{ stopColor: 'rgb(37, 99, 235)', stopOpacity: 1 }} />
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
           </motion.div>
 
           {/* Login Form */}
@@ -196,20 +216,19 @@ const LoginPage: React.FC = () => {
                   className="h-12 text-base pr-10 transition-all duration-300 focus:scale-[1.02]"
                   placeholder="••••••••••"
                   disabled={isLoading}
+                  autoComplete="current-password"
                 />
-                <motion.button
+                <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.95 }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
                 >
                   {showPassword ? (
                     <EyeOff className="h-5 w-5" />
                   ) : (
                     <Eye className="h-5 w-5" />
                   )}
-                </motion.button>
+                </button>
               </div>
             </motion.div>
 
@@ -319,68 +338,26 @@ const LoginPage: React.FC = () => {
             </Button>
           </motion.div>
 
-          {/* Quick Login - Demo Mode */}
-          <motion.div 
-            className="mt-8 p-4 bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg border border-blue-200 shadow-inner"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1, duration: 0.6 }}
+          {/* Sign Up Link */}
+          <motion.div
+            className="mt-6 text-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.5, duration: 0.5 }}
           >
-            <motion.h3 
-              className="text-center text-sm font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-4"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 1.1, duration: 0.5 }}
-            >
-              Quick Login - Demo Mode
-            </motion.h3>
-            
-            <div className="grid grid-cols-2 gap-3">
-              <AnimatePresence>
-                {demoRoles.map((item, index) => {
-                  const Icon = item.icon;
-                  return (
-                    <motion.div
-                      key={item.role}
-                      initial={{ opacity: 0, scale: 0.8, y: 20 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      transition={{ 
-                        delay: 1.2 + index * 0.1, 
-                        duration: 0.5,
-                        type: "spring",
-                        stiffness: 100
-                      }}
-                      whileHover={{ 
-                        scale: 1.05,
-                        y: -5,
-                        transition: { duration: 0.2 }
-                      }}
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      <Card
-                        className={`cursor-pointer transition-all duration-300 ${item.bgColor} ${item.borderColor} border-2 shadow-sm hover:shadow-lg`}
-                        onClick={() => !isLoading && handleLogin(item.role)}
-                      >
-                        <CardContent className="p-4 flex flex-col items-center justify-center text-center space-y-1">
-                          <motion.div
-                            whileHover={{ rotate: 360 }}
-                            transition={{ duration: 0.6 }}
-                          >
-                            <Icon className={`h-6 w-6 ${item.color}`} />
-                          </motion.div>
-                          <div className="font-medium text-gray-900 text-sm">
-                            {item.label}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {item.subtitle}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  );
-                })}
-              </AnimatePresence>
-            </div>
+            <p className="text-sm text-gray-600">
+              Don't have an account?{' '}
+              <a 
+                href="/register" 
+                className="text-blue-600 hover:underline font-medium"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate('/register');
+                }}
+              >
+                Sign up
+              </a>
+            </p>
           </motion.div>
         </motion.div>
       </motion.div>
