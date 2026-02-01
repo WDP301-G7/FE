@@ -38,63 +38,55 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
       label: 'Dashboard',
     });
 
-    // Orders - available to all
-    items.push({
-      key: '/orders',
-      icon: <ShoppingCartOutlined />,
-      label: 'Orders',
-    });
+    // Manager specific menus
+    if (hasRole(['MANAGER', 'manager'])) {
+      // Manager chỉ xem orders và overview
+    }
 
-    // Products - Manager only
-    if (hasRole(['manager'])) {
+    // Orders - for Staff, Manager, Operations
+    if (hasRole(['STAFF', 'staff', 'MANAGER', 'manager', 'OPERATIONS', 'operations'])) {
+      items.push({
+        key: '/orders',
+        icon: <ShoppingCartOutlined />,
+        label: 'Orders',
+      });
+    }
+
+    // Admin Management - Admin only
+    if (hasRole(['admin', 'ADMIN'])) {
       items.push({
         key: '/products',
         icon: <AppstoreOutlined />,
         label: 'Products',
       });
-    }
-
-    // Policies - Manager only
-    if (hasRole(['manager'])) {
       items.push({
-        key: '/policies',
-        icon: <FileProtectOutlined />,
-        label: 'Policies',
+        key: '/admin/orders',
+        icon: <ShoppingCartOutlined />,
+        label: 'Quản Lý Đơn Hàng',
       });
-    }
-
-    // Users - Manager and Admin
-    if (hasRole(['manager', 'admin'])) {
+      
       items.push({
-        key: '/users',
+        key: '/admin/users',
         icon: <TeamOutlined />,
-        label: 'Users',
+        label: 'Quản Lý Người Dùng',
       });
-    }
-
-    // System Settings - Admin only
-    if (hasRole(['admin'])) {
+      
       items.push({
-        key: 'system',
+        key: '/admin/systems',
         icon: <SettingOutlined />,
-        label: 'System',
-        children: [
-          {
-            key: '/system-settings',
-            icon: <SettingOutlined />,
-            label: 'Settings',
-          },
-          {
-            key: '/audit-logs',
-            icon: <AuditOutlined />,
-            label: 'Audit Logs',
-          },
-          {
-            key: '/permissions',
-            icon: <SafetyCertificateOutlined />,
-            label: 'Permissions',
-          },
-        ],
+        label: 'Quản Lý Hệ Thống',
+      });
+      
+      items.push({
+        key: '/audit-logs',
+        icon: <AuditOutlined />,
+        label: 'Audit Logs',
+      });
+      
+      items.push({
+        key: '/permissions',
+        icon: <SafetyCertificateOutlined />,
+        label: 'Permissions',
       });
     }
 
@@ -120,7 +112,7 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
           <EyeOutlined className="text-2xl text-sidebar-primary" />
           {!collapsed && (
             <span className="text-lg font-bold text-sidebar-foreground">
-              VisionHub
+              EyeCare Store
             </span>
           )}
         </div>
