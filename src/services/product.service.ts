@@ -6,10 +6,15 @@ export interface Product {
   description?: string;
   price: number;
   stockQuantity: number;
-  category?: string;
+  category?: string | { id: string; name: string };
   status: 'ACTIVE' | 'INACTIVE' | 'OUT_OF_STOCK';
   images?: ProductImage[];
   primaryImage?: string;
+  type?: 'FRAME' | 'LENS' | 'ACCESSORY';
+  sku?: string;
+  brand?: string;
+  isPreorder?: boolean;
+  leadTimeDays?: number;
   createdAt: string;
   updatedAt: string;
 }

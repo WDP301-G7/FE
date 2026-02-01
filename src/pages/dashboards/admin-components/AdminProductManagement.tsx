@@ -121,17 +121,20 @@ export const AdminProductManagement: React.FC = () => {
 
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
-    const productType: 'FRAME' | 'LENS' | 'ACCESSORY' = 'FRAME'; // Default, should get from product
+    console.log('Editing product:', product);
+    const productType: 'FRAME' | 'LENS' | 'ACCESSORY' = product.type || 'FRAME';
     setFormData({
-      categoryId: TYPE_TO_CATEGORY_ID[productType],
+      categoryId: product.category && typeof product.category === 'object' 
+        ? product.category.id 
+        : TYPE_TO_CATEGORY_ID[productType],
       name: product.name,
       description: product.description || '',
       type: productType,
       price: product.price,
-      isPreorder: false,
-      leadTimeDays: undefined,
-      sku: '',
-      brand: '',
+      isPreorder: product.isPreorder || false,
+      leadTimeDays: product.leadTimeDays,
+      sku: product.sku || '',
+      brand: product.brand || '',
     });
     setIsDialogOpen(true);
   };
@@ -314,6 +317,7 @@ export const AdminProductManagement: React.FC = () => {
                   onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
                   placeholder="Product SKU"
                   required
+                  disabled={!!editingProduct}
                 />
               </div>
 
@@ -324,6 +328,7 @@ export const AdminProductManagement: React.FC = () => {
                   value={formData.brand}
                   onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
                   placeholder="Product brand"
+                  disabled={!!editingProduct}
                 />
               </div>
 
@@ -348,6 +353,7 @@ export const AdminProductManagement: React.FC = () => {
                       categoryId: TYPE_TO_CATEGORY_ID[value]
                     });
                   }}
+                  disabled={!!editingProduct}
                 >
                   <SelectTrigger>
                     <SelectValue />
