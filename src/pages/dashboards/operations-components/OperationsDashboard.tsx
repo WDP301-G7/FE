@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { OrderManagement } from './staff-components/OrderManagement';
+import { OrderManagement } from '../staff-components/OrderManagement';
 import { LayoutDashboard, Truck, Package, MapPin } from 'lucide-react';
 
 const OperationsDashboard: React.FC = () => {

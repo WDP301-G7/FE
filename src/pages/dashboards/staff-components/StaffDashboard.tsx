@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { OrderManagement } from './staff-components/OrderManagement';
+import { OrderManagement } from './OrderManagement';
 import { LayoutDashboard, ShoppingCart, Clock } from 'lucide-react';
 
 const StaffDashboard: React.FC = () => {
