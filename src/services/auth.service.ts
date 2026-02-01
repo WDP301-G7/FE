@@ -1,4 +1,4 @@
-import api from '@/lib/api';
+import { api } from '@/lib/api';
 
 export interface RegisterData {
   fullName: string;
@@ -9,7 +9,8 @@ export interface RegisterData {
 }
 
 export interface LoginData {
-  email: string;
+  email?: string;
+  username?: string;
   password: string;
 }
 
@@ -32,12 +33,21 @@ export interface AuthResponse {
 
 class AuthService {
   async register(data: RegisterData): Promise<AuthResponse> {
+    console.log('Register API call with:', { ...data, password: '***' });
     const response = await api.post<{ data: AuthResponse }>('/auth/register', data);
+    console.log('Register response:', response.data);
     return response.data.data;
   }
 
   async login(data: LoginData): Promise<AuthResponse> {
-    const response = await api.post<{ data: AuthResponse }>('/auth/login', data);
+    // Backend expects 'email' field, not 'username'
+    const payload = {
+      email: data.email || data.username,
+      password: data.password,
+    };
+    console.log('Login payload:', { email: payload.email, password: '***' });
+    const response = await api.post<{ data: AuthResponse }>('/auth/login', payload);
+    console.log('Login response:', response.data);
     return response.data.data;
   }
 

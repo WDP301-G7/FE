@@ -57,7 +57,7 @@ const LoginPage: React.FC = () => {
       const response = await authService.login({ email, password });
       
       // Check if user has permission to access admin panel
-      const allowedRoles = ['ADMIN', 'MANAGER', 'STAFF'];
+      const allowedRoles = ['ADMIN', 'MANAGER', 'STAFF', 'OPERATION'];
       if (!allowedRoles.includes(response.user.role)) {
         toast({
           title: 'Access Denied',
@@ -90,6 +90,8 @@ const LoginPage: React.FC = () => {
       navigate('/dashboard');
     } catch (error: any) {
       console.error('Login error:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Request data:', { email, password: '***' });
       toast({
         title: 'Login Failed',
         description: error.response?.data?.message || 'Invalid email or password',

@@ -92,6 +92,7 @@ const RegisterPage: React.FC = () => {
         address: address || undefined,
       };
 
+      console.log('Register data:', { ...registerData, password: '***' });
       await authService.register(registerData);
       
       toast({
@@ -103,6 +104,9 @@ const RegisterPage: React.FC = () => {
       navigate('/login');
     } catch (error: any) {
       console.error('Registration error:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+      console.error('Error details:', JSON.stringify(error.response?.data?.error, null, 2));
       
       const errorMessage = error.response?.data?.message || 'Registration failed. Please try again.';
       const errorDetails = error.response?.data?.errors;

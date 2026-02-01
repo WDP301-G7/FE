@@ -38,27 +38,27 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
       label: 'Dashboard',
     });
 
-    // Products - Manager only
-    if (hasRole(['manager'])) {
+    // Manager specific menus
+    if (hasRole(['MANAGER', 'manager'])) {
+      // Manager chỉ xem orders và overview
+    }
+
+    // Orders - for Staff, Manager, Operations
+    if (hasRole(['STAFF', 'staff', 'MANAGER', 'manager', 'OPERATIONS', 'operations'])) {
+      items.push({
+        key: '/orders',
+        icon: <ShoppingCartOutlined />,
+        label: 'Orders',
+      });
+    }
+
+    // Admin Management - Admin only
+    if (hasRole(['admin', 'ADMIN'])) {
       items.push({
         key: '/products',
         icon: <AppstoreOutlined />,
         label: 'Products',
       });
-    }
-
-    // Policies - Manager only
-    if (hasRole(['manager'])) {
-      items.push({
-        key: '/policies',
-        icon: <FileProtectOutlined />,
-        label: 'Policies',
-      });
-    }
-
-
-    // Admin Management - Admin only
-    if (hasRole(['admin'])) {
       items.push({
         key: '/admin/orders',
         icon: <ShoppingCartOutlined />,

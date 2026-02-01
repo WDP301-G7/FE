@@ -9,6 +9,8 @@ import MainLayout from "@/components/layout/MainLayout";
 import LoginPage from "@/pages/LoginPage";
 import RegisterPage from "@/pages/RegisterPage";
 import Dashboard from "@/pages/Dashboard";
+import { AdminProductManagement } from "@/pages/dashboards/admin-components/AdminProductManagement";
+import { OrderManagement } from "@/pages/dashboards/staff-components/OrderManagement";
 import AdminOrdersManagement from "@/pages/dashboards/admin-components/AdminOrdersManagement";
 import AdminUsersManagement from "@/pages/dashboards/admin-components/AdminUsersManagement";
 import AdminSystemsManagement from "@/pages/dashboards/admin-components/AdminSystemsManagement";
@@ -37,7 +39,8 @@ const App = () => (
               <Route path="/" element={<MainLayout />}>
                 <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="dashboard" element={<Dashboard />} />
-                <Route path="orders" element={<Dashboard />} />
+                <Route path="products" element={<AdminProductManagement />} />
+                <Route path="orders" element={<OrderManagement />} />
                 <Route path="admin/orders" element={<AdminOrdersManagement />} />
                 <Route path="admin/users" element={<AdminUsersManagement />} />
                 <Route path="admin/systems" element={<AdminSystemsManagement />} />
