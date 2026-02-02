@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { productService, Product, CreateProductData } from '@/services/product.service';
+import { productService, Product, CreateProductData, ProductImage } from '@/services/product.service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Pencil, Trash2, Search, Package } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Package, Image, UploadCloud, Star } from 'lucide-react';
 
 // Map product type to category ID from database
 const TYPE_TO_CATEGORY_ID: Record<'FRAME' | 'LENS' | 'ACCESSORY', string> = {
@@ -27,6 +27,13 @@ export const AdminProductManagement: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0 });
+
+  // Image management state
+  const [imagesDialogOpen, setImagesDialogOpen] = useState(false);
+  const [selectedProductImages, setSelectedProductImages] = useState<ProductImage[]>([]);
+  const [selectedProductForImages, setSelectedProductForImages] = useState<Product | null>(null);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagesLoading, setImagesLoading] = useState(false);
 
   const [formData, setFormData] = useState<CreateProductData>({
     categoryId: TYPE_TO_CATEGORY_ID.FRAME,
@@ -47,7 +54,7 @@ export const AdminProductManagement: React.FC = () => {
   const loadProducts = async () => {
     setLoading(true);
     try {
-      const data = await productService.getProducts({
+      const data: any = await productService.getProducts({
         page: pagination.page,
         limit: pagination.limit,
         search: searchTerm,
@@ -155,6 +162,95 @@ export const AdminProductManagement: React.FC = () => {
     }
   };
 
+  // Image management helpers
+  const loadImages = async (productId: string) => {
+    setImagesLoading(true);
+    try {
+      const imgs = await productService.getProductImages(productId);
+      setSelectedProductImages(imgs);
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.response?.data?.message || 'Failed to load images', variant: 'destructive' });
+    } finally {
+      setImagesLoading(false);
+    }
+  };
+
+  const openImagesDialog = async (product: Product) => {
+    setSelectedProductForImages(product);
+    setImagesDialogOpen(true);
+    await loadImages(product.id);
+  };
+
+  const handleFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    setImageFiles(files);
+  };
+
+  const handleUploadImages = async () => {
+    if (!selectedProductForImages || imageFiles.length === 0) return;
+    setImagesLoading(true);
+    try {
+      await productService.uploadProductImages(selectedProductForImages.id, imageFiles);
+      toast({ title: 'Success', description: 'Images uploaded successfully' });
+      setImageFiles([]);
+      await loadImages(selectedProductForImages.id);
+
+      // Fetch updated product and update products list so thumbnail updates immediately
+      try {
+        const updatedProduct = await productService.getProduct(selectedProductForImages.id);
+        setSelectedProductForImages(updatedProduct);
+        setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
+      } catch (err) {
+        console.warn('Failed to refresh product after upload', err);
+      }
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.response?.data?.message || 'Upload failed', variant: 'destructive' });
+    } finally {
+      setImagesLoading(false);
+    }
+  };
+
+  const handleSetPrimaryImage = async (imageId: string) => {
+    if (!selectedProductForImages) return;
+    try {
+      await productService.setPrimaryImage(selectedProductForImages.id, imageId);
+      toast({ title: 'Success', description: 'Primary image set' });
+      await loadImages(selectedProductForImages.id);
+
+      // Refresh product to update thumbnail
+      try {
+        const updatedProduct = await productService.getProduct(selectedProductForImages.id);
+        setSelectedProductForImages(updatedProduct);
+        setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
+      } catch (err) {
+        console.warn('Failed to refresh product after setting primary', err);
+      }
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.response?.data?.message || 'Operation failed', variant: 'destructive' });
+    }
+  };
+
+  const handleDeleteImage = async (imageId: string) => {
+    if (!selectedProductForImages) return;
+    if (!confirm('Delete this image?')) return;
+    try {
+      await productService.deleteProductImage(selectedProductForImages.id, imageId);
+      toast({ title: 'Success', description: 'Image deleted' });
+      await loadImages(selectedProductForImages.id);
+
+      // Refresh product to update thumbnail
+      try {
+        const updatedProduct = await productService.getProduct(selectedProductForImages.id);
+        setSelectedProductForImages(updatedProduct);
+        setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
+      } catch (err) {
+        console.warn('Failed to refresh product after delete image', err);
+      }
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.response?.data?.message || 'Operation failed', variant: 'destructive' });
+    }
+  };
+
   const resetForm = () => {
     setEditingProduct(null);
     setFormData({
@@ -231,12 +327,30 @@ export const AdminProductManagement: React.FC = () => {
               ) : (
                 products.map((product) => (
                   <TableRow key={product.id}>
-                    <TableCell className="font-medium">{product.name}</TableCell>
+                    <TableCell className="font-medium flex items-center gap-3">
+                      <div className="h-10 w-10 rounded overflow-hidden bg-muted-foreground/5 flex items-center justify-center">
+                        {product.primaryImage ? (
+                          <img src={product.primaryImage} alt={product.name} className="h-full w-full object-cover" />
+                        ) : (product.images && product.images.length > 0 ? (
+                          <img src={product.images.find(i => i.isPrimary)?.url || product.images[0].url} alt={product.name} className="h-full w-full object-cover" />
+                        ) : (
+                          <Image className="h-5 w-5 text-muted-foreground" />
+                        ))}
+                      </div>
+                      <div>{product.name}</div>
+                    </TableCell>
                     <TableCell>{typeof product.category === 'object' ? product.category?.name : product.category || '-'}</TableCell>
                     <TableCell>${Number(product.price).toFixed(2)}</TableCell>
                     <TableCell>{product.stockQuantity || '-'}</TableCell>
                     <TableCell>{getStatusBadge(product.status)}</TableCell>
                     <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openImagesDialog(product)}
+                      >
+                        <Image className="h-4 w-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -427,6 +541,57 @@ export const AdminProductManagement: React.FC = () => {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Images Dialog */}
+      <Dialog open={imagesDialogOpen} onOpenChange={(open) => {
+        setImagesDialogOpen(open);
+        if (!open) {
+          setSelectedProductForImages(null);
+          setSelectedProductImages([]);
+          setImageFiles([]);
+        }
+      }}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Images for {selectedProductForImages?.name}</DialogTitle>
+            <DialogDescription>Upload and manage images for this product.</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-4">
+            <div className="flex items-center gap-2">
+              <input type="file" multiple accept="image/*" onChange={handleFilesChange} />
+              <Button onClick={handleUploadImages} disabled={imageFiles.length === 0 || imagesLoading}>
+                <UploadCloud className="h-4 w-4 mr-2" /> Upload
+              </Button>
+              {imageFiles.length > 0 && <span className="text-sm text-muted-foreground">{imageFiles.length} file(s) selected</span>}
+            </div>
+
+            {imagesLoading ? (
+              <div>Loading images...</div>
+            ) : selectedProductImages.length === 0 ? (
+              <div className="text-sm text-muted-foreground">No images uploaded yet.</div>
+            ) : (
+              <div className="grid grid-cols-4 gap-4">
+                {selectedProductImages.map(img => (
+                  <div key={img.id} className="border p-2 rounded flex flex-col items-center">
+                    <img src={img.url} className="h-28 w-28 object-cover rounded" alt="product" />
+                    <div className="flex items-center gap-2 mt-2">
+                      {img.isPrimary && <Badge>Primary</Badge>}
+                      {!img.isPrimary && <Button size="sm" onClick={() => handleSetPrimaryImage(img.id)}><Star className="h-4 w-4" /></Button>}
+                      <Button variant="ghost" size="icon" onClick={() => handleDeleteImage(img.id)}><Trash2 className="h-4 w-4" /></Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImagesDialogOpen(false)}>Close</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </Card>

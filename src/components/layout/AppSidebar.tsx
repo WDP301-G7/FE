@@ -64,6 +64,17 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
         icon: <ShoppingCartOutlined />,
         label: 'Quản Lý Đơn Hàng',
       });
+       items.push({
+        key: '/admin/stores',
+        icon: <ShoppingCartOutlined />,
+        label: 'Quản Lý Cửa Hàng',
+      });
+      items.push({
+        key: '/admin/inventory',
+        icon: <FileProtectOutlined />,
+        label: 'Quản Lý Kho Hàng',
+      });
+      
       
       items.push({
         key: '/admin/users',
