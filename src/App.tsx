@@ -10,6 +10,8 @@ import LoginPage from "@/pages/LoginPage";
 import RegisterPage from "@/pages/RegisterPage";
 import Dashboard from "@/pages/Dashboard";
 import { AdminProductManagement } from "@/pages/dashboards/admin-components/AdminProductManagement";
+import { AdminStoresManagement } from "@/pages/dashboards/admin-components/AdminStoresManagement";
+import AdminInventoryManagement from "@/pages/dashboards/admin-components/AdminInventoryManagement";
 import { OrderManagement } from "@/pages/dashboards/staff-components/OrderManagement";
 import AdminOrdersManagement from "@/pages/dashboards/admin-components/AdminOrdersManagement";
 import AdminUsersManagement from "@/pages/dashboards/admin-components/AdminUsersManagement";
@@ -41,6 +43,8 @@ const App = () => (
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="products" element={<AdminProductManagement />} />
                 <Route path="orders" element={<OrderManagement />} />
+                <Route path="admin/inventory" element={<AdminInventoryManagement />} />
+                <Route path="admin/stores" element={<AdminStoresManagement />} />
                 <Route path="admin/orders" element={<AdminOrdersManagement />} />
                 <Route path="admin/users" element={<AdminUsersManagement />} />
                 <Route path="admin/systems" element={<AdminSystemsManagement />} />
