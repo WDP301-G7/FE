@@ -9,6 +9,7 @@ import {
   FileProtectOutlined,
   AuditOutlined,
   SafetyCertificateOutlined,
+  CalendarOutlined,
   EyeOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
@@ -63,6 +64,11 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
         key: '/admin/orders',
         icon: <ShoppingCartOutlined />,
         label: 'Quản Lý Đơn Hàng',
+      });
+      items.push({
+        key: '/admin/orders/operations',
+        icon: <CalendarOutlined />,
+        label: 'Duyệt Đơn',
       });
        items.push({
         key: '/admin/stores',
