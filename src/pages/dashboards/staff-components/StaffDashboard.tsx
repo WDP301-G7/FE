@@ -1,8 +1,8 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { OrderManagement } from './OrderManagement';
-import { LayoutDashboard, ShoppingCart, Clock } from 'lucide-react';
+import { MyAssignedOrders } from './MyAssignedOrders';
+import { LayoutDashboard, ClipboardList, Clock, ShoppingCart } from 'lucide-react';
 
 const StaffDashboard: React.FC = () => {
   console.log('✅ StaffDashboard component loaded');
@@ -21,8 +21,8 @@ const StaffDashboard: React.FC = () => {
             Overview
           </TabsTrigger>
           <TabsTrigger value="orders">
-            <ShoppingCart className="h-4 w-4 mr-2" />
-            Orders
+            <ClipboardList className="h-4 w-4 mr-2" />
+            My Orders
           </TabsTrigger>
         </TabsList>
 
@@ -72,7 +72,7 @@ const StaffDashboard: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="orders">
-          <OrderManagement />
+          <MyAssignedOrders />
         </TabsContent>
       </Tabs>
     </div>

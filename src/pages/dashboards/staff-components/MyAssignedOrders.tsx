@@ -6,13 +6,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Search, ShoppingCart, Eye, CheckCircle, XCircle } from 'lucide-react';
-import { Textarea } from '@/components/ui/textarea';
+import { Search, ClipboardList, Eye, CheckCircle, Package } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
-export const OrderManagement: React.FC = () => {
+export const MyAssignedOrders: React.FC = () => {
   const { toast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
@@ -20,9 +20,8 @@ export const OrderManagement: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
-  const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
-  const [newStatus, setNewStatus] = useState('');
-  const [statusNotes, setStatusNotes] = useState('');
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+  const [actionType, setActionType] = useState<'ready' | 'complete' | null>(null);
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0 });
 
   useEffect(() => {
@@ -32,7 +31,7 @@ export const OrderManagement: React.FC = () => {
   const loadOrders = async () => {
     setLoading(true);
     try {
-      const data = await orderService.getOrders({
+      const data = await orderService.getAssignedOrders({
         page: pagination.page,
         limit: pagination.limit,
         search: searchTerm,
@@ -43,7 +42,7 @@ export const OrderManagement: React.FC = () => {
     } catch (error: any) {
       toast({
         title: 'Error',
-        description: error.response?.data?.message || 'Failed to load orders',
+        description: error.response?.data?.message || 'Failed to load assigned orders',
         variant: 'destructive',
       });
     } finally {
@@ -56,30 +55,40 @@ export const OrderManagement: React.FC = () => {
     setIsDetailDialogOpen(true);
   };
 
-  const handleUpdateStatus = (order: Order) => {
+  const handleAction = (order: Order, action: 'ready' | 'complete') => {
     setSelectedOrder(order);
-    setNewStatus(order.status);
-    setStatusNotes('');
-    setIsStatusDialogOpen(true);
+    setActionType(action);
+    setIsConfirmDialogOpen(true);
   };
 
-  const submitStatusUpdate = async () => {
-    if (!selectedOrder) return;
+  const executeAction = async () => {
+    if (!selectedOrder || !actionType) return;
 
     setLoading(true);
     try {
-      await orderService.updateOrderStatus(selectedOrder.id, {
-        status: newStatus as Order['status'],
-        notes: statusNotes,
-      });
+      let result;
+      let message = '';
       
-      toast({ title: 'Success', description: 'Order status updated successfully' });
-      setIsStatusDialogOpen(false);
+      switch (actionType) {
+        case 'ready':
+          result = await orderService.markReady(selectedOrder.id);
+          message = 'Order marked as ready successfully';
+          break;
+        case 'complete':
+          result = await orderService.completeOrder(selectedOrder.id);
+          message = 'Order completed successfully';
+          break;
+      }
+      
+      toast({ title: 'Success', description: message });
+      setIsConfirmDialogOpen(false);
+      setSelectedOrder(null);
+      setActionType(null);
       loadOrders();
     } catch (error: any) {
       toast({
         title: 'Error',
-        description: error.response?.data?.message || 'Failed to update order status',
+        description: error.response?.data?.message || 'Failed to process order',
         variant: 'destructive',
       });
     } finally {
@@ -89,11 +98,12 @@ export const OrderManagement: React.FC = () => {
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; class: string }> = {
-      PENDING: { variant: 'outline', class: 'bg-yellow-100 text-yellow-800' },
+      NEW: { variant: 'outline', class: 'bg-gray-100 text-gray-800' },
       CONFIRMED: { variant: 'default', class: 'bg-blue-100 text-blue-800' },
+      WAITING_CUSTOMER: { variant: 'outline', class: 'bg-yellow-100 text-yellow-800' },
       PROCESSING: { variant: 'secondary', class: 'bg-purple-100 text-purple-800' },
-      SHIPPING: { variant: 'default', class: 'bg-indigo-100 text-indigo-800' },
-      DELIVERED: { variant: 'default', class: 'bg-green-100 text-green-800' },
+      READY: { variant: 'default', class: 'bg-orange-100 text-orange-800' },
+      COMPLETED: { variant: 'default', class: 'bg-green-100 text-green-800' },
       CANCELLED: { variant: 'destructive', class: 'bg-red-100 text-red-800' },
     };
     const config = variants[status] || { variant: 'outline', class: '' };
@@ -109,10 +119,10 @@ export const OrderManagement: React.FC = () => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <ShoppingCart className="h-5 w-5" />
-            Order Management
+            <ClipboardList className="h-5 w-5" />
+            My Assigned Orders
           </CardTitle>
-          <CardDescription>Process and manage customer orders</CardDescription>
+          <CardDescription>Orders assigned to you by operations team</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex justify-between items-center mb-4 gap-4">
@@ -133,11 +143,10 @@ export const OrderManagement: React.FC = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">All Status</SelectItem>
-                <SelectItem value="PENDING">Pending</SelectItem>
-                <SelectItem value="CONFIRMED">Confirmed</SelectItem>
+                <SelectItem value="WAITING_CUSTOMER">Waiting Customer</SelectItem>
                 <SelectItem value="PROCESSING">Processing</SelectItem>
-                <SelectItem value="SHIPPING">Shipping</SelectItem>
-                <SelectItem value="DELIVERED">Delivered</SelectItem>
+                <SelectItem value="READY">Ready</SelectItem>
+                <SelectItem value="COMPLETED">Completed</SelectItem>
                 <SelectItem value="CANCELLED">Cancelled</SelectItem>
               </SelectContent>
             </Select>
@@ -162,7 +171,7 @@ export const OrderManagement: React.FC = () => {
                   </TableRow>
                 ) : !orders || orders.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center">No orders found</TableCell>
+                    <TableCell colSpan={6} className="text-center">No orders assigned to you</TableCell>
                   </TableRow>
                 ) : (
                   orders.map((order) => (
@@ -178,22 +187,42 @@ export const OrderManagement: React.FC = () => {
                       <TableCell>{getStatusBadge(order.status)}</TableCell>
                       <TableCell>{new Date(order.createdAt).toLocaleDateString()}</TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleViewDetails(order)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        {order.status !== 'DELIVERED' && order.status !== 'CANCELLED' && (
+                        <div className="flex gap-1 justify-end">
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleUpdateStatus(order)}
+                            onClick={() => handleViewDetails(order)}
+                            title="View Details"
                           >
-                            <CheckCircle className="h-4 w-4" />
+                            <Eye className="h-4 w-4" />
                           </Button>
-                        )}
+                          
+                          {/* Show Mark Ready for PROCESSING orders - Làm xong */}
+                          {order.status === 'PROCESSING' && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleAction(order, 'ready')}
+                              title="Mark as Ready (Làm xong)"
+                              className="text-orange-600 hover:text-orange-700"
+                            >
+                              <Package className="h-4 w-4" />
+                            </Button>
+                          )}
+                          
+                          {/* Show Complete for READY orders - Giao khách */}
+                          {order.status === 'READY' && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleAction(order, 'complete')}
+                              title="Complete Order (Giao khách)"
+                              className="text-green-600 hover:text-green-700"
+                            >
+                              <CheckCircle className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -286,49 +315,37 @@ export const OrderManagement: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Update Status Dialog */}
-      <Dialog open={isStatusDialogOpen} onOpenChange={setIsStatusDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Update Order Status</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>New Status</Label>
-              <Select value={newStatus} onValueChange={setNewStatus}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="PENDING">Pending</SelectItem>
-                  <SelectItem value="CONFIRMED">Confirmed</SelectItem>
-                  <SelectItem value="PROCESSING">Processing</SelectItem>
-                  <SelectItem value="SHIPPING">Shipping</SelectItem>
-                  <SelectItem value="DELIVERED">Delivered</SelectItem>
-                  <SelectItem value="CANCELLED">Cancelled</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Notes (Optional)</Label>
-              <Textarea
-                value={statusNotes}
-                onChange={(e) => setStatusNotes(e.target.value)}
-                rows={3}
-                placeholder="Add any notes about this status update..."
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsStatusDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={submitStatusUpdate} disabled={loading}>
-              {loading ? 'Updating...' : 'Update Status'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Confirm Action Dialog */}
+      <AlertDialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {actionType === 'ready' && 'Đánh dấu hoàn thành công việc?'}
+              {actionType === 'complete' && 'Giao hàng cho khách?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {actionType === 'ready' && (
+                <div className="space-y-2">
+                  <p>Xác nhận bạn đã hoàn thành order <strong>{selectedOrder?.orderNumber}</strong>?</p>
+                  <p className="text-sm">Trạng thái sẽ chuyển sang READY (Sẵn sàng giao khách).</p>
+                </div>
+              )}
+              {actionType === 'complete' && (
+                <div className="space-y-2">
+                  <p>Xác nhận đã giao order <strong>{selectedOrder?.orderNumber}</strong> cho khách hàng?</p>
+                  <p className="text-sm">Trạng thái sẽ chuyển sang COMPLETED (Hoàn thành).</p>
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={executeAction} disabled={loading}>
+              {loading ? 'Processing...' : 'Confirm'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
