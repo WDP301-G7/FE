@@ -14,6 +14,7 @@ import { AdminStoresManagement } from "@/pages/dashboards/admin-components/Admin
 import AdminInventoryManagement from "@/pages/dashboards/admin-components/AdminInventoryManagement";
 import { OrderManagement } from "@/pages/dashboards/staff-components/OrderManagement";
 import AdminOrdersManagement from "@/pages/dashboards/admin-components/AdminOrdersManagement";
+import OrderOperationsPage from "@/pages/dashboards/admin-components/OrderOperationsPage";
 import AdminUsersManagement from "@/pages/dashboards/admin-components/AdminUsersManagement";
 import AdminSystemsManagement from "@/pages/dashboards/admin-components/AdminSystemsManagement";
 import NotFound from "./pages/NotFound";
@@ -46,6 +47,7 @@ const App = () => (
                 <Route path="admin/inventory" element={<AdminInventoryManagement />} />
                 <Route path="admin/stores" element={<AdminStoresManagement />} />
                 <Route path="admin/orders" element={<AdminOrdersManagement />} />
+                <Route path="admin/orders/operations" element={<OrderOperationsPage />} />
                 <Route path="admin/users" element={<AdminUsersManagement />} />
                 <Route path="admin/systems" element={<AdminSystemsManagement />} />
               </Route>
