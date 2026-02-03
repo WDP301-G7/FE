@@ -18,7 +18,7 @@ export interface Order {
   customerPhone?: string;
   items: OrderItem[];
   totalAmount: number;
-  status: 'PENDING' | 'CONFIRMED' | 'PROCESSING' | 'SHIPPING' | 'DELIVERED' | 'CANCELLED';
+  status: 'NEW' | 'CONFIRMED' | 'WAITING_CUSTOMER' | 'PROCESSING' | 'READY' | 'COMPLETED' | 'CANCELLED';
   shippingAddress: string;
   paymentMethod: 'COD' | 'BANK_TRANSFER' | 'CREDIT_CARD';
   paymentStatus: 'PENDING' | 'PAID' | 'FAILED';
@@ -79,6 +79,30 @@ class OrderService {
 
   async getMyOrders(params?: { page?: number; limit?: number; status?: string }) {
     const response = await api.get<{ data: { items: Order[]; total: number } }>('/orders/my-orders', { params });
+    return response.data.data;
+  }
+
+  // Get orders assigned to staff
+  async getAssignedOrders(params?: { 
+    page?: number; 
+    limit?: number; 
+    status?: string;
+    search?: string;
+  }) {
+    const response = await api.get<{ data: { items: Order[]; total: number; page: number; limit: number } }>('/orders/assigned', { params });
+    return response.data.data;
+  }
+
+  // Staff order processing workflow
+  // PROCESSING → READY (làm xong)
+  async markReady(id: string) {
+    const response = await api.post<{ data: Order }>(`/orders/${id}/mark-ready`);
+    return response.data.data;
+  }
+
+  // READY → COMPLETED (giao khách)
+  async completeOrder(id: string) {
+    const response = await api.post<{ data: Order }>(`/orders/${id}/complete`);
     return response.data.data;
   }
 }
