@@ -44,13 +44,24 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
       // Manager chỉ xem orders và overview
     }
 
-    // Orders - for Staff, Manager, Operations
-    if (hasRole(['STAFF', 'staff', 'MANAGER', 'manager', 'OPERATIONS', 'operations'])) {
+    // Orders - for Staff, Manager
+    if (hasRole(['STAFF', 'staff', 'MANAGER', 'manager'])) {
       items.push({
         key: '/orders',
         icon: <ShoppingCartOutlined />,
         label: 'Orders',
       });
+    }
+
+    // Operations-specific links
+    if (hasRole(['OPERATIONS', 'operations', 'OPERATION', 'operation'])) {
+      items.push({
+        key: '/operations/orders',
+        icon: <CalendarOutlined />, // reuse calendar icon
+        label: 'Duyệt Đơn Hàng',
+      });
+      
+    
     }
 
     // Admin Management - Admin only
@@ -62,7 +73,7 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
       });
       items.push({
         key: '/admin/orders',
-        icon: <ShoppingCartOutlined />,
+        icon: <ShoppingCartOutlined />, 
         label: 'Quản Lý Đơn Hàng',
       });
       items.push({

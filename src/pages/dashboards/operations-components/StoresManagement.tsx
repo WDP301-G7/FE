@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
-import { storeService, Store, CreateStoreData } from '@/services/store.service';
+import { storeService, Store } from '@/services/store.service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,9 +11,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, Pencil, Trash2, Search, Store as StoreIcon } from 'lucide-react';
 
-export const AdminStoresManagement: React.FC = () => {
+const OperationsStores: React.FC = () => {
   const { hasRole } = useAuth();
-  if (!hasRole(['ADMIN', 'admin', 'OPERATIONS', 'operations'])) {
+  if (!hasRole(['OPERATIONS', 'operations', 'OPERATION', 'operation'])) {
     return <Navigate to="/dashboard" replace />;
   }
   const { toast } = useToast();
@@ -24,7 +24,7 @@ export const AdminStoresManagement: React.FC = () => {
   const [editingStore, setEditingStore] = useState<Store | null>(null);
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0 });
 
-  const [formData, setFormData] = useState<CreateStoreData>({ name: '', address: '' });
+  const [formData, setFormData] = useState<{ name: string; address: string }>({ name: '', address: '' });
 
   useEffect(() => {
     loadStores();
@@ -34,7 +34,6 @@ export const AdminStoresManagement: React.FC = () => {
     setLoading(true);
     try {
       const res = await storeService.getStores({ page: pagination.page, limit: pagination.limit, search: searchTerm });
-      // Support both shapes: { data: Store[], pagination: {...} } or { data: { items: Store[], pagination: {...} } }
       if ((res as any).data && Array.isArray((res as any).data)) {
         setStores((res as any).data);
         setPagination(prev => ({ ...prev, total: (res as any).pagination?.total || (res as any).data.length }));
@@ -45,7 +44,6 @@ export const AdminStoresManagement: React.FC = () => {
         setStores(res as any);
         setPagination(prev => ({ ...prev, total: (res as any).length }));
       } else {
-        // default fallback
         setStores((res as any).data || []);
       }
     } catch (error: any) {
@@ -183,4 +181,4 @@ export const AdminStoresManagement: React.FC = () => {
   );
 };
 
-export default AdminStoresManagement;
+export default OperationsStores;

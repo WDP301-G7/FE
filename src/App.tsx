@@ -14,9 +14,14 @@ import { MyAssignedOrders } from "@/pages/dashboards/staff-components/MyAssigned
 import { AdminStoresManagement } from "@/pages/dashboards/admin-components/AdminStoresManagement";
 import AdminInventoryManagement from "@/pages/dashboards/admin-components/AdminInventoryManagement";
 import AdminOrdersManagement from "@/pages/dashboards/admin-components/AdminOrdersManagement";
-import OrderOperationsPage from "@/pages/dashboards/admin-components/OrderOperationsPage";
+// admin operations page removed; admin users use standard order management
 import AdminUsersManagement from "@/pages/dashboards/admin-components/AdminUsersManagement";
 import AdminSystemsManagement from "@/pages/dashboards/admin-components/AdminSystemsManagement";
+
+// operations role pages
+import OperationsOrderOps from "@/pages/dashboards/operations-components/OrderOperationsPage";
+import OperationsStores from "@/pages/dashboards/operations-components/StoresManagement";
+import OperationsInventory from "@/pages/dashboards/operations-components/InventoryManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -47,9 +52,12 @@ const App = () => (
                 <Route path="admin/inventory" element={<AdminInventoryManagement />} />
                 <Route path="admin/stores" element={<AdminStoresManagement />} />
                 <Route path="admin/orders" element={<AdminOrdersManagement />} />
-                <Route path="admin/orders/operations" element={<OrderOperationsPage />} />
                 <Route path="admin/users" element={<AdminUsersManagement />} />
                 <Route path="admin/systems" element={<AdminSystemsManagement />} />
+                {/* operations-specific routes */}
+                <Route path="operations/orders" element={<OperationsOrderOps />} />
+                <Route path="operations/stores" element={<OperationsStores />} />
+                <Route path="operations/inventory" element={<OperationsInventory />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
