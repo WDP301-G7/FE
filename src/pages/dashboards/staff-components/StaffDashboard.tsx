@@ -2,17 +2,28 @@ import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MyAssignedOrders } from './MyAssignedOrders';
-import { LayoutDashboard, ClipboardList, Clock, ShoppingCart } from 'lucide-react';
+import { ReturnManagement } from './ReturnManagement';
+import { LayoutDashboard, ClipboardList, Clock, ShoppingCart, RefreshCw } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 const StaffDashboard: React.FC = () => {
   console.log('✅ StaffDashboard component loaded');
   
   return (
-    <div className="p-6 space-y-6">
-      <div>
+    <motion.div 
+      className="p-6 space-y-6"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: "easeOut" }}
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1, duration: 0.5 }}
+      >
         <h1 className="text-3xl font-bold tracking-tight">Staff Dashboard</h1>
         <p className="text-muted-foreground">Process and manage customer orders</p>
-      </div>
+      </motion.div>
 
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList>
@@ -24,10 +35,19 @@ const StaffDashboard: React.FC = () => {
             <ClipboardList className="h-4 w-4 mr-2" />
             My Orders
           </TabsTrigger>
+          <TabsTrigger value="returns">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Đổi/Trả hàng
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <motion.div 
+            className="grid gap-4 md:grid-cols-2 lg:grid-cols-3"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
+          >
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Pending Orders</CardTitle>
@@ -58,9 +78,14 @@ const StaffDashboard: React.FC = () => {
                 <p className="text-xs text-muted-foreground">+12 from yesterday</p>
               </CardContent>
             </Card>
-          </div>
+          </motion.div>
 
-          <Card>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3, duration: 0.5 }}
+          >
+            <Card>
             <CardHeader>
               <CardTitle>Quick Stats</CardTitle>
               <CardDescription>Your performance for today</CardDescription>
@@ -69,13 +94,18 @@ const StaffDashboard: React.FC = () => {
               <p className="text-sm text-muted-foreground">Performance analytics coming soon...</p>
             </CardContent>
           </Card>
+          </motion.div>
         </TabsContent>
 
         <TabsContent value="orders">
           <MyAssignedOrders />
         </TabsContent>
+
+        <TabsContent value="returns">
+          <ReturnManagement />
+        </TabsContent>
       </Tabs>
-    </div>
+    </motion.div>
   );
 };
 

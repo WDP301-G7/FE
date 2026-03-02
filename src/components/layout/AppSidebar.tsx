@@ -11,6 +11,7 @@ import {
   SafetyCertificateOutlined,
   CalendarOutlined,
   EyeOutlined,
+  RetweetOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -44,8 +45,8 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
       // Manager chỉ xem orders và overview
     }
 
-    // Orders - for Staff, Manager, Operations
-    if (hasRole(['STAFF', 'staff', 'MANAGER', 'manager', 'OPERATIONS', 'operations'])) {
+    // Orders - for Staff, Manager only (Operations xử lý riêng)
+    if (hasRole(['STAFF', 'staff', 'MANAGER', 'manager'])) {
       items.push({
         key: '/orders',
         icon: <ShoppingCartOutlined />,
@@ -53,13 +54,17 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
       });
     }
 
+    // Returns/Exchange - for Staff and Admin
+    if (hasRole(['STAFF', 'staff', 'ADMIN', 'admin'])) {
+      items.push({
+        key: '/returns',
+        icon: <RetweetOutlined />,
+        label: 'Đổi/Trả Hàng',
+      });
+    }
+
     // Admin Management - Admin only
     if (hasRole(['admin', 'ADMIN'])) {
-      items.push({
-        key: '/products',
-        icon: <AppstoreOutlined />,
-        label: 'Products',
-      });
       items.push({
         key: '/admin/orders',
         icon: <ShoppingCartOutlined />,
