@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/context/AuthContext';
 import { orderService, Order } from '@/services/order.service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +19,7 @@ import { motion } from 'framer-motion';
 
 export const MyAssignedOrders: React.FC = () => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -54,8 +56,35 @@ export const MyAssignedOrders: React.FC = () => {
         search: searchTerm,
         status: statusFilter === 'ALL' ? undefined : statusFilter,
       });
-      setOrders(data.items);
-      setPagination(prev => ({ ...prev, total: data.total }));
+      
+      console.log('📊 Raw orders from API:', data.items.length, 'orders');
+      console.log('👤 Current user ID:', user?.id);
+      
+      // DEBUG: Check first order structure
+      if (data.items.length > 0) {
+        console.log('🔍 First order structure:', {
+          orderNumber: data.items[0].orderNumber,
+          customerName: data.items[0].customerName,
+          customer: (data.items[0] as any).customer,
+          items: data.items[0].items,
+          orderItems: (data.items[0] as any).orderItems,
+          allKeys: Object.keys(data.items[0])
+        });
+      }
+      
+      // ⚠️ FILTER: Only show orders assigned to THIS staff
+      // Backend should do this, but we filter here as backup
+      const myOrders = data.items.filter((order: any) => {
+        const assignedStaffId = order.handledBy || order.handler?.id || order.assignedStaffId || order.staffId;
+        const isMyOrder = assignedStaffId === user?.id;
+        console.log(`Order ${order.orderNumber}: handledBy=${assignedStaffId}, isMyOrder=${isMyOrder}`);
+        return isMyOrder;
+      });
+      
+      console.log('✅ Filtered to MY orders:', myOrders.length, 'orders');
+      
+      setOrders(myOrders);
+      setPagination(prev => ({ ...prev, total: myOrders.length }));
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -68,27 +97,40 @@ export const MyAssignedOrders: React.FC = () => {
   };
 
   const handleViewDetails = async (order: Order) => {
+    console.log('🔍 handleViewDetails called with order:', order.id, order.orderNumber);
+    console.log('📦 Order structure:', {
+      hasItems: !!(order.items),
+      hasOrderItems: !!((order as any).orderItems),
+      items: order.items,
+      orderItems: (order as any).orderItems,
+      allKeys: Object.keys(order)
+    });
     setSelectedOrder(order);
     setPrescriptionData(null);
     setIsDetailDialogOpen(true);
+    console.log('✅ Dialog state set:', { isDetailDialogOpen: true, selectedOrder: order });
     
     // Load prescription if it's a prescription order
     if (order.status !== 'NEW') {
+      console.log('📋 Loading prescription for order:', order.id);
       await loadPrescription(order.id);
     }
   };
 
   const handleAction = (order: Order, action: 'start' | 'ready' | 'complete') => {
+    console.log('⚡ handleAction called:', { orderId: order.id, action });
     setSelectedOrder(order);
     setActionType(action);
     
     if (action === 'complete') {
       // For complete action, open verify dialog first
+      console.log('🔐 Opening verify dialog for completion');
       setVerifyPhone('');
       setVerifyResult(null);
       setCompletionNote('');
       setIsVerifyDialogOpen(true);
     } else {
+      console.log('✅ Opening confirm dialog for action:', action);
       setIsConfirmDialogOpen(true);
     }
   };
@@ -192,18 +234,27 @@ export const MyAssignedOrders: React.FC = () => {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; class: string }> = {
-      NEW: { variant: 'outline', class: 'bg-gray-100 text-gray-800' },
-      CONFIRMED: { variant: 'default', class: 'bg-blue-100 text-blue-800' },
-      WAITING_CUSTOMER: { variant: 'outline', class: 'bg-yellow-100 text-yellow-800' },
-      PROCESSING: { variant: 'secondary', class: 'bg-purple-100 text-purple-800' },
-      READY: { variant: 'default', class: 'bg-orange-100 text-orange-800' },
-      COMPLETED: { variant: 'default', class: 'bg-green-100 text-green-800' },
-      CANCELLED: { variant: 'destructive', class: 'bg-red-100 text-red-800' },
+  // Helper to get customer info from different backend response structures
+  const getCustomerInfo = (order: any) => {
+    return {
+      name: order.customerName || order.customer?.fullName || order.customer?.name || 'N/A',
+      email: order.customerEmail || order.customer?.email || 'N/A',
+      phone: order.customerPhone || order.customer?.phone || 'N/A',
     };
-    const config = variants[status] || { variant: 'outline', class: '' };
-    return <Badge variant={config.variant} className={config.class}>{status}</Badge>;
+  };
+
+  const getStatusBadge = (status: string) => {
+    const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; class: string; label: string }> = {
+      NEW: { variant: 'outline', class: 'bg-gray-100 text-gray-800', label: 'Mới' },
+      CONFIRMED: { variant: 'default', class: 'bg-blue-100 text-blue-800', label: 'Đã xác nhận' },
+      WAITING_CUSTOMER: { variant: 'outline', class: 'bg-cyan-100 text-cyan-800 border-cyan-300', label: 'Chờ làm' },
+      PROCESSING: { variant: 'secondary', class: 'bg-purple-100 text-purple-800', label: 'Đang làm' },
+      READY: { variant: 'default', class: 'bg-orange-100 text-orange-800', label: 'Sẵn sàng' },
+      COMPLETED: { variant: 'default', class: 'bg-green-100 text-green-800', label: 'Hoàn thành' },
+      CANCELLED: { variant: 'destructive', class: 'bg-red-100 text-red-800', label: 'Đã hủy' },
+    };
+    const config = variants[status] || { variant: 'outline', class: '', label: status };
+    return <Badge variant={config.variant} className={config.class}>{config.label}</Badge>;
   };
 
   const formatCurrency = (amount: number) => {
@@ -244,16 +295,17 @@ export const MyAssignedOrders: React.FC = () => {
               </Button>
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by status" />
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Lọc theo trạng thái" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ALL">All Status</SelectItem>
-                <SelectItem value="WAITING_CUSTOMER">Waiting Customer</SelectItem>
-                <SelectItem value="PROCESSING">Processing</SelectItem>
-                <SelectItem value="READY">Ready</SelectItem>
-                <SelectItem value="COMPLETED">Completed</SelectItem>
-                <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                <SelectItem value="ALL">📋 Tất cả</SelectItem>
+                <SelectItem value="CONFIRMED">✅ Đã xác nhận</SelectItem>
+                <SelectItem value="WAITING_CUSTOMER">⏳ Chờ làm</SelectItem>
+                <SelectItem value="PROCESSING">⚙️ Đang làm</SelectItem>
+                <SelectItem value="READY">📦 Sẵn sàng</SelectItem>
+                <SelectItem value="COMPLETED">🎉 Hoàn thành</SelectItem>
+                <SelectItem value="CANCELLED">❌ Đã hủy</SelectItem>
               </SelectContent>
             </Select>
           </motion.div>
@@ -263,6 +315,7 @@ export const MyAssignedOrders: React.FC = () => {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2, duration: 0.5 }}
+            style={{ pointerEvents: 'auto' }}
           >
             <Table>
               <TableHeader>
@@ -290,32 +343,43 @@ export const MyAssignedOrders: React.FC = () => {
                       <TableCell className="font-medium">{order.orderNumber}</TableCell>
                       <TableCell>
                         <div>
-                          <div className="font-medium">{order.customerName}</div>
-                          <div className="text-sm text-muted-foreground">{order.customerEmail}</div>
+                          <div className="font-medium">
+                            {getCustomerInfo(order).name}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {getCustomerInfo(order).email}
+                          </div>
                         </div>
                       </TableCell>
-                      <TableCell>{formatCurrency(order.totalAmount)}</TableCell>
+                      <TableCell>{formatCurrency(order.totalAmount || 0)}</TableCell>
                       <TableCell>{getStatusBadge(order.status)}</TableCell>
                       <TableCell>{new Date(order.createdAt).toLocaleDateString()}</TableCell>
                       <TableCell className="text-right">
-                        <div className="flex gap-1 justify-end">
+                        <div className="flex gap-1 justify-end items-center">
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleViewDetails(order)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewDetails(order);
+                            }}
                             title="Xem chi tiết"
+                            className="hover:bg-slate-100 cursor-pointer"
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
                           
-                          {/* Show Start Processing for CONFIRMED orders - Bắt đầu làm */}
-                          {order.status === 'CONFIRMED' && (
+                          {/* Show Start Processing for CONFIRMED or WAITING_CUSTOMER orders - Bắt đầu làm */}
+                          {(order.status === 'CONFIRMED' || order.status === 'WAITING_CUSTOMER') && (
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleAction(order, 'start')}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleAction(order, 'start');
+                              }}
                               title="Bắt đầu làm"
-                              className="text-blue-600 hover:text-blue-700"
+                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 cursor-pointer"
                             >
                               <Play className="h-4 w-4" />
                             </Button>
@@ -326,9 +390,12 @@ export const MyAssignedOrders: React.FC = () => {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleAction(order, 'ready')}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleAction(order, 'ready');
+                              }}
                               title="Đánh dấu hoàn thành (Làm xong)"
-                              className="text-orange-600 hover:text-orange-700"
+                              className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 cursor-pointer"
                             >
                               <Package className="h-4 w-4" />
                             </Button>
@@ -339,9 +406,12 @@ export const MyAssignedOrders: React.FC = () => {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleAction(order, 'complete')}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleAction(order, 'complete');
+                              }}
                               title="Giao cho khách (Giao khách)"
-                              className="text-green-600 hover:text-green-700"
+                              className="text-green-600 hover:text-green-700 hover:bg-green-50 cursor-pointer"
                             >
                               <CheckCircle className="h-4 w-4" />
                             </Button>
@@ -402,9 +472,15 @@ export const MyAssignedOrders: React.FC = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>Khách hàng</Label>
-                    <p className="font-medium">{selectedOrder.customerName}</p>
-                    <p className="text-sm text-muted-foreground">{selectedOrder.customerEmail}</p>
-                    <p className="text-sm text-muted-foreground">{selectedOrder.customerPhone}</p>
+                    <p className="font-medium">
+                      {getCustomerInfo(selectedOrder).name}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {getCustomerInfo(selectedOrder).email}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {getCustomerInfo(selectedOrder).phone}
+                    </p>
                   </div>
                   <div>
                     <Label>Trạng thái</Label>
@@ -427,20 +503,28 @@ export const MyAssignedOrders: React.FC = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {selectedOrder.items.map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell>{item.productName}</TableCell>
-                          <TableCell>{item.quantity}</TableCell>
-                          <TableCell>{formatCurrency(item.price)}</TableCell>
-                          <TableCell>{formatCurrency(item.subtotal)}</TableCell>
+                      {(selectedOrder.items || (selectedOrder as any).orderItems || []).length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center text-muted-foreground">
+                            Không có sản phẩm nào trong đơn hàng
+                          </TableCell>
                         </TableRow>
-                      ))}
+                      ) : (
+                        (selectedOrder.items || (selectedOrder as any).orderItems || []).map((item: any) => (
+                          <TableRow key={item.id}>
+                            <TableCell>{item.productName || item.product?.name || 'N/A'}</TableCell>
+                            <TableCell>{item.quantity}</TableCell>
+                            <TableCell>{formatCurrency(item.price || item.unitPrice || 0)}</TableCell>
+                            <TableCell>{formatCurrency(item.subtotal || (item.quantity * (item.price || item.unitPrice || 0)))}</TableCell>
+                          </TableRow>
+                        ))
+                      )}
                     </TableBody>
                   </Table>
                 </div>
                 <div className="text-right">
                   <div className="text-lg font-bold">
-                    Tổng: {formatCurrency(selectedOrder.totalAmount)}
+                    Tổng: {formatCurrency(selectedOrder.totalAmount || 0)}
                   </div>
                 </div>
               </TabsContent>
@@ -470,22 +554,25 @@ export const MyAssignedOrders: React.FC = () => {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {actionType === 'start' && (
-                <div className="space-y-2">
-                  <p>Xác nhận bạn bắt đầu xử lý order <strong>{selectedOrder?.orderNumber}</strong>?</p>
-                  <p className="text-sm">Trạng thái sẽ chuyển sang PROCESSING (Đang xử lý).</p>
-                </div>
+                <>
+                  Xác nhận bạn bắt đầu xử lý order <strong>{selectedOrder?.orderNumber}</strong>?
+                  <br />
+                  <span className="text-sm">Trạng thái sẽ chuyển sang PROCESSING (Đang xử lý).</span>
+                </>
               )}
               {actionType === 'ready' && (
-                <div className="space-y-2">
-                  <p>Xác nhận bạn đã hoàn thành order <strong>{selectedOrder?.orderNumber}</strong>?</p>
-                  <p className="text-sm">Trạng thái sẽ chuyển sang READY (Sẵn sàng giao khách).</p>
-                </div>
+                <>
+                  Xác nhận bạn đã hoàn thành order <strong>{selectedOrder?.orderNumber}</strong>?
+                  <br />
+                  <span className="text-sm">Trạng thái sẽ chuyển sang READY (Sẵn sàng giao khách).</span>
+                </>
               )}
               {actionType === 'complete' && (
-                <div className="space-y-2">
-                  <p>Xác nhận đã giao order <strong>{selectedOrder?.orderNumber}</strong> cho khách hàng?</p>
-                  <p className="text-sm">Trạng thái sẽ chuyển sang COMPLETED (Hoàn thành).</p>
-                </div>
+                <>
+                  Xác nhận đã giao order <strong>{selectedOrder?.orderNumber}</strong> cho khách hàng?
+                  <br />
+                  <span className="text-sm">Trạng thái sẽ chuyển sang COMPLETED (Hoàn thành).</span>
+                </>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
