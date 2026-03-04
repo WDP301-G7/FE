@@ -306,7 +306,7 @@ const PrescriptionRequestsPage: React.FC = () => {
             onValueChange={(v) => setStatusFilter(v === '__all' ? '' : v)}
           >
             <SelectTrigger className="w-[150px]">
-              <SelectValue>Select status</SelectValue>
+              <SelectValue>Trạng thái</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__all">Tất cả</SelectItem>
@@ -322,10 +322,10 @@ const PrescriptionRequestsPage: React.FC = () => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>ID</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Actions</TableHead>
+              <TableHead>Mã đơn</TableHead>
+              <TableHead>Ngày</TableHead>
+              <TableHead>Trạng thái</TableHead>
+              <TableHead>Hành động</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -374,15 +374,15 @@ const PrescriptionRequestsPage: React.FC = () => {
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Request details</DialogTitle>
+            <DialogTitle>Chi tiết đơn thuốc</DialogTitle>
           </DialogHeader>
           {selected && (
             <div className="space-y-2">
               <div>ID: {selected.id}</div>
-              <div>Status: {selected.status}</div>
-              <div>Customer: {selected.customer?.fullName || 'N/A'}</div>
+              <div>Trạng thái: {selected.status}</div>
+              <div>Khách hàng: {selected.customer?.fullName || 'N/A'}</div>
               
-              <div>Contact notes: {selected.contactNotes}</div>
+              <div>Ghi chú: {selected.contactNotes}</div>
               {selected.images && selected.images.length > 0 && (
                 <div>
                   <Label>Ảnh đơn thuốc</Label>

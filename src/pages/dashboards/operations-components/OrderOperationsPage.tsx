@@ -257,14 +257,14 @@ const OrderOperationsPage: React.FC = () => {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Order Operations</h1>
-        <p className="text-muted-foreground">Manage order confirmations, scheduling, and staff assignments</p>
+        <h1 className="text-3xl font-bold tracking-tight">Quản lý đơn hàng</h1>
+        <p className="text-muted-foreground">Xem và quản lý đơn hàng</p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Orders Management</CardTitle>
-          <CardDescription>View and manage orders - confirm, schedule, assign staff, and track status</CardDescription>
+          <CardTitle>Hoạt động đặt hàng</CardTitle>
+          <CardDescription>Xem và quản lý đơn hàng</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex justify-between items-center mb-4 gap-4">
@@ -276,7 +276,7 @@ const OrderOperationsPage: React.FC = () => {
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__all">All Status</SelectItem>
+                <SelectItem value="__all">Tất cả trạng thái</SelectItem>
                 <SelectItem value="PENDING">Pending</SelectItem>
                 <SelectItem value="CONFIRMED">Confirmed</SelectItem>
                 <SelectItem value="WAITING_CUSTOMER">Waiting for Customer</SelectItem>
@@ -293,20 +293,20 @@ const OrderOperationsPage: React.FC = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Order ID</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Total Price</TableHead>
-                  <TableHead>Created Date</TableHead>
-                  <TableHead>Customer ID</TableHead>
-                  <TableHead>Staff ID</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>Mã đơn</TableHead>
+                  <TableHead>Trạng thái</TableHead>
+                  <TableHead>Tổng tiền</TableHead>
+                  <TableHead>Ngày tạo đơn</TableHead>
+                  <TableHead>Khách hàng</TableHead>
+                  <TableHead>Nhân viên</TableHead>
+                  <TableHead className="text-right">Hành động</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {(!Array.isArray(orders) || orders.length === 0) ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                      No orders found
+                      Không có đơn hàng nào !
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -335,7 +335,7 @@ const OrderOperationsPage: React.FC = () => {
                                 onClick={() => openConfirm(order)}
                               >
                                 <CheckCircle className="h-4 w-4 mr-1" />
-                                Confirm
+                                Xác nhận
                               </Button>
                               <Button
                                 size="sm"
@@ -343,7 +343,7 @@ const OrderOperationsPage: React.FC = () => {
                                 onClick={() => openCancel(order)}
                               >
                                 <XCircle className="h-4 w-4 mr-1" />
-                                Cancel
+                                Hủy
                               </Button>
                             </>
                           )}                        </div>
@@ -359,7 +359,7 @@ const OrderOperationsPage: React.FC = () => {
           {totalPages > 1 && (
             <div className="flex items-center justify-between mt-4">
               <div className="text-sm text-muted-foreground">
-                Page {currentPage} of {totalPages} (Total: {totalItems} orders)
+                Trang {currentPage} of {totalPages} (Tổng: {totalItems} đơn hàng)
               </div>
               <Pagination>
                 <PaginationContent>
@@ -409,39 +409,39 @@ const OrderOperationsPage: React.FC = () => {
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Order Details</DialogTitle>
+            <DialogTitle>Chi tiết đơn hàng</DialogTitle>
           </DialogHeader>
           {selectedOrder && (
             <div className="space-y-4">
               <div>
-                <Label className="font-semibold">Order ID</Label>
+                <Label className="font-semibold">Mã đơn hàng</Label>
                 <p className="text-sm">{selectedOrder.id}</p>
               </div>
               <div>
-                <Label className="font-semibold">Status</Label>
+                <Label className="font-semibold">Trạng thái</Label>
                 <p className="text-sm">{getStatusBadge(selectedOrder.status)}</p>
               </div>
               <div>
-                <Label className="font-semibold">Total Price</Label>
+                <Label className="font-semibold">Tổng giá</Label>
                 <p className="text-sm">{formatCurrency(selectedOrder.totalAmount)}</p>
               </div>
               <div>
-                <Label className="font-semibold">Created Date</Label>
+                <Label className="font-semibold">Ngày tạo</Label>
                 <p className="text-sm">{formatDate(selectedOrder.createdAt)}</p>
               </div>
               <div>
-                <Label className="font-semibold">Customer ID</Label>
+                <Label className="font-semibold">Khách hàng</Label>
                 <p className="text-sm">{selectedOrder.customer?.fullName || 'N/A'}</p>
               </div>
               <div>
-                <Label className="font-semibold">Staff ID</Label>
+                <Label className="font-semibold">Nhân viên</Label>
                 <p className="text-sm">{selectedOrder.staffId || 'Not assigned'}</p>
               </div>
             </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDetailOpen(false)}>
-              Close
+              Đóng
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -451,11 +451,11 @@ const OrderOperationsPage: React.FC = () => {
       <Dialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Accept Order & Schedule Appointment</DialogTitle>
+            <DialogTitle>Đặt lịch hẹn</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="appointmentDate">Appointment Date & Time</Label>
+              <Label htmlFor="appointmentDate">Ngày & Giờ Hẹn</Label>
               <Input
                 id="appointmentDate"
                 type="datetime-local"
@@ -464,7 +464,7 @@ const OrderOperationsPage: React.FC = () => {
               />
             </div>
             <div>
-              <Label htmlFor="appointmentNotes">Appointment Notes</Label>
+              <Label htmlFor="appointmentNotes">Ghi chú về cuộc hẹn</Label>
               <Textarea
                 id="appointmentNotes"
                 placeholder="Enter any notes for the appointment"
@@ -474,7 +474,7 @@ const OrderOperationsPage: React.FC = () => {
               />
             </div>
             <div>
-              <Label htmlFor="staffId">Assign Staff</Label>
+              <Label htmlFor="staffId">Chọn nhân viên</Label>
               <Select value={assignedStaffId} onValueChange={setAssignedStaffId}>
                 <SelectTrigger id="staffId">
                   <SelectValue placeholder="Select staff member" />
@@ -491,7 +491,7 @@ const OrderOperationsPage: React.FC = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsConfirmOpen(false)}>
-              Cancel
+              Hủy
             </Button>
             <Button onClick={submitConfirm} disabled={loading}>
               {loading ? 'Confirming...' : 'Accept Order'}
@@ -504,14 +504,14 @@ const OrderOperationsPage: React.FC = () => {
       <Dialog open={isCancelOpen} onOpenChange={setIsCancelOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Cancel Order</DialogTitle>
+            <DialogTitle>Hủy Đơn Hàng</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="cancelReason">Reason for Cancellation</Label>
+              <Label htmlFor="cancelReason">Lý do Hủy</Label>
               <Textarea
                 id="cancelReason"
-                placeholder="Please provide a reason for cancelling this order"
+                placeholder="Vui lòng cung cấp lý do hủy đơn hàng này"
                 value={cancelReason}
                 onChange={(e) => setCancelReason(e.target.value)}
                 rows={4}
@@ -519,8 +519,9 @@ const OrderOperationsPage: React.FC = () => {
             </div>
           </div>
           <DialogFooter>
+        
             <Button variant="outline" onClick={() => setIsCancelOpen(false)}>
-              Close
+              Đóng
             </Button>
             <Button variant="destructive" onClick={submitCancel} disabled={loading}>
               {loading ? 'Cancelling...' : 'Cancel Order'}
