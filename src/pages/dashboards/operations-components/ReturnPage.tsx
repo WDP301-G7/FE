@@ -78,6 +78,8 @@ export default function ReturnPage() {
   const [completionNote, setCompletionNote] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
+  
+
   // Fetch returns
   const fetchReturns = async () => {
     try {
@@ -201,6 +203,11 @@ export default function ReturnPage() {
 
     try {
       setActionLoading(true);
+      console.log('Completing return with data:', {
+        refundAmount,
+        refundMethod,
+        completionNote,
+      });
       await returnService.completeReturn(selectedReturn.id, {
         refundAmount: refundAmount === '' ? 0 : Number(refundAmount),
         refundMethod,
@@ -403,7 +410,7 @@ export default function ReturnPage() {
                   {returns.map((returnReq) => (
                     <TableRow key={returnReq.id}>
                       <TableCell className="font-medium">
-                        {returnReq.order.orderNumber}
+                        {returnReq.order.id}
                       </TableCell>
                       <TableCell>
                         <div className="space-y-1">
@@ -537,7 +544,7 @@ export default function ReturnPage() {
               <div className="border-t pt-4">
                 <h3 className="font-semibold mb-3">Sản phẩm trả hàng</h3>
                 <div className="space-y-3">
-                  {selectedReturn.returnItems.map((item) => (
+                  {(selectedReturn.returnItems ?? []).map((item) => (
                     <div key={item.id} className="bg-gray-50 p-3 rounded-lg text-sm">
                       <p className="font-medium">{item.product.name}</p>
                       <div className="grid grid-cols-3 gap-2 mt-2 text-xs text-gray-600">
