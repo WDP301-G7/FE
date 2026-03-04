@@ -15,6 +15,7 @@ import ReturnPage from "@/pages/dashboards/operations-components/ReturnPage";
 import AdminOrdersManagement from "@/pages/dashboards/admin-components/AdminOrdersManagement";
 import AdminUsersManagement from "@/pages/dashboards/admin-components/AdminUsersManagement";
 import AdminSystemsManagement from "@/pages/dashboards/admin-components/AdminSystemsManagement";
+import { AdminProductManagement } from "@/pages/dashboards/admin-components/AdminProductManagement";
 
 // operations role pages
 import OperationsOrderOps from "@/pages/dashboards/operations-components/OrderOperationsPage";
@@ -51,6 +52,7 @@ const App = () => (
                 <Route path="admin/orders" element={<AdminOrdersManagement />} />
                 <Route path="admin/users" element={<AdminUsersManagement />} />
                 <Route path="admin/systems" element={<AdminSystemsManagement />} />
+                <Route path="admin/products" element={<AdminProductManagement />} />
                 {/* operations-specific routes */}
                 <Route path="operations/orders" element={<OperationsOrderOps />} />
                 <Route path="operations/prescriptions" element={<PrescriptionRequestsPage />} />
