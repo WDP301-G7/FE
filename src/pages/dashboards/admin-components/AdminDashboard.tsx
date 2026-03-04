@@ -11,6 +11,7 @@ import {
   ShoppingOutlined,
   TeamOutlined,
   DatabaseOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { mockLogs, actionLabels, AuditLog } from '@/mock-data/logs';
@@ -18,6 +19,7 @@ import { mockFeatureToggles, FeatureToggle } from '@/mock-data/policies';
 import AdminOrdersManagement from './AdminOrdersManagement';
 import AdminUsersManagement from './AdminUsersManagement';
 import AdminSystemsManagement from './AdminSystemsManagement';
+import { PrescriptionApprovalManagement } from './PrescriptionApprovalManagement';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -248,6 +250,15 @@ const AdminDashboard: React.FC = () => {
           </motion.div>
         </>
       ),
+    },
+    {
+      key: 'prescriptions',
+      label: (
+        <span>
+          <FileTextOutlined /> Duyệt Đơn Tư Vấn
+        </span>
+      ),
+      children: <PrescriptionApprovalManagement />,
     },
     {
       key: 'orders',
