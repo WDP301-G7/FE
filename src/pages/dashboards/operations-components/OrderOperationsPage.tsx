@@ -279,7 +279,7 @@ const OrderOperationsPage: React.FC = () => {
                 <SelectItem value="__all">All Status</SelectItem>
                 <SelectItem value="PENDING">Pending</SelectItem>
                 <SelectItem value="CONFIRMED">Confirmed</SelectItem>
-                <SelectItem value="PROCESSING">Processing</SelectItem>
+                <SelectItem value="WAITING_CUSTOMER">Waiting for Customer</SelectItem>
                 <SelectItem value="READY">Ready</SelectItem>
                 <SelectItem value="CANCELLED">Cancelled</SelectItem>
               </SelectContent>
@@ -314,9 +314,9 @@ const OrderOperationsPage: React.FC = () => {
                     <TableRow key={order.id}>
                       <TableCell className="font-medium">{order.id}</TableCell>
                       <TableCell>{getStatusBadge(order.status)}</TableCell>
-                      <TableCell>{formatCurrency(order.totalPrice)}</TableCell>
-                      <TableCell>{formatDate(order.createdDate)}</TableCell>
-                      <TableCell>{order.customerId || 'N/A'}</TableCell>
+                      <TableCell>{formatCurrency(order.totalAmount)}</TableCell>
+                      <TableCell>{formatDate(order.createdAt)}</TableCell>
+                      <TableCell>{order.customer.fullName || 'N/A'}</TableCell>
                       <TableCell>{order.staffId || 'Not assigned'}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-2 justify-end flex-wrap">
@@ -423,15 +423,15 @@ const OrderOperationsPage: React.FC = () => {
               </div>
               <div>
                 <Label className="font-semibold">Total Price</Label>
-                <p className="text-sm">{formatCurrency(selectedOrder.totalPrice)}</p>
+                <p className="text-sm">{formatCurrency(selectedOrder.totalAmount)}</p>
               </div>
               <div>
                 <Label className="font-semibold">Created Date</Label>
-                <p className="text-sm">{formatDate(selectedOrder.createdDate)}</p>
+                <p className="text-sm">{formatDate(selectedOrder.createdAt)}</p>
               </div>
               <div>
                 <Label className="font-semibold">Customer ID</Label>
-                <p className="text-sm">{selectedOrder.customerId || 'N/A'}</p>
+                <p className="text-sm">{selectedOrder.customer?.fullName || 'N/A'}</p>
               </div>
               <div>
                 <Label className="font-semibold">Staff ID</Label>

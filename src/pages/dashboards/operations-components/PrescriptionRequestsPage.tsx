@@ -332,7 +332,7 @@ const PrescriptionRequestsPage: React.FC = () => {
             {requests.map((r) => (
               <TableRow key={r.id}>
                 <TableCell>{r.id}</TableCell>
-                <TableCell>{new Date(r.createdDate).toLocaleString()}</TableCell>
+                <TableCell>{new Date(r.createdAt).toLocaleString()}</TableCell>
                 <TableCell><Badge>{r.status}</Badge></TableCell>
                 <TableCell className="space-x-1">
                   <Button size="sm" variant="outline" onClick={() => openDetail(r.id)}>
@@ -380,9 +380,8 @@ const PrescriptionRequestsPage: React.FC = () => {
             <div className="space-y-2">
               <div>ID: {selected.id}</div>
               <div>Status: {selected.status}</div>
-              <div>Customer: {selected.customerId}</div>
-              <div>Store: {selected.storeId}</div>
-              <div>Handled by: {selected.handledBy}</div>
+              <div>Customer: {selected.customer?.fullName || 'N/A'}</div>
+              
               <div>Contact notes: {selected.contactNotes}</div>
               {selected.images && selected.images.length > 0 && (
                 <div>
