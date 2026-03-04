@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { operationsService, OrderDetails, GetOrdersParams } from '@/services/operations.service';
 import { adminService } from '@/services/admin.service';
 import { Eye, CheckCircle, XCircle, Calendar } from 'lucide-react';
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 
 // Staff type for dropdown
 interface StaffMember {
@@ -34,6 +35,12 @@ const OrderOperationsPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [selectedOrder, setSelectedOrder] = useState<OrderDetails | null>(null);
   
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50); // Increased to show more orders per page
+  const [totalItems, setTotalItems] = useState(0);
+  const totalPages = Math.ceil(totalItems / pageSize);
+  
   // Modal states
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
@@ -53,34 +60,78 @@ const OrderOperationsPage: React.FC = () => {
   useEffect(() => {
     const loadStaffs = async () => {
       try {
-        const res = await adminService.getUsers({ page: 1, limit: 100, role: 'STAFF' });
-        // depending on response shape, pick array
-        const users = (res as any).items || (res as any).data || [];
-        setStaffList(users.map((u: any) => ({ id: u.id, fullName: u.fullName, email: u.email })));
+        // Try with role filter first
+        console.log('Attempting to load staff with role=STAFF filter...');
+        let res = await adminService.getUsers({ page: 1, limit: 100, role: 'STAFF' });
+        console.log('Staff API response with role filter:', res);
+        
+        // API returns data.users array
+        let users = (res as any).users || (res as any).items || (res as any).data || (Array.isArray(res) ? res : []);
+        console.log('Extracted users with role filter:', users);
+        
+        // If no users with role filter, try without filter
+        if ((!users || users.length === 0)) {
+          console.log('No staff found with role filter, trying without filter...');
+          res = await adminService.getUsers({ page: 1, limit: 100 });
+          console.log('Staff API response without filter:', res);
+          users = (res as any).users || (res as any).items || (res as any).data || (Array.isArray(res) ? res : []);
+          console.log('Extracted users without filter:', users);
+        }
+        
+        const staffArray = users.map((u: any) => {
+          console.log('Processing user:', u);
+          return { id: u.id, fullName: u.fullName, email: u.email };
+        });
+        console.log('Final staff list:', staffArray);
+        setStaffList(staffArray);
       } catch (err: any) {
-        console.error('Failed to load staff list', err);
+        console.error('Failed to load staff list:', err);
+        console.error('Error details:', err.response?.data);
+        // Set empty staff list on error instead of crashing
+        setStaffList([]);
       }
     };
 
     loadStaffs();
     loadOrders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter, currentPage, pageSize]);
+  
+  // Reset pagination when status filter changes
+  useEffect(() => {
+    setCurrentPage(1);
   }, [statusFilter]);
 
   const loadOrders = async () => {
     setLoading(true);
     try {
-      const params: GetOrdersParams = {};
+      const params: GetOrdersParams = {
+        page: currentPage,
+        size: pageSize,
+      };
       if (statusFilter && statusFilter !== "__all") params.status = statusFilter;
-      const data = await operationsService.getAllOrders(params);
-      console.log('loadOrders response', data);
-      setOrders(Array.isArray(data) ? data : []);
+      const response = await operationsService.getAllOrders(params);
+      console.log('loadOrders params:', params);
+      console.log('loadOrders response:', response);
+      console.log('pageInfo:', response.pageInfo);
+      console.log('orders count:', response.orders.length);
+      
+      // Response now includes orders array and pageInfo
+      setOrders(response.orders || []);
+      
+      // Calculate total from pageInfo if available, otherwise use length
+      const total = response.pageInfo?.totalElements || response.orders.length;
+      console.log('Calculated total:', total);
+      setTotalItems(total);
     } catch (err: any) {
+      console.error('Error loading orders:', err);
       toast({
         title: 'Error',
         description: err.response?.data?.message || 'Failed to load orders',
         variant: 'destructive',
       });
+      setOrders([]);
+      setTotalItems(0);
     } finally {
       setLoading(false);
     }
@@ -110,14 +161,23 @@ const OrderOperationsPage: React.FC = () => {
     }
     setLoading(true);
     try {
+      // Convert datetime-local format to ISO 8601 with Z
+      const dateObj = new Date(appointmentDate + ':00.000Z');
+      const isoDate = dateObj.toISOString();
+      
+      console.log('Sending confirm request with:');
+      console.log('- appointmentDate:', isoDate);
+      console.log('- appointmentNotes:', appointmentNotes);
+      console.log('- assignedStaffId:', assignedStaffId);
+      
       await operationsService.confirmOrder(selectedOrder.id, {
-        appointmentDate,
+        appointmentDate: isoDate,
         appointmentNotes,
         assignedStaffId,
       });
       toast({
         title: 'Success',
-        description: 'Order confirmed and appointment scheduled',
+        description: 'Order accepted and appointment scheduled',
       });
       setIsConfirmOpen(false);
       loadOrders();
@@ -224,7 +284,7 @@ const OrderOperationsPage: React.FC = () => {
                 <SelectItem value="CANCELLED">Cancelled</SelectItem>
               </SelectContent>
             </Select>
-            <Button onClick={loadOrders} disabled={loading}>
+            <Button onClick={() => { setCurrentPage(1); loadOrders(); }} disabled={loading}>
               Refresh
             </Button>
           </div>
@@ -267,7 +327,7 @@ const OrderOperationsPage: React.FC = () => {
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
-                          {order.status === 'PENDING' && (
+                          {order.status === 'CONFIRMED' && (
                             <>
                               <Button
                                 size="sm"
@@ -294,6 +354,54 @@ const OrderOperationsPage: React.FC = () => {
               </TableBody>
             </Table>
           </div>
+          
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4">
+              <div className="text-sm text-muted-foreground">
+                Page {currentPage} of {totalPages} (Total: {totalItems} orders)
+              </div>
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                    />
+                  </PaginationItem>
+                  
+                  {/* Page numbers */}
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    const pageNum = i + 1;
+                    return (
+                      <PaginationItem key={pageNum}>
+                        <PaginationLink
+                          onClick={() => setCurrentPage(pageNum)}
+                          isActive={currentPage === pageNum}
+                          className="cursor-pointer"
+                        >
+                          {pageNum}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  })}
+                  
+                  {totalPages > 5 && (
+                    <PaginationItem>
+                      <span className="px-2">...</span>
+                    </PaginationItem>
+                  )}
+                  
+                  <PaginationItem>
+                    <PaginationNext
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -343,7 +451,7 @@ const OrderOperationsPage: React.FC = () => {
       <Dialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Confirm Order & Schedule Appointment</DialogTitle>
+            <DialogTitle>Accept Order & Schedule Appointment</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -386,7 +494,7 @@ const OrderOperationsPage: React.FC = () => {
               Cancel
             </Button>
             <Button onClick={submitConfirm} disabled={loading}>
-              {loading ? 'Confirming...' : 'Confirm Order'}
+              {loading ? 'Confirming...' : 'Accept Order'}
             </Button>
           </DialogFooter>
         </DialogContent>

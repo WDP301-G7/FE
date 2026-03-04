@@ -11,6 +11,7 @@ import {
   SafetyCertificateOutlined,
   CalendarOutlined,
   EyeOutlined,
+  RetweetOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -61,23 +62,28 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
         label: 'Duyệt Đơn Hàng',
       });
       
+      items.push({
+        key: '/operations/prescriptions',
+        icon: <FileProtectOutlined />,
+        label: 'Đơn Thuốc',
+      });
+      items.push({
+        key: '/operations/returns',
+        icon: <RetweetOutlined />,
+        label: 'Trả Hàng',
+      });
     
     }
 
     // Admin Management - Admin only
     if (hasRole(['admin', 'ADMIN'])) {
       items.push({
-        key: '/products',
-        icon: <AppstoreOutlined />,
-        label: 'Products',
-      });
-      items.push({
         key: '/admin/orders',
         icon: <ShoppingCartOutlined />, 
         label: 'Quản Lý Đơn Hàng',
       });
       items.push({
-        key: '/admin/orders/operations',
+        key: '/admin/orders',
         icon: <CalendarOutlined />,
         label: 'Duyệt Đơn',
       });

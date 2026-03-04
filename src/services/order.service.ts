@@ -105,6 +105,82 @@ class OrderService {
     const response = await api.post<{ data: Order }>(`/orders/${id}/complete`);
     return response.data.data;
   }
+
+  // CONFIRMED → PROCESSING (bắt đầu làm)
+  async startProcessing(id: string) {
+    const response = await api.post<{ data: Order }>(`/orders/${id}/start-processing`);
+    return response.data.data;
+  }
+
+  // Complete order with notes and optional images
+  async completeOrderWithNotes(id: string, data: { completionNote?: string; images?: File[] }) {
+    const formData = new FormData();
+    if (data.completionNote) {
+      formData.append('completionNote', data.completionNote);
+    }
+    if (data.images) {
+      data.images.forEach(image => {
+        formData.append('images', image);
+      });
+    }
+
+    const response = await api.patch<{ data: Order }>(`/orders/${id}/complete-with-notes`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data.data;
+  }
+
+  // Verify customer by phone before delivery
+  async verifyCustomer(orderId: string, phone: string) {
+    const response = await api.get<{ 
+      data: { 
+        verified: boolean; 
+        customer: { 
+          id: string; 
+          fullName: string; 
+          email: string; 
+          phone: string; 
+        };
+        order: Order;
+      } 
+    }>(`/orders/${orderId}/verify`, { params: { phone } });
+    return response.data.data;
+  }
+
+  // Get prescription details for an order
+  async getOrderPrescription(orderId: string) {
+    const response = await api.get<{ 
+      data: { 
+        order: Order;
+        prescription: {
+          rightEyeSphere?: string;
+          rightEyeCylinder?: string;
+          rightEyeAxis?: number;
+          leftEyeSphere?: string;
+          leftEyeCylinder?: string;
+          leftEyeAxis?: number;
+          pupillaryDistance?: string;
+          notes?: string;
+          prescriptionImageUrl?: string;
+        } | null;
+      } 
+    }>(`/orders/${orderId}/prescription`);
+    return response.data.data;
+  }
+
+  // Get staff statistics
+  async getStaffStats() {
+    const response = await api.get<{ 
+      data: {
+        pendingCount: number;
+        processingCount: number;
+        completedToday: number;
+        readyCount: number;
+        totalAssigned: number;
+      }
+    }>('/orders/stats/staff');
+    return response.data.data;
+  }
 }
 
 export const orderService = new OrderService();
