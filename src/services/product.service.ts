@@ -21,9 +21,10 @@ export interface Product {
 
 export interface ProductImage {
   id: string;
-  url: string;
+  imageUrl: string;
+  imageType: 'TWO_D' | 'THREE_D' | 'DETAIL';
   isPrimary: boolean;
-  productId: string;
+  productId?: string;
 }
 
 export interface CreateProductData {
@@ -52,8 +53,45 @@ class ProductService {
     return response.data.data;
   }
 
-  async createProduct(data: CreateProductData) {
-    const response = await api.post<{ data: Product }>('/products', data);
+  async createProduct(data: CreateProductData, images?: File[]) {
+    const formData = new FormData();
+    
+    // Append product data
+    formData.append('categoryId', data.categoryId);
+    formData.append('name', data.name);
+    formData.append('type', data.type);
+    formData.append('price', data.price.toString());
+    formData.append('sku', data.sku);
+    
+    if (data.description) formData.append('description', data.description);
+    if (data.brand) formData.append('brand', data.brand);
+    if (data.isPreorder !== undefined) formData.append('isPreorder', data.isPreorder.toString());
+    if (data.leadTimeDays) formData.append('leadTimeDays', data.leadTimeDays.toString());
+    
+    // Append images
+    if (images && images.length > 0) {
+      images.forEach((file, index) => {
+        formData.append('images', file);
+        // Image types: 2D (standard photo), 3D (3D view), DETAIL (close-up)
+        formData.append('imageTypes', '2D');
+      });
+      // Set first image as primary
+      formData.append('primaryIndex', '0');
+    }
+    
+    console.log('📤 Creating product with FormData:');
+    console.log('Total fields:', Array.from(formData.entries()).length);
+    for (const [key, value] of formData.entries()) {
+      if (value instanceof File) {
+        console.log(`  ✓ ${key}: File(${value.name}, ${(value.size / 1024).toFixed(2)}KB, type: ${value.type})`);
+      } else {
+        console.log(`  ✓ ${key}: ${value}`);
+      }
+    }
+    
+    const response = await api.post<{ data: Product }>('/products', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
     return response.data.data;
   }
 

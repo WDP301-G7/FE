@@ -100,6 +100,12 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
       
       
       items.push({
+        key: '/admin/products',
+        icon: <AppstoreOutlined />,
+        label: 'Quản Lý Sản Phẩm',
+      });
+      
+      items.push({
         key: '/admin/users',
         icon: <TeamOutlined />,
         label: 'Quản Lý Người Dùng',

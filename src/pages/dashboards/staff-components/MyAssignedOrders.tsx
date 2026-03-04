@@ -73,15 +73,28 @@ export const MyAssignedOrders: React.FC = () => {
       }
       
       // ⚠️ FILTER: Only show orders assigned to THIS staff
-      // Backend should do this, but we filter here as backup
-      const myOrders = data.items.filter((order: any) => {
-        const assignedStaffId = order.handledBy || order.handler?.id || order.assignedStaffId || order.staffId;
-        const isMyOrder = assignedStaffId === user?.id;
-        console.log(`Order ${order.orderNumber}: handledBy=${assignedStaffId}, isMyOrder=${isMyOrder}`);
-        return isMyOrder;
-      });
+      // When specific status is selected, trust backend filtering
+      // When ALL selected, apply client-side filter as backup
+      let myOrders;
       
-      console.log('✅ Filtered to MY orders:', myOrders.length, 'orders');
+      if (statusFilter !== 'ALL') {
+        // Trust backend when filtering by specific status
+        // Show all orders returned (backend should have filtered by staff + status)
+        console.log(`✅ Status filter "${statusFilter}" active - showing all ${data.items.length} orders from backend`);
+        myOrders = data.items;
+      } else {
+        // For ALL orders, apply client-side filter to ensure only assigned orders show
+        myOrders = data.items.filter((order: any) => {
+          const assignedStaffId = order.handledBy || order.handler?.id || order.assignedStaffId || order.staffId;
+          const isMyOrder = assignedStaffId === user?.id;
+          
+          console.log(`Order ${order.orderNumber}: handledBy=${assignedStaffId}, isMyOrder=${isMyOrder}, status=${order.status}`);
+          
+          return isMyOrder;
+        });
+        
+        console.log('✅ Filtered to MY orders:', myOrders.length, 'orders');
+      }
       
       setOrders(myOrders);
       setPagination(prev => ({ ...prev, total: myOrders.length }));
@@ -179,11 +192,9 @@ export const MyAssignedOrders: React.FC = () => {
       const data = await orderService.getOrderPrescription(orderId);
       setPrescriptionData(data.prescription);
     } catch (error: any) {
-      toast({
-        title: 'Lỗi',
-        description: error.response?.data?.message || 'Không thể tải thông tin đơn thuốc',
-        variant: 'destructive',
-      });
+      // Silently fail - not all orders have prescriptions
+      console.log('ℹ️ No prescription found for order:', orderId);
+      setPrescriptionData(null);
     } finally {
       setLoadingPrescription(false);
     }

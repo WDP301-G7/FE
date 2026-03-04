@@ -26,6 +26,8 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
+    console.log('🎯 handleFileSelect - Selected files:', files.length);
+    console.log('🎯 Current images count:', images.length);
     
     // Validate file count
     if (images.length + files.length > maxImages) {
@@ -36,6 +38,8 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
     // Validate each file
     const validFiles: File[] = [];
     for (const file of files) {
+      console.log('🔍 Validating file:', file.name, file.type, `${(file.size / 1024 / 1024).toFixed(2)}MB`);
+      
       // Check file type
       if (!acceptedTypes.includes(file.type)) {
         alert(`File ${file.name} không đúng định dạng. Chỉ chấp nhận JPG/PNG.`);
@@ -52,8 +56,11 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
       validFiles.push(file);
     }
 
+    console.log('✅ Valid files:', validFiles.length);
     if (validFiles.length > 0) {
-      onChange([...images, ...validFiles]);
+      const newFiles = [...images, ...validFiles];
+      console.log('📤 Calling onChange with', newFiles.length, 'files');
+      onChange(newFiles);
     }
 
     // Reset input

@@ -44,9 +44,23 @@ export const ReturnManagement: React.FC = () => {
         limit: pagination.limit,
         type: typeFilter === 'ALL' ? undefined : typeFilter,
       });
+      console.log('✅ Return data from API:', data);
+      console.log('📊 Returns array:', data?.data);
+      
+      // Debug first return request structure
+      if (data?.data && data.data.length > 0) {
+        console.log('🔍 First return request:', data.data[0]);
+        console.log('🔍 Order field:', data.data[0].order);
+        console.log('🔍 OrderId field:', data.data[0].orderId);
+        console.log('🔍 ReturnItems field:', data.data[0].returnItems);
+        console.log('🔍 Items field:', data.data[0].items);
+        console.log('🔍 All keys:', Object.keys(data.data[0]));
+      }
+      
       setReturns(data?.data || []);
       setPagination(prev => ({ ...prev, total: data?.pagination?.total || 0 }));
     } catch (error: any) {
+      console.error('❌ Error loading returns:', error);
       toast({
         title: 'Lỗi',
         description: error.response?.data?.message || 'Không thể tải danh sách đổi/trả',
@@ -69,6 +83,27 @@ export const ReturnManagement: React.FC = () => {
     // Pre-fill refund amount for RETURN type
     if (returnRequest.type === 'RETURN' && returnRequest.refundAmount) {
       setRefundAmount(returnRequest.refundAmount.toString());
+    } else if (returnRequest.type === 'EXCHANGE') {
+      // Calculate price difference for EXCHANGE
+      let totalPriceDiff = 0;
+      const items = getReturnItems(returnRequest);
+      
+      items.forEach((item: any) => {
+        if (item.product && item.exchangeProduct) {
+          const originalPrice = parseFloat(item.product.price) * item.quantity;
+          const exchangePrice = parseFloat(item.exchangeProduct.price) * item.quantity;
+          const diff = exchangePrice - originalPrice;
+          totalPriceDiff += diff;
+        }
+      });
+      
+      // If price difference is negative (customer exchanging for cheaper), they get refund
+      // If positive, they need to pay more
+      if (totalPriceDiff < 0) {
+        setRefundAmount(Math.abs(totalPriceDiff).toString());
+      } else {
+        setRefundAmount(totalPriceDiff.toString());
+      }
     } else {
       setRefundAmount('');
     }
@@ -93,6 +128,18 @@ export const ReturnManagement: React.FC = () => {
         return;
       }
     }
+    
+    // Validate for EXCHANGE type
+    if (selectedReturn.type === 'EXCHANGE') {
+      if (!refundAmount) {
+        toast({
+          title: 'Lỗi',
+          description: 'Không thể tính toán chênh lệch giá',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
 
     setSubmitting(true);
     try {
@@ -102,9 +149,14 @@ export const ReturnManagement: React.FC = () => {
       }
 
       // Complete the return
+      const amount = parseFloat(refundAmount);
       await returnService.completeReturn(selectedReturn.id, {
-        refundAmount: selectedReturn.type === 'RETURN' ? parseFloat(refundAmount) : undefined,
-        refundMethod: selectedReturn.type === 'RETURN' ? refundMethod : undefined,
+        refundAmount: selectedReturn.type === 'RETURN' || (selectedReturn.type === 'EXCHANGE' && amount < 0) 
+          ? Math.abs(amount) 
+          : undefined,
+        refundMethod: selectedReturn.type === 'RETURN' || (selectedReturn.type === 'EXCHANGE' && amount < 0)
+          ? refundMethod 
+          : undefined,
         completionNote: completionNote || undefined,
       });
 
@@ -114,8 +166,12 @@ export const ReturnManagement: React.FC = () => {
       });
 
       setIsCompleteDialogOpen(false);
+      
+      // Remove the completed return from the list instead of reloading all
+      setReturns(prev => prev.filter(r => r.id !== selectedReturn.id));
+      setPagination(prev => ({ ...prev, total: Math.max(0, prev.total - 1) }));
+      
       setSelectedReturn(null);
-      loadReturns();
     } catch (error: any) {
       toast({
         title: 'Lỗi',
@@ -125,6 +181,21 @@ export const ReturnManagement: React.FC = () => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // Helper function to get order number from different possible fields
+  const getOrderNumber = (returnRequest: any) => {
+    return returnRequest.order?.orderNumber || 
+           returnRequest.orderNumber || 
+           returnRequest.orderId || 
+           'N/A';
+  };
+
+  // Helper function to get return items from different possible fields
+  const getReturnItems = (returnRequest: any) => {
+    return returnRequest.returnItems || 
+           returnRequest.items || 
+           [];
   };
 
   const getTypeBadge = (type: string) => {
@@ -188,18 +259,29 @@ export const ReturnManagement: React.FC = () => {
                   <Search className="h-4 w-4" />
                 </Button>
               </div>
-              <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Lọc theo loại" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">Tất cả</SelectItem>
-                <SelectItem value="RETURN">Trả hàng</SelectItem>
-                <SelectItem value="EXCHANGE">Đổi hàng</SelectItem>
-                <SelectItem value="WARRANTY">Bảo hành</SelectItem>
-              </SelectContent>
-            </Select>
-          </motion.div>
+              <div className="flex items-center gap-2">
+                <Select value={typeFilter} onValueChange={setTypeFilter}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Lọc theo loại" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Tất cả</SelectItem>
+                  <SelectItem value="RETURN">Trả hàng</SelectItem>
+                  <SelectItem value="EXCHANGE">Đổi hàng</SelectItem>
+                  <SelectItem value="WARRANTY">Bảo hành</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button 
+                variant="outline" 
+                size="icon" 
+                onClick={loadReturns}
+                disabled={loading}
+                title="Làm mới danh sách"
+              >
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              </Button>
+              </div>
+            </motion.div>
 
           <motion.div 
             className="border rounded-lg"
@@ -236,17 +318,20 @@ export const ReturnManagement: React.FC = () => {
                       transition={{ delay: 0.1 * index, duration: 0.3 }}
                       className="border-b transition-colors hover:bg-muted/50"
                     >
-                      <TableCell className="font-medium">{returnRequest.order.orderNumber}</TableCell>
+                      <TableCell className="font-medium">{getOrderNumber(returnRequest)}</TableCell>
                       <TableCell>
                         <div>
-                          <div className="font-medium">{returnRequest.customer?.fullName}</div>
-                          <div className="text-sm text-muted-foreground">{returnRequest.customer?.phone}</div>
+                          <div className="font-medium">{returnRequest.customer?.fullName || 'N/A'}</div>
+                          <div className="text-sm text-muted-foreground">{returnRequest.customer?.phone || ''}</div>
                         </div>
                       </TableCell>
                       <TableCell>{getTypeBadge(returnRequest.type)}</TableCell>
                       <TableCell>
                         <div className="text-sm">
-                          {returnRequest.returnItems.map(item => item.product.name).join(', ')}
+                          {getReturnItems(returnRequest)
+                            .filter((item: any) => item && item.product)
+                            .map((item: any) => item.product?.name || 'N/A')
+                            .join(', ') || 'Không có sản phẩm'}
                         </div>
                       </TableCell>
                       <TableCell className="text-sm">{formatDate(returnRequest.createdAt)}</TableCell>
@@ -322,7 +407,7 @@ export const ReturnManagement: React.FC = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Mã đơn hàng</Label>
-                  <p className="font-medium">{selectedReturn.order.orderNumber}</p>
+                  <p className="font-medium">{getOrderNumber(selectedReturn)}</p>
                 </div>
                 <div>
                   <Label>Loại yêu cầu</Label>
@@ -364,9 +449,11 @@ export const ReturnManagement: React.FC = () => {
               <div>
                 <Label>Sản phẩm yêu cầu đổi/trả</Label>
                 <div className="mt-2 space-y-2">
-                  {selectedReturn.returnItems.map((item) => (
+                  {getReturnItems(selectedReturn)
+                    .filter((item: any) => item && item.product)
+                    .map((item: any) => (
                     <div key={item.id} className="flex items-center gap-3 p-3 border rounded">
-                      {item.product.images && item.product.images[0] && (
+                      {item.product?.images && item.product.images[0] && (
                         <img
                           src={item.product.images[0].imageUrl}
                           alt={item.product.name}
@@ -374,12 +461,12 @@ export const ReturnManagement: React.FC = () => {
                         />
                       )}
                       <div className="flex-1">
-                        <p className="font-medium">{item.product.name}</p>
+                        <p className="font-medium">{item.product?.name || 'N/A'}</p>
                         <p className="text-sm text-muted-foreground">
-                          Số lượng: {item.quantity} • Tình trạng: {item.condition}
+                          Số lượng: {item.quantity} • Tình trạng: {item.condition || 'N/A'}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          Giá: {formatCurrency(parseFloat(item.product.price))}
+                          Giá: {item.product?.price ? formatCurrency(parseFloat(item.product.price)) : 'N/A'}
                         </p>
                       </div>
                       {item.exchangeProduct && (
@@ -455,7 +542,7 @@ export const ReturnManagement: React.FC = () => {
                       {selectedReturn.type === 'WARRANTY' && 'Bảo hành'}
                     </p>
                     <p className="text-sm text-blue-700 mt-1">
-                      Đơn hàng: {selectedReturn.order.orderNumber}
+                      Đơn hàng: {getOrderNumber(selectedReturn)}
                     </p>
                   </div>
                 </div>
@@ -492,6 +579,64 @@ export const ReturnManagement: React.FC = () => {
                       </SelectContent>
                     </Select>
                   </div>
+                </>
+              )}
+
+              {selectedReturn.type === 'EXCHANGE' && (
+                <>
+                  <div className={`p-4 border rounded-lg ${
+                    parseFloat(refundAmount) < 0 
+                      ? 'bg-green-50 border-green-200' 
+                      : parseFloat(refundAmount) > 0 
+                      ? 'bg-orange-50 border-orange-200' 
+                      : 'bg-gray-50 border-gray-200'
+                  }`}>
+                    <Label className="text-sm font-medium">Chênh lệch giá trị</Label>
+                    <div className="flex items-center justify-between mt-2">
+                      <div>
+                        <p className={`text-2xl font-bold ${
+                          parseFloat(refundAmount) < 0 
+                            ? 'text-green-700' 
+                            : parseFloat(refundAmount) > 0 
+                            ? 'text-orange-700' 
+                            : 'text-gray-700'
+                        }`}>
+                          {parseFloat(refundAmount) < 0 ? '-' : parseFloat(refundAmount) > 0 ? '+' : ''}
+                          {formatCurrency(Math.abs(parseFloat(refundAmount) || 0))}
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {parseFloat(refundAmount) < 0 
+                            ? '🔄 Hoàn tiền cho khách hàng' 
+                            : parseFloat(refundAmount) > 0 
+                            ? '💰 Khách cần thanh toán thêm'
+                            : '✓ Không có chênh lệch'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {parseFloat(refundAmount) < 0 && (
+                    <div>
+                      <Label htmlFor="refundMethod">Phương thức hoàn tiền *</Label>
+                      <Select value={refundMethod} onValueChange={(v) => setRefundMethod(v as any)} disabled={submitting}>
+                        <SelectTrigger id="refundMethod">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="BANK_TRANSFER">Chuyển khoản</SelectItem>
+                          <SelectItem value="CASH">Tiền mặt</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  
+                  {parseFloat(refundAmount) > 0 && (
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded">
+                      <p className="text-sm text-blue-800">
+                        ℹ️ Xác nhận đã thu thêm {formatCurrency(parseFloat(refundAmount))} từ khách hàng
+                      </p>
+                    </div>
+                  )}
                 </>
               )}
 
