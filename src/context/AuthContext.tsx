@@ -14,6 +14,15 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
 
+  // helper to normalize incoming role strings from server
+  const normalizeRole = (role: string): UserRole => {
+    const r = role.toLowerCase();
+    // some backends might return "operation" instead of "operations"
+    if (r === 'operation') return 'operations';
+    // fallback casts - it's okay if value is unexpected, hasRole will reject later
+    return r as UserRole;
+  };
+
   // Load user from localStorage on mount
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
@@ -25,7 +34,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           id: userData.id,
           name: userData.fullName,
           email: userData.email,
-          role: userData.role.toLowerCase() as UserRole,
+          role: normalizeRole(userData.role),
           avatar: userData.avatarUrl,
           department: userData.role,
           isActive: userData.status === 'ACTIVE',
@@ -44,7 +53,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       id: userData.id,
       name: userData.fullName,
       email: userData.email,
-      role: userData.role.toLowerCase() as UserRole,
+      role: normalizeRole(userData.role),
       avatar: userData.avatarUrl,
       department: userData.role,
       isActive: userData.status === 'ACTIVE',

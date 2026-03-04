@@ -1,4 +1,6 @@
 import React from 'react';
+import { useAuth } from '@/context/AuthContext';
+import { Navigate } from 'react-router-dom';
 import { Card, Typography, Table, Tag, Button, Space, Input } from 'antd';
 import { motion } from 'framer-motion';
 import { SearchOutlined, PlusOutlined, FilterOutlined } from '@ant-design/icons';
@@ -7,6 +9,10 @@ import { mockOrders, Order, OrderStatus } from '@/mock-data/orders';
 const { Title, Text } = Typography;
 
 const AdminOrdersManagement: React.FC = () => {
+  const { hasRole } = useAuth();
+  if (!hasRole(['ADMIN','admin', 'OPERATIONS','operations'])) {
+    return <Navigate to="/dashboard" replace />;
+  }
   // Get recent orders
   const recentOrders = [...mockOrders]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())

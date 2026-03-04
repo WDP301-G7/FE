@@ -45,7 +45,7 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
       // Manager chỉ xem orders và overview
     }
 
-    // Orders - for Staff, Manager only (Operations xử lý riêng)
+    // Orders - for Staff, Manager
     if (hasRole(['STAFF', 'staff', 'MANAGER', 'manager'])) {
       items.push({
         key: '/orders',
@@ -54,24 +54,36 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
       });
     }
 
-    // Returns/Exchange - for Staff and Admin
-    if (hasRole(['STAFF', 'staff', 'ADMIN', 'admin'])) {
+    // Operations-specific links
+    if (hasRole(['OPERATIONS', 'operations', 'OPERATION', 'operation'])) {
       items.push({
-        key: '/returns',
-        icon: <RetweetOutlined />,
-        label: 'Đổi/Trả Hàng',
+        key: '/operations/orders',
+        icon: <CalendarOutlined />, // reuse calendar icon
+        label: 'Duyệt Đơn Hàng',
       });
+      
+      items.push({
+        key: '/operations/prescriptions',
+        icon: <FileProtectOutlined />,
+        label: 'Đơn Thuốc',
+      });
+      items.push({
+        key: '/operations/returns',
+        icon: <RetweetOutlined />,
+        label: 'Trả Hàng',
+      });
+    
     }
 
     // Admin Management - Admin only
     if (hasRole(['admin', 'ADMIN'])) {
       items.push({
         key: '/admin/orders',
-        icon: <ShoppingCartOutlined />,
+        icon: <ShoppingCartOutlined />, 
         label: 'Quản Lý Đơn Hàng',
       });
       items.push({
-        key: '/admin/orders/operations',
+        key: '/admin/orders',
         icon: <CalendarOutlined />,
         label: 'Duyệt Đơn',
       });

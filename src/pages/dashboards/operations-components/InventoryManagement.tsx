@@ -14,9 +14,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Pencil, Trash2, Search } from 'lucide-react';
 
-export const AdminInventoryManagement: React.FC = () => {
+const OperationsInventory: React.FC = () => {
   const { hasRole } = useAuth();
-  if (!hasRole(['ADMIN', 'admin'])) {
+  if (!hasRole(['OPERATIONS', 'operations', 'OPERATION', 'operation'])) {
     return <Navigate to="/dashboard" replace />;
   }
   const { toast } = useToast();
@@ -84,7 +84,6 @@ export const AdminInventoryManagement: React.FC = () => {
         storeService.getStores({ page: 1, limit: 1000 }),
       ]);
 
-      // productService.getProducts may return variety of shapes, normalize
       const prodList = (prodRes as any).data || (prodRes as any);
       const storeList = (storeRes as any).data || (storeRes as any);
 
@@ -151,7 +150,6 @@ export const AdminInventoryManagement: React.FC = () => {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Client-side validation (set field errors)
     const errs: Record<string, string> = {};
     if (!formData.productId) errs.productId = 'Chưa chọn sản phẩm';
     if (!formData.storeId) errs.storeId = 'Chưa chọn cửa hàng';
@@ -193,7 +191,6 @@ export const AdminInventoryManagement: React.FC = () => {
     e.preventDefault();
     if (!editing) return;
 
-    // Client-side validation (set field errors)
     const errs: Record<string, string> = {};
     if (formData.quantity < 0) errs.quantity = 'Số lượng phải >= 0';
     if ((formData.reservedQuantity || 0) < 0) errs.reservedQuantity = 'Số lượng đã đặt trước phải >= 0';
@@ -536,4 +533,4 @@ export const AdminInventoryManagement: React.FC = () => {
   );
 };
 
-export default AdminInventoryManagement;
+export default OperationsInventory;

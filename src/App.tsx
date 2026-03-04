@@ -11,9 +11,16 @@ import RegisterPage from "@/pages/RegisterPage";
 import Dashboard from "@/pages/Dashboard";
 import { MyAssignedOrders } from "@/pages/dashboards/staff-components/MyAssignedOrders";
 import { ReturnManagement } from "@/pages/dashboards/staff-components/ReturnManagement";
+import ReturnPage from "@/pages/dashboards/operations-components/ReturnPage";
 import AdminOrdersManagement from "@/pages/dashboards/admin-components/AdminOrdersManagement";
 import AdminUsersManagement from "@/pages/dashboards/admin-components/AdminUsersManagement";
 import AdminSystemsManagement from "@/pages/dashboards/admin-components/AdminSystemsManagement";
+
+// operations role pages
+import OperationsOrderOps from "@/pages/dashboards/operations-components/OrderOperationsPage";
+import OperationsStores from "@/pages/dashboards/operations-components/StoresManagement";
+import OperationsInventory from "@/pages/dashboards/operations-components/InventoryManagement";
+import PrescriptionRequestsPage from "@/pages/dashboards/operations-components/PrescriptionRequestsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -44,6 +51,12 @@ const App = () => (
                 <Route path="admin/orders" element={<AdminOrdersManagement />} />
                 <Route path="admin/users" element={<AdminUsersManagement />} />
                 <Route path="admin/systems" element={<AdminSystemsManagement />} />
+                {/* operations-specific routes */}
+                <Route path="operations/orders" element={<OperationsOrderOps />} />
+                <Route path="operations/prescriptions" element={<PrescriptionRequestsPage />} />
+                <Route path="operations/stores" element={<OperationsStores />} />
+                <Route path="operations/inventory" element={<OperationsInventory />} />
+                <Route path="operations/returns" element={<ReturnPage />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>

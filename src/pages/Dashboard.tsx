@@ -2,8 +2,8 @@ import React from 'react';
 import { useAuth } from '@/context/AuthContext';
 import ManagerDashboard from './dashboards/manager-components/ManagerDashboard';
 import StaffDashboard from './dashboards/staff-components/StaffDashboard';
-import OperationsDashboard from './dashboards/operations-components/OperationsDashboard';
 import AdminDashboard from './dashboards/admin-components/AdminDashboard';
+import OperationsDashboard from './dashboards/operations-components/OperationsDashboard';
 
 /**
  * Dashboard page that renders role-specific content
@@ -23,6 +23,7 @@ const Dashboard: React.FC = () => {
       return <StaffDashboard />;
     case 'OPERATION':
     case 'OPERATIONS':
+    case 'OPERATION': // accommodate singular form from server
       return <OperationsDashboard />;
     case 'ADMIN':
       return <AdminDashboard />;

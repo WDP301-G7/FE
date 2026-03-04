@@ -86,6 +86,106 @@ export interface PaginatedResponse<T> {
 }
 
 class ReturnService {
+  private normalizeListResponse(
+    payload: any,
+    filters: ReturnFilters
+  ): PaginatedResponse<ReturnRequest> {
+    const fallbackPage = filters.page ?? 1;
+    const fallbackLimit = filters.limit ?? 10;
+
+    let data: ReturnRequest[] = [];
+    let pagination = {
+      page: fallbackPage,
+      limit: fallbackLimit,
+      total: 0,
+      totalPages: 0,
+    };
+
+    if (!payload) {
+      return { data, pagination };
+    }
+
+    if (Array.isArray(payload)) {
+      data = payload;
+    } else if (Array.isArray(payload.data)) {
+      data = payload.data;
+    } else if (Array.isArray(payload.items)) {
+      data = payload.items;
+    } else if (Array.isArray(payload.results)) {
+      data = payload.results;
+    }
+
+    const pag =
+      payload.pagination ||
+      payload.pageInfo ||
+      payload.meta?.pagination ||
+      payload.meta;
+
+    const hasPaginationHints =
+      !!payload.pagination ||
+      !!payload.pageInfo ||
+      !!payload.meta?.pagination ||
+      typeof payload.total !== 'undefined' ||
+      typeof payload.totalElements !== 'undefined' ||
+      typeof payload.totalItems !== 'undefined' ||
+      typeof payload.page !== 'undefined' ||
+      typeof payload.currentPage !== 'undefined' ||
+      typeof payload.limit !== 'undefined' ||
+      typeof payload.pageSize !== 'undefined';
+
+    if (!hasPaginationHints) {
+      const total = data.length;
+      pagination = {
+        page: fallbackPage,
+        limit: total || fallbackLimit,
+        total,
+        totalPages: total > 0 ? 1 : 0,
+      };
+      return { data, pagination };
+    }
+
+    if (pag && typeof pag === 'object') {
+      const total =
+        pag.total ??
+        pag.totalElements ??
+        pag.totalItems ??
+        payload.total ??
+        data.length;
+      const limit = pag.limit ?? pag.pageSize ?? payload.limit ?? fallbackLimit;
+      const page = pag.page ?? pag.currentPage ?? payload.page ?? fallbackPage;
+      const totalPages =
+        pag.totalPages ??
+        pag.totalPage ??
+        Math.ceil((total || 0) / (limit || 1));
+
+      pagination = {
+        page,
+        limit,
+        total,
+        totalPages,
+      };
+    } else {
+      const total =
+        payload.total ??
+        payload.totalElements ??
+        payload.totalItems ??
+        data.length;
+      const limit = payload.limit ?? payload.pageSize ?? fallbackLimit;
+      const page = payload.page ?? payload.currentPage ?? fallbackPage;
+      const totalPages =
+        payload.totalPages ?? payload.totalPage ?? Math.ceil((total || 0) / (limit || 1));
+
+      pagination = {
+        page,
+        limit,
+        total,
+        totalPages,
+      };
+    }
+
+    return { data, pagination };
+  }
+
   // Staff: Get approved returns waiting for processing
   async getApprovedReturns(filters: ReturnFilters = {}): Promise<PaginatedResponse<ReturnRequest>> {
     const params = new URLSearchParams();
@@ -97,7 +197,8 @@ class ReturnService {
     if (filters.endDate) params.append('endDate', filters.endDate);
 
     const response = await api.get(`/returns?${params.toString()}`);
-    return response.data.data;
+    const payload = response.data?.data ?? response.data;
+    return this.normalizeListResponse(payload, filters);
   }
 
   // Get all returns with filters (Staff/Operation/Admin)
@@ -113,7 +214,8 @@ class ReturnService {
     if (filters.endDate) params.append('endDate', filters.endDate);
 
     const response = await api.get(`/returns?${params.toString()}`);
-    return response.data.data;
+    const payload = response.data?.data ?? response.data;
+    return this.normalizeListResponse(payload, filters);
   }
 
   // Get return by ID
@@ -137,6 +239,25 @@ class ReturnService {
     return response.data.data;
   }
 
+  // Manager/Admin: Approve return request
+  async approveReturn(returnId: string, note?: string): Promise<ReturnRequest> {
+    const data = note ? { note } : {};
+    const response = await api.put(`/returns/${returnId}/approve`, data);
+    return response.data.data;
+  }
+
+  // Manager/Admin: Reject return request
+  async rejectReturn(returnId: string, rejectionReason: string): Promise<ReturnRequest> {
+    const response = await api.put(`/returns/${returnId}/reject`, { rejectionReason });
+    return response.data.data;
+  }
+
+  // Manager/Admin: Cancel return request
+  async cancelReturn(returnId: string): Promise<{ message: string }> {
+    const response = await api.delete(`/returns/${returnId}`);
+    return response.data.data;
+  }
+
   // Staff: Complete return request
   async completeReturn(
     returnId: string,
@@ -144,9 +265,29 @@ class ReturnService {
       refundAmount?: number;
       refundMethod?: 'BANK_TRANSFER' | 'CASH';
       completionNote?: string;
+      images?: File[];
     }
   ): Promise<ReturnRequest> {
-    const response = await api.put(`/returns/${returnId}/complete`, data);
+    const formData = new FormData();
+    
+    if (data.refundAmount !== undefined) {
+      formData.append('refundAmount', data.refundAmount.toString());
+    }
+    if (data.refundMethod) {
+      formData.append('refundMethod', data.refundMethod);
+    }
+    if (data.completionNote) {
+      formData.append('completionNote', data.completionNote);
+    }
+    if (data.images && data.images.length > 0) {
+      data.images.forEach((image) => {
+        formData.append('images', image);
+      });
+    }
+
+    const response = await api.put(`/returns/${returnId}/complete`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
     return response.data.data;
   }
 
