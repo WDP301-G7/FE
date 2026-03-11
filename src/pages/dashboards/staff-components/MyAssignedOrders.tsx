@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
 import { orderService, Order } from '@/services/order.service';
+import { productService, Product } from '@/services/product.service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,6 +19,16 @@ import { PrescriptionDetails } from './PrescriptionDetails';
 import { motion } from 'framer-motion';
 import { ModernImageUpload } from '@/components/dashboard/ModernImageUpload';
 import { Separator } from '@/components/ui/separator';
+
+// Helper function to get full image URL
+const getFullImageUrl = (url: string | undefined | null): string => {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+  const baseUrl = apiUrl.replace('/api', '');
+  const path = url.startsWith('/') ? url : `/${url}`;
+  return `${baseUrl}${path}`;
+};
 
 export const MyAssignedOrders: React.FC = () => {
   const { toast } = useToast();
@@ -36,6 +47,9 @@ export const MyAssignedOrders: React.FC = () => {
   // Prescription state
   const [prescriptionData, setPrescriptionData] = useState<any>(null);
   const [loadingPrescription, setLoadingPrescription] = useState(false);
+  
+  // Product images cache
+  const [productImages, setProductImages] = useState<Record<string, string>>({});
 
   // Verify customer state
   const [isVerifyDialogOpen, setIsVerifyDialogOpen] = useState(false);
@@ -107,6 +121,9 @@ export const MyAssignedOrders: React.FC = () => {
       
       setOrders(myOrders);
       setPagination(prev => ({ ...prev, total: myOrders.length }));
+      
+      // Preload product images for all orders
+      await preloadProductImages(myOrders);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -131,6 +148,9 @@ export const MyAssignedOrders: React.FC = () => {
     setPrescriptionData(null);
     setIsDetailDialogOpen(true);
     console.log('✅ Dialog state set:', { isDetailDialogOpen: true, selectedOrder: order });
+    
+    // Load product images
+    await loadProductImages(order);
     
     // Load prescription if it's a prescription order
     if (order.status !== 'NEW') {
@@ -183,7 +203,8 @@ export const MyAssignedOrders: React.FC = () => {
       setCompletionImages([]);
       setPrescriptionData(null);
       setIsCompleteDialogOpen(true);
-      // Load prescription
+      // Load product images and prescription
+      loadProductImages(order);
       loadPrescription(order.id);
     } else {
       console.log('✅ Opening confirm dialog for action:', action);
@@ -231,6 +252,77 @@ export const MyAssignedOrders: React.FC = () => {
       setPrescriptionData(null);
     } finally {
       setLoadingPrescription(false);
+    }
+  };
+
+  const loadProductImages = async (order: Order) => {
+    const items = order.items || (order as any).orderItems || [];
+    const newImageCache: Record<string, string> = {};
+    
+    try {
+      // Fetch product details for all items to get images
+      const productPromises = items.map(async (item: any) => {
+        const productId = item.productId || item.product?.id;
+        if (!productId) return;
+        
+        try {
+          const product = await productService.getProduct(productId);
+          if (product.images && product.images.length > 0) {
+            // Store the first image URL for this product
+            const firstImage = product.images[0];
+            const imageUrl = firstImage.imageUrl || (firstImage as any).url;
+            newImageCache[productId] = imageUrl;
+          }
+        } catch (err) {
+          console.log('Failed to fetch product images for:', productId);
+        }
+      });
+      
+      await Promise.all(productPromises);
+      setProductImages(prevCache => ({ ...prevCache, ...newImageCache }));
+    } catch (error) {
+      console.log('Error loading product images:', error);
+    }
+  };
+
+  const preloadProductImages = async (orders: Order[]) => {
+    console.log('🔄 Preloading product images for', orders.length, 'orders');
+    const newImageCache: Record<string, string> = {};
+    const uniqueProductIds = new Set<string>();
+    
+    // Collect all unique product IDs from all orders
+    orders.forEach(order => {
+      const items = order.items || (order as any).orderItems || [];
+      items.forEach((item: any) => {
+        const productId = item.productId || item.product?.id;
+        if (productId) {
+          uniqueProductIds.add(productId);
+        }
+      });
+    });
+    
+    console.log('📦 Found', uniqueProductIds.size, 'unique products to fetch images for');
+    
+    try {
+      // Fetch product details for all unique products
+      const productPromises = Array.from(uniqueProductIds).map(async (productId) => {
+        try {
+          const product = await productService.getProduct(productId);
+          if (product.images && product.images.length > 0) {
+            const firstImage = product.images[0];
+            const imageUrl = firstImage.imageUrl || (firstImage as any).url;
+            newImageCache[productId] = imageUrl;
+          }
+        } catch (err) {
+          console.log('⚠️ Failed to fetch images for product:', productId);
+        }
+      });
+      
+      await Promise.all(productPromises);
+      console.log('✅ Preloaded', Object.keys(newImageCache).length, 'product images');
+      setProductImages(prevCache => ({ ...prevCache, ...newImageCache }));
+    } catch (error) {
+      console.log('❌ Error preloading product images:', error);
     }
   };
 
@@ -631,31 +723,76 @@ export const MyAssignedOrders: React.FC = () => {
                                 </TableCell>
                               </TableRow>
                             ) : (
-                              (selectedOrder.items || (selectedOrder as any).orderItems || []).map((item: any, index: number) => (
-                                <TableRow key={item.id || index}>
-                                  <TableCell>
-                                    <div className="w-12 h-12 rounded-md overflow-hidden bg-gray-100 flex items-center justify-center">
-                                      {(item.image || item.product?.image || item.productImage) ? (
-                                        <img 
-                                          src={item.image || item.product?.image || item.productImage} 
-                                          alt={item.productName || item.product?.name || 'Product'} 
-                                          className="w-full h-full object-cover"
-                                          onError={(e) => {
-                                            (e.target as HTMLImageElement).style.display = 'none';
-                                            (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="text-xs text-muted-foreground">No img</div>';
-                                          }}
-                                        />
-                                      ) : (
-                                        <Package className="h-6 w-6 text-muted-foreground" />
-                                      )}
-                                    </div>
-                                  </TableCell>
+                              (selectedOrder.items || (selectedOrder as any).orderItems || []).map((item: any, index: number) => {
+                                // Debug: Log item structure to find correct image field
+                                if (index === 0) {
+                                  console.log('🖼️ Item structure for images:');
+                                  console.log('📦 Full item object:', item);
+                                  console.log('🔑 Item keys:', Object.keys(item));
+                                  if (item.product) {
+                                    console.log('🏷️ Product object:', item.product);
+                                    console.log('🔑 Product keys:', Object.keys(item.product));
+                                  }
+                                  console.log('🖼️ Available image fields:', {
+                                    'item.image': item.image,
+                                    'item.imageUrl': item.imageUrl,
+                                    'item.productImage': item.productImage,
+                                    'item.product?.image': item.product?.image,
+                                    'item.product?.imageUrl': item.product?.imageUrl,
+                                    'item.product?.images': item.product?.images,
+                                  });
+                                  console.log('💾 Cached product images:', productImages);
+                                }
+                                
+                                // Get image URL from cache or product.images array
+                                const productId = item.productId || item.product?.id;
+                                let imageUrl = '';
+                                
+                                // Priority 1: Use cached image from productImages state
+                                if (productId && productImages[productId]) {
+                                  imageUrl = getFullImageUrl(productImages[productId]);
+                                }
+                                // Priority 2: Try product.images array (if backend includes it)
+                                else if (item.product?.images && item.product.images.length > 0) {
+                                  const firstImage = item.product.images[0];
+                                  imageUrl = getFullImageUrl(
+                                    firstImage?.url || firstImage?.imageUrl || ''
+                                  );
+                                }
+                                // Priority 3: Fallback to other possible fields
+                                else {
+                                  imageUrl = getFullImageUrl(
+                                    item.image || item.imageUrl || item.productImage || item.product?.image || item.product?.imageUrl || ''
+                                  );
+                                }
+                                
+                                return (
+                                  <TableRow key={item.id || index}>
+                                    <TableCell>
+                                      <div className="w-12 h-12 rounded-md overflow-hidden bg-gray-100 flex items-center justify-center">
+                                        {imageUrl ? (
+                                          <img 
+                                            src={imageUrl} 
+                                            alt={item.productName || item.product?.name || 'Product'} 
+                                            className="w-full h-full object-cover"
+                                            onError={(e) => {
+                                              console.log('❌ Image load error for:', imageUrl);
+                                              (e.target as HTMLImageElement).style.display = 'none';
+                                              (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="text-xs text-muted-foreground">No img</div>';
+                                            }}
+                                          />
+                                        ) : (
+                                          <Package className="h-6 w-6 text-muted-foreground" />
+                                        )}
+                                      </div>
+                                    </TableCell>
                                   <TableCell className="font-medium">{item.productName || item.product?.name || 'N/A'}</TableCell>
                                   <TableCell className="text-center">{item.quantity}</TableCell>
                                   <TableCell className="text-right">{formatCurrency(item.price || item.unitPrice || 0)}</TableCell>
                                   <TableCell className="text-right font-medium">{formatCurrency(item.subtotal || (item.quantity * (item.price || item.unitPrice || 0)))}</TableCell>
                                 </TableRow>
-                              ))
+                                );
+                              })
                             )}
                           </TableBody>
                         </Table>
@@ -785,31 +922,56 @@ export const MyAssignedOrders: React.FC = () => {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {(selectedOrder.items || (selectedOrder as any).orderItems || []).map((item: any, index: number) => (
-                              <TableRow key={item.id || index}>
-                                <TableCell>
-                                  <div className="w-10 h-10 rounded overflow-hidden bg-gray-100 flex items-center justify-center">
-                                    {(item.image || item.product?.image || item.productImage) ? (
-                                      <img 
-                                        src={item.image || item.product?.image || item.productImage} 
-                                        alt={item.productName || item.product?.name || 'Product'} 
-                                        className="w-full h-full object-cover"
-                                        onError={(e) => {
-                                          (e.target as HTMLImageElement).style.display = 'none';
-                                          (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="text-xs text-muted-foreground">No img</div>';
-                                        }}
-                                      />
-                                    ) : (
-                                      <Package className="h-5 w-5 text-muted-foreground" />
-                                    )}
-                                  </div>
-                                </TableCell>
+                            {(selectedOrder.items || (selectedOrder as any).orderItems || []).map((item: any, index: number) => {
+                              // Get image URL from cache or product.images array
+                              const productId = item.productId || item.product?.id;
+                              let imageUrl = '';
+                              
+                              // Priority 1: Use cached image from productImages state
+                              if (productId && productImages[productId]) {
+                                imageUrl = getFullImageUrl(productImages[productId]);
+                              }
+                              // Priority 2: Try product.images array (if backend includes it)
+                              else if (item.product?.images && item.product.images.length > 0) {
+                                const firstImage = item.product.images[0];
+                                imageUrl = getFullImageUrl(
+                                  firstImage?.url || firstImage?.imageUrl || ''
+                                );
+                              }
+                              // Priority 3: Fallback to other possible fields
+                              else {
+                                imageUrl = getFullImageUrl(
+                                  item.image || item.imageUrl || item.productImage || item.product?.image || item.product?.imageUrl || ''
+                                );
+                              }
+                              
+                              return (
+                                <TableRow key={item.id || index}>
+                                  <TableCell>
+                                    <div className="w-10 h-10 rounded overflow-hidden bg-gray-100 flex items-center justify-center">
+                                      {imageUrl ? (
+                                        <img 
+                                          src={imageUrl} 
+                                          alt={item.productName || item.product?.name || 'Product'} 
+                                          className="w-full h-full object-cover"
+                                          onError={(e) => {
+                                            (e.target as HTMLImageElement).style.display = 'none';
+                                            (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="text-xs text-muted-foreground">No img</div>';
+                                          }}
+                                        />
+                                      ) : (
+                                        <Package className="h-5 w-5 text-muted-foreground" />
+                                      )}
+                                    </div>
+                                  </TableCell>
                                 <TableCell>{item.productName || item.product?.name || 'N/A'}</TableCell>
                                 <TableCell className="text-center">{item.quantity}</TableCell>
                                 <TableCell className="text-right text-sm">{formatCurrency(item.price || item.unitPrice || 0)}</TableCell>
                                 <TableCell className="text-right font-medium">{formatCurrency(item.subtotal || (item.quantity * (item.price || item.unitPrice || 0)))}</TableCell>
                               </TableRow>
-                            ))}
+                              );
+                            })
+                          }
                           </TableBody>
                         </Table>
                       </div>

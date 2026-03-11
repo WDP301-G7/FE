@@ -17,6 +17,7 @@ import AdminOrdersManagement from "@/pages/dashboards/admin-components/AdminOrde
 import AdminUsersManagement from "@/pages/dashboards/admin-components/AdminUsersManagement";
 import AdminSystemsManagement from "@/pages/dashboards/admin-components/AdminSystemsManagement";
 import { AdminProductManagement } from "@/pages/dashboards/admin-components/AdminProductManagement";
+import { AdminReviews } from "@/pages/dashboards/admin-components/AdminReviews";
 import AdminStoresManagement from "@/pages/dashboards/admin-components/AdminStoresManagement";
 
 // operations role pages
@@ -56,6 +57,7 @@ const App = () => (
                   <Route path="admin/users" element={<AdminUsersManagement />} />
                   <Route path="admin/systems" element={<AdminSystemsManagement />} />
                   <Route path="admin/products" element={<AdminProductManagement />} />
+                  <Route path="admin/reviews" element={<AdminReviews />} />
                   <Route path="admin/stores" element={<AdminStoresManagement />} />
                   {/* operations-specific routes */}
                   <Route path="operations/orders" element={<OperationsOrderOps />} />
