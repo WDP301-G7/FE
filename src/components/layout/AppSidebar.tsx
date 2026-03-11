@@ -1,172 +1,247 @@
 import React from 'react';
-import { Layout, Menu } from 'antd';
-import {
-  DashboardOutlined,
-  ShoppingCartOutlined,
-  AppstoreOutlined,
-  TeamOutlined,
-  SettingOutlined,
-  FileProtectOutlined,
-  AuditOutlined,
-  SafetyCertificateOutlined,
-  CalendarOutlined,
-  EyeOutlined,
-  RetweetOutlined,
-} from '@ant-design/icons';
-import type { MenuProps } from 'antd';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-
-const { Sider } = Layout;
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  LayoutDashboard,
+  ShoppingCart,
+  Package,
+  Users,
+  Settings,
+  FileText,
+  Shield,
+  Activity,
+  Calendar,
+  Eye,
+  RefreshCw,
+  Store,
+  BarChart3,
+  ClipboardList,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
 
 interface AppSidebarProps {
   collapsed: boolean;
   onCollapse: (collapsed: boolean) => void;
 }
 
+interface MenuItem {
+  key: string;
+  icon: React.ReactNode;
+  label: string;
+  roles?: string[];
+}
+
 const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, hasRole } = useAuth();
+  const { hasRole } = useAuth();
 
-  // Define menu items based on user role
-  const getMenuItems = (): MenuProps['items'] => {
-    const items: MenuProps['items'] = [];
-
-    // Dashboard - available to all
-    items.push({
+  // Define all menu items
+  const allMenuItems: MenuItem[] = [
+    {
       key: '/dashboard',
-      icon: <DashboardOutlined />,
+      icon: <LayoutDashboard className="h-5 w-5" />,
       label: 'Dashboard',
-    });
+    },
+    // Staff & Manager
+    {
+      key: '/orders',
+      icon: <ShoppingCart className="h-5 w-5" />,
+      label: 'Orders',
+      roles: ['STAFF', 'staff', 'MANAGER', 'manager'],
+    },
+    {
+      key: '/returns',
+      icon: <RefreshCw className="h-5 w-5" />,
+      label: 'Đổi/Trả Hàng',
+      roles: ['STAFF', 'staff', 'MANAGER', 'manager'],
+    },
+    // Operations
+    {
+      key: '/operations/orders',
+      icon: <Calendar className="h-5 w-5" />,
+      label: 'Duyệt Đơn Hàng',
+      roles: ['OPERATIONS', 'operations', 'OPERATION', 'operation'],
+    },
+    {
+      key: '/operations/prescriptions',
+      icon: <FileText className="h-5 w-5" />,
+      label: 'Đơn Thuốc',
+      roles: ['OPERATIONS', 'operations', 'OPERATION', 'operation'],
+    },
+    {
+      key: '/operations/returns',
+      icon: <RefreshCw className="h-5 w-5" />,
+      label: 'Trả Hàng',
+      roles: ['OPERATIONS', 'operations', 'OPERATION', 'operation'],
+    },
+    {
+      key: '/operations/inventory',
+      icon: <ClipboardList className="h-5 w-5" />,
+      label: 'Quản Lý Kho',
+      roles: ['OPERATIONS', 'operations', 'OPERATION', 'operation'],
+    },
+    {
+      key: '/operations/stores',
+      icon: <Store className="h-5 w-5" />,
+      label: 'Cửa Hàng',
+      roles: ['OPERATIONS', 'operations', 'OPERATION', 'operation'],
+    },
+    // Admin
+    {
+      key: '/admin/orders',
+      icon: <ShoppingCart className="h-5 w-5" />,
+      label: 'Quản Lý Đơn Hàng',
+      roles: ['admin', 'ADMIN'],
+    },
+    {
+      key: '/admin/stores',
+      icon: <Store className="h-5 w-5" />,
+      label: 'Quản Lý Cửa Hàng',
+      roles: ['admin', 'ADMIN'],
+    },
+    {
+      key: '/admin/inventory',
+      icon: <ClipboardList className="h-5 w-5" />,
+      label: 'Quản Lý Kho Hàng',
+      roles: ['admin', 'ADMIN'],
+    },
+    {
+      key: '/admin/products',
+      icon: <Package className="h-5 w-5" />,
+      label: 'Quản Lý Sản Phẩm',
+      roles: ['admin', 'ADMIN'],
+    },
+    {
+      key: '/admin/users',
+      icon: <Users className="h-5 w-5" />,
+      label: 'Quản Lý Người Dùng',
+      roles: ['admin', 'ADMIN'],
+    },
+    {
+      key: '/admin/systems',
+      icon: <Settings className="h-5 w-5" />,
+      label: 'Quản Lý Hệ Thống',
+      roles: ['admin', 'ADMIN'],
+    },
+    {
+      key: '/audit-logs',
+      icon: <Activity className="h-5 w-5" />,
+      label: 'Audit Logs',
+      roles: ['admin', 'ADMIN'],
+    },
+    {
+      key: '/analytics',
+      icon: <BarChart3 className="h-5 w-5" />,
+      label: 'Analytics',
+      roles: ['admin', 'ADMIN', 'MANAGER', 'manager'],
+    },
+    {
+      key: '/permissions',
+      icon: <Shield className="h-5 w-5" />,
+      label: 'Permissions',
+      roles: ['admin', 'ADMIN'],
+    },
+  ];
 
-    // Manager specific menus
-    if (hasRole(['MANAGER', 'manager'])) {
-      // Manager chỉ xem orders và overview
-    }
+  // Filter menu items based on user role
+  const menuItems = allMenuItems.filter((item) => {
+    if (!item.roles) return true; // Show to all if no roles specified
+    return hasRole(item.roles);
+  });
 
-    // Orders - for Staff, Manager
-    if (hasRole(['STAFF', 'staff', 'MANAGER', 'manager'])) {
-      items.push({
-        key: '/orders',
-        icon: <ShoppingCartOutlined />,
-        label: 'Orders',
-      });
-    }
-
-    // Operations-specific links
-    if (hasRole(['OPERATIONS', 'operations', 'OPERATION', 'operation'])) {
-      items.push({
-        key: '/operations/orders',
-        icon: <CalendarOutlined />, // reuse calendar icon
-        label: 'Duyệt Đơn Hàng',
-      });
-      
-      items.push({
-        key: '/operations/prescriptions',
-        icon: <FileProtectOutlined />,
-        label: 'Đơn Thuốc',
-      });
-      items.push({
-        key: '/operations/returns',
-        icon: <RetweetOutlined />,
-        label: 'Trả Hàng',
-      });
-    
-    }
-
-    // Admin Management - Admin only
-    if (hasRole(['admin', 'ADMIN'])) {
-      items.push({
-        key: '/admin/orders',
-        icon: <ShoppingCartOutlined />, 
-        label: 'Quản Lý Đơn Hàng',
-      });
-      items.push({
-        key: '/admin/orders',
-        icon: <CalendarOutlined />,
-        label: 'Duyệt Đơn',
-      });
-       items.push({
-        key: '/admin/stores',
-        icon: <ShoppingCartOutlined />,
-        label: 'Quản Lý Cửa Hàng',
-      });
-      items.push({
-        key: '/admin/inventory',
-        icon: <FileProtectOutlined />,
-        label: 'Quản Lý Kho Hàng',
-      });
-      
-      
-      items.push({
-        key: '/admin/products',
-        icon: <AppstoreOutlined />,
-        label: 'Quản Lý Sản Phẩm',
-      });
-      
-      items.push({
-        key: '/admin/users',
-        icon: <TeamOutlined />,
-        label: 'Quản Lý Người Dùng',
-      });
-      
-      items.push({
-        key: '/admin/systems',
-        icon: <SettingOutlined />,
-        label: 'Quản Lý Hệ Thống',
-      });
-      
-      items.push({
-        key: '/audit-logs',
-        icon: <AuditOutlined />,
-        label: 'Audit Logs',
-      });
-      
-      items.push({
-        key: '/permissions',
-        icon: <SafetyCertificateOutlined />,
-        label: 'Permissions',
-      });
-    }
-
-    return items;
-  };
-
-  const handleMenuClick: MenuProps['onClick'] = (e) => {
-    navigate(e.key);
-  };
+  const isActive = (path: string) => location.pathname === path;
 
   return (
-    <Sider
-      collapsible
-      collapsed={collapsed}
-      onCollapse={onCollapse}
-      width={260}
-      collapsedWidth={80}
-      className="min-h-screen"
-      theme="dark"
+    <motion.aside
+      initial={false}
+      animate={{ width: collapsed ? 80 : 260 }}
+      transition={{ duration: 0.3, ease: 'easeInOut' }}
+      className="relative flex flex-col border-r border-border bg-card h-screen"
     >
-      <div className="flex items-center justify-center h-16 border-b border-sidebar-border">
-        <div className="flex items-center gap-2">
-          <EyeOutlined className="text-2xl text-sidebar-primary" />
-          {!collapsed && (
-            <span className="text-lg font-bold text-sidebar-foreground">
-              EyeCare Store
-            </span>
+      {/* Logo Header */}
+      <div className="flex items-center justify-center h-16 border-b border-border px-4">
+        <AnimatePresence mode="wait">
+          {!collapsed ? (
+            <motion.div
+              key="expanded"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex items-center gap-2"
+            >
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <Eye className="h-5 w-5 text-primary" />
+              </div>
+              <span className="text-lg font-bold text-foreground">
+                EyeCare Store
+              </span>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="collapsed"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="p-2 bg-primary/10 rounded-lg"
+            >
+              <Eye className="h-5 w-5 text-primary" />
+            </motion.div>
           )}
-        </div>
+        </AnimatePresence>
       </div>
 
-      <Menu
-        theme="dark"
-        mode="inline"
-        selectedKeys={[location.pathname]}
-        items={getMenuItems()}
-        onClick={handleMenuClick}
-        className="mt-2"
-      />
-    </Sider>
+      {/* Navigation */}
+      <ScrollArea className="flex-1 py-4">
+        <nav className="space-y-1 px-3">
+          {menuItems.map((item) => (
+            <Button
+              key={item.key}
+              variant={isActive(item.key) ? 'secondary' : 'ghost'}
+              className={cn(
+                'w-full justify-start gap-3 transition-all duration-200',
+                isActive(item.key)
+                  ? 'bg-primary/10 text-primary hover:bg-primary/15 border-l-2 border-primary'
+                  : 'hover:bg-muted border-l-2 border-transparent',
+                collapsed && 'justify-center'
+              )}
+              onClick={() => navigate(item.key)}
+            >
+              <span className="flex-shrink-0">{item.icon}</span>
+              {!collapsed && (
+                <span className="flex-1 text-left text-sm font-medium">
+                  {item.label}
+                </span>
+              )}
+            </Button>
+          ))}
+        </nav>
+      </ScrollArea>
+
+      {/* Collapse Button */}
+      <div className="p-3 border-t border-border">
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full"
+          onClick={() => onCollapse(!collapsed)}
+        >
+          {collapsed ? (
+            <ChevronRight className="h-4 w-4" />
+          ) : (
+            <>
+              <ChevronLeft className="h-4 w-4 mr-2" />
+              <span>Collapse</span>
+            </>
+          )}
+        </Button>
+      </div>
+    </motion.aside>
   );
 };
 
