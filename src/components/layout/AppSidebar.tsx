@@ -22,6 +22,7 @@ import {
   ClipboardList,
   ChevronLeft,
   ChevronRight,
+  Star,
 } from 'lucide-react';
 
 interface AppSidebarProps {
@@ -115,6 +116,12 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
       key: '/admin/products',
       icon: <Package className="h-5 w-5" />,
       label: 'Quản Lý Sản Phẩm',
+      roles: ['admin', 'ADMIN'],
+    },
+    {
+      key: '/admin/reviews',
+      icon: <Star className="h-5 w-5" />,
+      label: 'Quản Lý Đánh Giá',
       roles: ['admin', 'ADMIN'],
     },
     {
