@@ -1,186 +1,1192 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Navigate } from 'react-router-dom';
-import { useToast } from '@/hooks/use-toast';
-import { storeService, Store, CreateStoreData } from '@/services/store.service';
+import { motion } from 'framer-motion';
+import {
+  Star,
+  Eye,
+  EyeOff,
+  Trash2,
+  MessageSquare,
+  Search,
+  RefreshCw,
+  Filter,
+  ChevronDown,
+  Package,
+  User,
+  Calendar,
+  Image as ImageIcon,
+  Mail,
+  Phone,
+  ShoppingBag,
+  Clock,
+  CheckCircle2,
+  Pencil,
+} from 'lucide-react';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Pencil, Trash2, Search, Store as StoreIcon } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/hooks/use-toast';
+import { Separator } from '@/components/ui/separator';
+import * as reviewService from '@/services/review.service';
+import type { Review, ReviewStats, GetReviewsParams } from '@/services/review.service';
+import { productService } from '@/services/product.service';
 
-export const AdminStoresManagement: React.FC = () => {
+export const AdminReviews: React.FC = () => {
   const { hasRole } = useAuth();
-  if (!hasRole(['ADMIN', 'admin', 'OPERATIONS', 'operations'])) {
-    return <Navigate to="/dashboard" replace />;
-  }
   const { toast } = useToast();
-  const [stores, setStores] = useState<Store[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingStore, setEditingStore] = useState<Store | null>(null);
-  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0 });
 
-  const [formData, setFormData] = useState<CreateStoreData>({ name: '', address: '' });
+  // State
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+  });
+
+  // Filters
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [ratingFilter, setRatingFilter] = useState<string>('ALL');
+
+  // Dialogs
+  const [selectedReview, setSelectedReview] = useState<Review | null>(null);
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+  const [isReplyDialogOpen, setIsReplyDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
+  // Reply state
+  const [replyContent, setReplyContent] = useState('');
+  const [replyLoading, setReplyLoading] = useState(false);
+
+  // Product images cache
+  const [productImages, setProductImages] = useState<Record<string, string>>({});
+
+  // Stats
+  const [stats, setStats] = useState({
+    total: 0,
+    published: 0,
+    hidden: 0,
+    avgRating: 0,
+  });
+
+  // Load reviews
+  const loadReviews = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params: GetReviewsParams = {
+        page: pagination.page,
+        limit: pagination.limit,
+      };
+
+      if (statusFilter !== 'ALL') {
+        params.status = statusFilter as 'PUBLISHED' | 'HIDDEN';
+      }
+
+      if (ratingFilter !== 'ALL') {
+        params.rating = parseInt(ratingFilter);
+      }
+
+      const data = await reviewService.getReviews(params);
+      
+      // Service transforms backend response to {items, total, page, limit}
+      const items = data?.items || [];
+      const total = data?.total || 0;
+      
+      setReviews(items);
+      setPagination(prev => ({ ...prev, total }));
+
+      // Preload product images for all reviews
+      await preloadProductImages(items);
+
+      // Calculate stats
+      const published = items.filter(r => r.status === 'PUBLISHED').length;
+      const hidden = items.filter(r => r.status === 'HIDDEN').length;
+      const avgRating = items.length > 0
+        ? items.reduce((sum, r) => sum + r.rating, 0) / items.length
+        : 0;
+
+      setStats({
+        total,
+        published,
+        hidden,
+        avgRating: Math.round(avgRating * 10) / 10,
+      });
+    } catch (error) {
+      console.error('❌ Failed to load reviews:', error);
+      // Reset to empty state on error
+      setReviews([]);
+      setPagination(prev => ({ ...prev, total: 0 }));
+      setStats({
+        total: 0,
+        published: 0,
+        hidden: 0,
+        avgRating: 0,
+      });
+      
+      // Show user-friendly error message
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : 'Backend chưa có API endpoint /reviews. Vui lòng liên hệ team backend.';
+      
+      toast({
+        title: 'Lỗi khi tải đánh giá',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [pagination.page, pagination.limit, statusFilter, ratingFilter, toast]);
 
   useEffect(() => {
-    loadStores();
-  }, [pagination.page, searchTerm]);
+    loadReviews();
+  }, [loadReviews]);
 
-  const loadStores = async () => {
-    setLoading(true);
-    try {
-      const res = await storeService.getStores({ page: pagination.page, limit: pagination.limit, search: searchTerm });
-      // Support both shapes: { data: Store[], pagination: {...} } or { data: { items: Store[], pagination: {...} } }
-      if ((res as any).data && Array.isArray((res as any).data)) {
-        setStores((res as any).data);
-        setPagination(prev => ({ ...prev, total: (res as any).pagination?.total || (res as any).data.length }));
-      } else if ((res as any).data && Array.isArray((res as any).data.data)) {
-        setStores((res as any).data.data);
-        setPagination(prev => ({ ...prev, total: (res as any).data.pagination?.total || (res as any).data.data.length }));
-      } else if (Array.isArray(res)) {
-        setStores(res as any);
-        setPagination(prev => ({ ...prev, total: (res as any).length }));
-      } else {
-        // default fallback
-        setStores((res as any).data || []);
+  // Preload product images for all reviews
+  const preloadProductImages = async (reviews: Review[]) => {
+    console.log('🔄 Preloading product images for', reviews.length, 'reviews');
+    const newImageCache: Record<string, string> = {};
+    const uniqueProductIds = new Set<string>();
+    
+    // Collect all unique product IDs from all reviews
+    reviews.forEach(review => {
+      if (review.productId) {
+        uniqueProductIds.add(review.productId);
       }
-    } catch (error: any) {
-      toast({ title: 'Error', description: error.response?.data?.message || 'Failed to load stores', variant: 'destructive' });
-    } finally {
-      setLoading(false);
+    });
+    
+    console.log('📦 Found', uniqueProductIds.size, 'unique products to fetch images for');
+    
+    try {
+      // Fetch product details for all unique products
+      const productPromises = Array.from(uniqueProductIds).map(async (productId) => {
+        try {
+          const product = await productService.getProduct(productId);
+          if (product.images && product.images.length > 0) {
+            const firstImage = product.images[0];
+            const imageUrl = firstImage.imageUrl;
+            if (imageUrl) {
+              newImageCache[productId] = imageUrl;
+            }
+          }
+        } catch (err) {
+          console.log('⚠️ Failed to fetch images for product:', productId);
+        }
+      });
+      
+      await Promise.all(productPromises);
+      console.log('✅ Preloaded', Object.keys(newImageCache).length, 'product images');
+      setProductImages(prevCache => ({ ...prevCache, ...newImageCache }));
+    } catch (error) {
+      console.log('❌ Error preloading product images:', error);
     }
   };
 
-  const resetForm = () => {
-    setEditingStore(null);
-    setFormData({ name: '', address: '' });
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+  // Load product image for single review
+  const loadProductImage = async (review: Review) => {
+    if (!review.productId) return;
+    
+    // Skip if already cached
+    if (productImages[review.productId]) return;
+    
     try {
-      if (editingStore) {
-        await storeService.updateStore(editingStore.id, formData);
-        toast({ title: 'Success', description: 'Store updated successfully' });
-      } else {
-        await storeService.createStore(formData);
-        toast({ title: 'Success', description: 'Store created successfully' });
+      const product = await productService.getProduct(review.productId);
+      if (product.images && product.images.length > 0) {
+        const firstImage = product.images[0];
+        const imageUrl = firstImage.imageUrl;
+        if (imageUrl) {
+          setProductImages(prev => ({ ...prev, [review.productId]: imageUrl }));
+        }
       }
-      setIsDialogOpen(false);
-      resetForm();
-      loadStores();
-    } catch (error: any) {
-      toast({ title: 'Error', description: error.response?.data?.message || 'Operation failed', variant: 'destructive' });
-    } finally {
-      setLoading(false);
+    } catch (error) {
+      console.log('Failed to fetch product image for:', review.productId);
     }
   };
 
-  const handleEdit = (store: Store) => {
-    setEditingStore(store);
-    setFormData({ name: store.name, address: store.address || '' });
-    setIsDialogOpen(true);
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this store?')) return;
+  // View review details
+  const handleViewDetails = async (review: Review) => {
     try {
-      await storeService.deleteStore(id);
-      toast({ title: 'Success', description: 'Store deleted successfully' });
-      loadStores();
-    } catch (error: any) {
-      toast({ title: 'Error', description: error.response?.data?.message || 'Failed to delete store', variant: 'destructive' });
+      const fullReview = await reviewService.getReviewById(review.id);
+      setSelectedReview(fullReview);
+      setIsDetailDialogOpen(true);
+      
+      // Load product image if not cached
+      await loadProductImage(fullReview);
+    } catch (error) {
+      toast({
+        title: 'Lỗi',
+        description: 'Không thể tải chi tiết đánh giá',
+        variant: 'destructive',
+      });
     }
   };
+
+  // Hide/Show review
+  const handleToggleVisibility = async (review: Review) => {
+    try {
+      if (review.status === 'PUBLISHED') {
+        await reviewService.hideReview(review.id);
+        toast({
+          title: 'Thành công',
+          description: 'Đã ẩn đánh giá',
+        });
+      } else {
+        await reviewService.showReview(review.id);
+        toast({
+          title: 'Thành công',
+          description: 'Đã hiển thị đánh giá',
+        });
+      }
+      loadReviews();
+    } catch (error) {
+      toast({
+        title: 'Lỗi',
+        description: 'Không thể thay đổi trạng thái đánh giá',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Delete review
+  const handleDeleteReview = async () => {
+    if (!selectedReview) return;
+
+    try {
+      await reviewService.deleteReview(selectedReview.id);
+      toast({
+        title: 'Thành công',
+        description: 'Đã xóa đánh giá',
+      });
+      setIsDeleteDialogOpen(false);
+      setSelectedReview(null);
+      loadReviews();
+    } catch (error) {
+      toast({
+        title: 'Lỗi',
+        description: 'Không thể xóa đánh giá',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Open reply dialog
+  const handleReply = async (review: Review) => {
+    try {
+      // Fetch latest review data to ensure we have up-to-date reply info
+      const freshReview = await reviewService.getReviewById(review.id);
+      console.log('🔍 Fresh review data:', freshReview);
+      console.log('🔍 Reply exists?', freshReview.reply ? 'YES' : 'NO', freshReview.reply);
+      setSelectedReview(freshReview);
+      setReplyContent(freshReview.reply?.replyContent || '');
+      setIsReplyDialogOpen(true);
+      
+      // Load product image if not cached
+      await loadProductImage(freshReview);
+    } catch (error) {
+      toast({
+        title: 'Lỗi',
+        description: 'Không thể tải thông tin đánh giá',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Submit reply
+  const handleSubmitReply = async () => {
+    if (!selectedReview || !replyContent.trim()) {
+      toast({
+        title: 'Lỗi',
+        description: 'Vui lòng nhập nội dung phản hồi',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (replyContent.length > 500) {
+      toast({
+        title: 'Lỗi',
+        description: 'Nội dung phản hồi không được quá 500 ký tự',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setReplyLoading(true);
+    try {
+      const data = { replyContent: replyContent.trim() };
+
+      if (selectedReview.reply) {
+        // Update existing reply
+        await reviewService.updateReviewReply(selectedReview.id, data);
+        toast({
+          title: 'Thành công',
+          description: 'Đã cập nhật phản hồi',
+        });
+      } else {
+        // Create new reply
+        await reviewService.addReviewReply(selectedReview.id, data);
+        toast({
+          title: 'Thành công',
+          description: 'Đã thêm phản hồi',
+        });
+      }
+
+      setIsReplyDialogOpen(false);
+      setReplyContent('');
+      setSelectedReview(null);
+      loadReviews();
+    } catch (error: unknown) {
+      console.error('Reply error:', error);
+      
+      // Parse error message from backend
+      let errorMessage = 'Không thể gửi phản hồi';
+      let shouldRetryWithUpdate = false;
+      
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { status?: number; data?: { message?: string } } };
+        
+        if (axiosError.response?.status === 409) {
+          // 409 Conflict: Reply already exists, automatically retry with PUT
+          console.log('⚠️ 409 Conflict detected - Reply already exists. Retrying with PUT...');
+          shouldRetryWithUpdate = true;
+        } else if (axiosError.response?.data?.message) {
+          errorMessage = axiosError.response.data.message;
+        }
+      }
+      
+      // Automatically retry with UPDATE if we got 409
+      if (shouldRetryWithUpdate) {
+        try {
+          const data = { replyContent: replyContent.trim() };
+          await reviewService.updateReviewReply(selectedReview.id, data);
+          toast({
+            title: 'Thành công',
+            description: 'Đã cập nhật phản hồi',
+          });
+          
+          setIsReplyDialogOpen(false);
+          setReplyContent('');
+          setSelectedReview(null);
+          loadReviews();
+          setReplyLoading(false);
+          return; // Exit successfully
+        } catch (retryError) {
+          console.error('Retry with PUT also failed:', retryError);
+          errorMessage = 'Không thể cập nhật phản hồi. Vui lòng thử lại.';
+        }
+      }
+      
+      toast({
+        title: 'Lỗi',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+    } finally {
+      setReplyLoading(false);
+    }
+  };
+
+  // Get star rating display
+  const getStarRating = (rating: number) => {
+    return (
+      <div className="flex items-center gap-1">
+        {[1, 2, 3, 4, 5].map(star => (
+          <Star
+            key={star}
+            className={`h-4 w-4 ${
+              star <= rating
+                ? 'fill-yellow-400 text-yellow-400'
+                : 'text-gray-300'
+            }`}
+          />
+        ))}
+      </div>
+    );
+  };
+
+  // Get full image URL (handle relative paths)
+  const getFullImageUrl = (url: string): string => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url;
+    }
+    // If it's a relative path, prepend the base URL
+    const baseUrl = 'https://wdp.up.railway.app';
+    return url.startsWith('/') ? `${baseUrl}${url}` : `${baseUrl}/${url}`;
+  };
+
+  // Get product image URL from cache or review data
+  const getProductImageUrl = (review: Review): string => {
+    // Priority 1: Use cached image from productImages state
+    if (review.productId && productImages[review.productId]) {
+      return getFullImageUrl(productImages[review.productId]);
+    }
+    // Priority 2: Try product.images array (if backend includes it)
+    if (review.product?.images && review.product.images.length > 0) {
+      const firstImage = review.product.images[0];
+      return getFullImageUrl(firstImage?.imageUrl || firstImage?.url || '');
+    }
+    return '';
+  };
+
+  // Format date
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('vi-VN', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  // Auth check
+  if (!hasRole(['admin'])) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2"><StoreIcon className="h-5 w-5" />Stores</CardTitle>
-        <CardDescription>Manage physical store locations</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex justify-between items-center mb-4">
-          <div className="flex items-center gap-2 flex-1 max-w-sm">
-            <Input placeholder="Search stores..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="flex-1" />
-            <Button variant="outline" size="icon"><Search className="h-4 w-4" /></Button>
-          </div>
-          <Button onClick={() => setIsDialogOpen(true)}><Plus className="h-4 w-4 mr-2" />Add Store</Button>
-        </div>
+    <motion.div
+      className="space-y-6"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: 'easeOut' }}
+    >
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Tổng Đánh Giá</CardTitle>
+            <Star className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.total}</div>
+          </CardContent>
+        </Card>
 
-        <div className="border rounded-lg">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Address</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow><TableCell colSpan={3} className="text-center">Loading...</TableCell></TableRow>
-              ) : !stores || stores.length === 0 ? (
-                <TableRow><TableCell colSpan={3} className="text-center">No stores found</TableCell></TableRow>
-              ) : (
-                stores.map((s) => (
-                  <TableRow key={s.id}>
-                    <TableCell className="font-medium">{s.name}</TableCell>
-                    <TableCell>{s.address || '-'}</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => handleEdit(s)}><Pencil className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(s.id)}><Trash2 className="h-4 w-4" /></Button>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Điểm TB</CardTitle>
+            <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.avgRating}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Đang Hiển Thị</CardTitle>
+            <Eye className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.published}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Đã Ẩn</CardTitle>
+            <EyeOff className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.hidden}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Main Content */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Star className="h-5 w-5" />
+            Quản Lý Đánh Giá
+          </CardTitle>
+          <CardDescription>
+            Quản lý và phản hồi đánh giá của khách hàng
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {/* Filters */}
+          <div className="flex items-center gap-4 mb-4">
+            <div className="flex items-center gap-2 flex-1 max-w-sm">
+              <Input
+                placeholder="Tìm kiếm theo sản phẩm, khách hàng..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="flex-1"
+              />
+              <Button variant="outline" size="icon">
+                <Search className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Trạng thái" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Trạng thái</SelectItem>
+                <SelectItem value="PUBLISHED">Đang hiển thị</SelectItem>
+                <SelectItem value="HIDDEN">Đã ẩn</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={ratingFilter} onValueChange={setRatingFilter}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Đánh giá" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Đánh giá</SelectItem>
+                <SelectItem value="5">⭐ 5 sao</SelectItem>
+                <SelectItem value="4">⭐ 4 sao</SelectItem>
+                <SelectItem value="3">⭐ 3 sao</SelectItem>
+                <SelectItem value="2">⭐ 2 sao</SelectItem>
+                <SelectItem value="1">⭐ 1 sao</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={loadReviews}
+              disabled={loading}
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
+
+          {/* Table */}
+          <div className="border rounded-lg">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Sản phẩm</TableHead>
+                  <TableHead>Khách hàng</TableHead>
+                  <TableHead>Đánh giá</TableHead>
+                  <TableHead>Nội dung</TableHead>
+                  <TableHead>Trạng thái</TableHead>
+                  <TableHead>Ngày tạo</TableHead>
+                  <TableHead className="text-right">Hành động</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center">
+                      Đang tải...
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-
-        <div className="flex justify-between items-center mt-4">
-          <p className="text-sm text-muted-foreground">Showing {stores?.length || 0} of {pagination.total} stores</p>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={pagination.page === 1} onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}>Previous</Button>
-            <Button variant="outline" size="sm" disabled={pagination.page * pagination.limit >= pagination.total} onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}>Next</Button>
+                ) : !reviews || reviews.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center">
+                      Không có đánh giá nào
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  reviews.map((review) => (
+                    <TableRow key={review.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-md overflow-hidden bg-gray-100 flex items-center justify-center flex-shrink-0">
+                            {getProductImageUrl(review) ? (
+                              <img 
+                                src={getProductImageUrl(review)} 
+                                alt={review.product?.name || 'Product'} 
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).style.display = 'none';
+                                  (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="flex items-center justify-center w-full h-full"><svg class="h-5 w-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg></div>';
+                                }}
+                              />
+                            ) : (
+                              <Package className="h-5 w-5 text-muted-foreground" />
+                            )}
+                          </div>
+                          <span className="font-medium">
+                            {review.product?.name || 'N/A'}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-muted-foreground" />
+                          <span>{review.customer?.fullName || 'N/A'}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>{getStarRating(review.rating)}</TableCell>
+                      <TableCell>
+                        <div className="max-w-xs truncate">
+                          {review.comment || '(Không có nội dung)'}
+                        </div>
+                        {review.images && review.images.length > 0 && (
+                          <Badge variant="outline" className="mt-1">
+                            <ImageIcon className="h-3 w-3 mr-1" />
+                            {review.images.length} ảnh
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            review.status === 'PUBLISHED'
+                              ? 'default'
+                              : 'secondary'
+                          }
+                        >
+                          {review.status === 'PUBLISHED' ? 'Hiển thị' : 'Đã ẩn'}
+                        </Badge>
+                        {review.reply && (
+                          <Badge variant="outline" className="ml-1">
+                            <MessageSquare className="h-3 w-3 mr-1" />
+                            Đã phản hồi
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                          <Calendar className="h-3 w-3" />
+                          {new Date(review.createdAt).toLocaleDateString('vi-VN')}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleViewDetails(review)}
+                            title="Xem chi tiết"
+                            className="hover:bg-slate-100 cursor-pointer h-8 w-8"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleReply(review)}
+                            title={review.reply ? "Cập nhật phản hồi" : "Thêm phản hồi"}
+                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 cursor-pointer h-8 w-8"
+                          >
+                            <MessageSquare className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleToggleVisibility(review)}
+                            title={review.status === 'PUBLISHED' ? "Ẩn đánh giá" : "Hiển thị đánh giá"}
+                            className={`cursor-pointer h-8 w-8 ${
+                              review.status === 'PUBLISHED' 
+                                ? 'text-orange-600 hover:text-orange-700 hover:bg-orange-50' 
+                                : 'text-green-600 hover:text-green-700 hover:bg-green-50'
+                            }`}
+                          >
+                            {review.status === 'PUBLISHED' ? (
+                              <EyeOff className="h-4 w-4" />
+                            ) : (
+                              <Eye className="h-4 w-4" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setSelectedReview(review);
+                              setIsDeleteDialogOpen(true);
+                            }}
+                            title="Xóa đánh giá"
+                            className="text-destructive hover:text-destructive/80 hover:bg-destructive/10 cursor-pointer h-8 w-8"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
           </div>
-        </div>
-      </CardContent>
 
-      <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editingStore ? 'Edit Store' : 'Add New Store'}</DialogTitle>
-            <DialogDescription>{editingStore ? 'Update store details below.' : 'Fill in the details to create a new store.'}</DialogDescription>
+          {/* Pagination */}
+          <div className="flex justify-between items-center mt-4">
+            <p className="text-sm text-muted-foreground">
+              Hiển thị {reviews?.length || 0} / {pagination.total} đánh giá
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={pagination.page === 1}
+                onClick={() =>
+                  setPagination((prev) => ({ ...prev, page: prev.page - 1 }))
+                }
+              >
+                Trước
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={
+                  pagination.page * pagination.limit >= pagination.total
+                }
+                onClick={() =>
+                  setPagination((prev) => ({ ...prev, page: prev.page + 1 }))
+                }
+              >
+                Sau
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Review Details Dialog - Modernized */}
+      <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle className="text-2xl font-bold">Chi tiết đánh giá</DialogTitle>
+            <DialogDescription>
+              Thông tin chi tiết đánh giá của khách hàng
+            </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit}>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="name">Store Name *</Label>
-                <Input id="name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required />
-              </div>
+          <div className="flex-1 overflow-y-auto pr-2 -mr-2 min-h-0">
+            {selectedReview && (
+              <div className="space-y-4 py-2">
+                {/* Customer & Product Info Card */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <User className="h-5 w-5" />
+                      Thông tin khách hàng & Sản phẩm
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid md:grid-cols-2 gap-4">
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-3">
+                        <User className="h-4 w-4 text-muted-foreground mt-0.5" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">Khách hàng</p>
+                          <p className="font-medium">{selectedReview.customer?.fullName || 'N/A'}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <Mail className="h-4 w-4 text-muted-foreground mt-0.5" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">Email</p>
+                          <p className="font-medium text-sm break-all">{selectedReview.customer?.email || 'N/A'}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <Phone className="h-4 w-4 text-muted-foreground mt-0.5" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">Số điện thoại</p>
+                          <p className="font-medium">{selectedReview.customer?.phone || 'N/A'}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-3">
+                        <ShoppingBag className="h-4 w-4 text-muted-foreground mt-0.5" />
+                        <div className="flex-1">
+                          <p className="text-sm text-muted-foreground">Sản phẩm</p>
+                          <div className="flex items-center gap-3 mt-1">
+                            {getProductImageUrl(selectedReview) && (
+                              <div className="w-16 h-16 rounded-md overflow-hidden bg-gray-100 border-2 flex-shrink-0">
+                                <img 
+                                  src={getProductImageUrl(selectedReview)} 
+                                  alt={selectedReview.product?.name || 'Product'}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).style.display = 'none';
+                                    const parent = (e.target as HTMLImageElement).parentElement;
+                                    if (parent) {
+                                      parent.innerHTML = '<div class="flex items-center justify-center w-full h-full"><svg class="h-8 w-8 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg></div>';
+                                    }
+                                  }}
+                                />
+                              </div>
+                            )}
+                            <div>
+                              <p className="font-medium">{selectedReview.product?.name || 'N/A'}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5">ID: {selectedReview.productId}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <Calendar className="h-4 w-4 text-muted-foreground mt-0.5" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">Ngày đánh giá</p>
+                          <p className="font-medium">{formatDate(selectedReview.createdAt)}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <CheckCircle2 className="h-4 w-4 text-muted-foreground mt-0.5" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">Trạng thái</p>
+                          <Badge
+                            variant={selectedReview.status === 'PUBLISHED' ? 'default' : 'secondary'}
+                            className="mt-1"
+                          >
+                            {selectedReview.status === 'PUBLISHED' ? 'Đang hiển thị' : 'Đã ẩn'}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
-              <div>
-                <Label htmlFor="address">Address</Label>
-                <Input id="address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} />
-              </div>
+                {/* Review Content Card */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Star className="h-5 w-5 text-yellow-500" />
+                      Nội dung đánh giá
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Rating */}
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-2">Đánh giá</p>
+                      <div className="flex items-center gap-2">
+                        {getStarRating(selectedReview.rating)}
+                        <span className="text-lg font-bold">{selectedReview.rating}/5</span>
+                      </div>
+                    </div>
 
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="ghost" onClick={() => { setIsDialogOpen(false); resetForm(); }}>Cancel</Button>
-                <Button type="submit">{editingStore ? 'Save' : 'Create'}</Button>
+                    {/* Comment */}
+                    {selectedReview.comment && (
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-2">Nội dung</p>
+                        <div className="bg-muted/50 p-4 rounded-lg border">
+                          <p className="text-sm whitespace-pre-wrap">{selectedReview.comment}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Images */}
+                    {selectedReview.images && selectedReview.images.length > 0 && (
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-3 flex items-center gap-2">
+                          <ImageIcon className="h-4 w-4" />
+                          Hình ảnh đính kèm ({selectedReview.images.length})
+                        </p>
+                        <div className="grid grid-cols-3 gap-3">
+                          {selectedReview.images.map((image) => (
+                            <div
+                              key={image.id}
+                              className="relative group overflow-hidden rounded-lg border-2 border-border hover:border-primary transition-colors"
+                            >
+                              <img
+                                src={image.imageUrl}
+                                alt="Review"
+                                className="w-full h-40 object-cover group-hover:scale-105 transition-transform"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Reply Card */}
+                {selectedReview.reply && (
+                  <Card className="border-blue-200 bg-blue-50/50 dark:bg-blue-950/10">
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-lg flex items-center gap-2 text-blue-900 dark:text-blue-100">
+                          <MessageSquare className="h-5 w-5" />
+                          Phản hồi từ Shop
+                        </CardTitle>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setIsDetailDialogOpen(false);
+                            handleReply(selectedReview);
+                          }}
+                          className="gap-2"
+                        >
+                          <Pencil className="h-4 w-4" />
+                          Chỉnh sửa
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="bg-white dark:bg-slate-900 p-4 rounded-lg border">
+                        <p className="text-sm whitespace-pre-wrap mb-3">
+                          {selectedReview.reply.replyContent}
+                        </p>
+                        <Separator className="my-3" />
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <User className="h-3 w-3" />
+                          <span className="font-medium">Bởi: {selectedReview.reply.staff?.fullName || 'N/A'}</span>
+                          <span>•</span>
+                          <Clock className="h-3 w-3" />
+                          <span>{formatDate(selectedReview.reply.createdAt)}</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* No Reply Yet Card */}
+                {!selectedReview.reply && (
+                  <Card className="border-dashed border-2 border-muted-foreground/30">
+                    <CardContent className="pt-6">
+                      <div className="text-center space-y-4">
+                        <div className="mx-auto w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                          <MessageSquare className="h-6 w-6 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm mb-1">Chưa có phản hồi</p>
+                          <p className="text-xs text-muted-foreground">
+                            Đánh giá này chưa được phản hồi. Click nút bên dưới để thêm phản hồi.
+                          </p>
+                        </div>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => {
+                            setIsDetailDialogOpen(false);
+                            handleReply(selectedReview);
+                          }}
+                          className="gap-2"
+                        >
+                          <MessageSquare className="h-4 w-4" />
+                          Thêm phản hồi
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Meta Info */}
+                {selectedReview.editableUntil && (
+                  <Card>
+                    <CardContent className="pt-4">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Clock className="h-3 w-3" />
+                        <span>
+                          Khách hàng có thể chỉnh sửa đến: {formatDate(selectedReview.editableUntil)}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
-            </div>
-          </form>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
-    </Card>
+
+      {/* Reply Dialog - Modernized */}
+      <Dialog open={isReplyDialogOpen} onOpenChange={setIsReplyDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <MessageSquare className="h-5 w-5" />
+              {selectedReview?.reply ? 'Cập nhật phản hồi' : 'Thêm phản hồi'}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedReview?.reply ? (
+                <span className="flex items-center gap-2">
+                  <Badge variant="secondary" className="text-xs">
+                    ✏️ Chế độ chỉnh sửa
+                  </Badge>
+                  <span>Bạn đang cập nhật phản hồi đã có (tối đa 500 ký tự)</span>
+                </span>
+              ) : (
+                'Phản hồi đánh giá của khách hàng (tối đa 500 ký tự)'
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {selectedReview && (
+              <Card className="border-primary/20 bg-primary/5">
+                <CardContent className="pt-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    {getStarRating(selectedReview.rating)}
+                    <span className="text-sm font-medium">
+                      {selectedReview.rating}/5
+                    </span>
+                    <Separator orientation="vertical" className="h-4 mx-1" />
+                    <User className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">
+                      {selectedReview.customer?.fullName}
+                    </span>
+                  </div>
+                  {selectedReview.comment && (
+                    <div className="bg-white dark:bg-slate-900 p-3 rounded-md border">
+                      <p className="text-sm line-clamp-3">{selectedReview.comment}</p>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
+                    <ShoppingBag className="h-3 w-3" />
+                    <span>{selectedReview.product?.name || 'N/A'}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Show existing reply info when editing */}
+            {selectedReview?.reply && (
+              <Card className="border-yellow-200 bg-yellow-50/50 dark:bg-yellow-950/10">
+                <CardContent className="pt-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-yellow-100 dark:bg-yellow-900 flex items-center justify-center">
+                      <Clock className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-yellow-900 dark:text-yellow-100 mb-1">
+                        Phản hồi hiện tại
+                      </p>
+                      <p className="text-xs text-yellow-700 dark:text-yellow-300 mb-2">
+                        Bởi {selectedReview.reply.staff?.fullName || 'N/A'} • {formatDate(selectedReview.reply.createdAt)}
+                      </p>
+                      <div className="bg-white dark:bg-slate-900 p-2 rounded border text-xs">
+                        {selectedReview.reply.replyContent}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Nội dung phản hồi</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Textarea
+                  placeholder="Nhập nội dung phản hồi của shop..."
+                  value={replyContent}
+                  onChange={(e) => setReplyContent(e.target.value)}
+                  rows={8}
+                  maxLength={500}
+                  className="resize-none"
+                />
+                <div className="flex justify-between items-center mt-2">
+                  <p className="text-xs text-muted-foreground">
+                    💡 Phản hồi chân thành giúp tăng uy tín shop
+                  </p>
+                  <p className="text-xs font-medium">
+                    {replyContent.length}/500
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsReplyDialogOpen(false);
+                setReplyContent('');
+              }}
+              disabled={replyLoading}
+            >
+              Hủy
+            </Button>
+            <Button 
+              onClick={handleSubmitReply} 
+              disabled={replyLoading || !replyContent.trim()}
+              className="gap-2 min-w-[140px]"
+            >
+              {replyLoading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  {selectedReview?.reply ? 'Đang cập nhật...' : 'Đang gửi...'}
+                </>
+              ) : (
+                <>
+                  <MessageSquare className="h-4 w-4" />
+                  {selectedReview?.reply ? 'Cập nhật phản hồi' : 'Gửi phản hồi'}
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog - Modernized */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Xác nhận xóa đánh giá
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>Bạn có chắc chắn muốn xóa vĩnh viễn đánh giá này?</p>
+              <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 mt-2">
+                <p className="text-sm font-medium text-destructive">⚠️ Hành động này không thể hoàn tác!</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Đánh giá và tất cả dữ liệu liên quan sẽ bị xóa vĩnh viễn khỏi hệ thống.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteReview} 
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Xóa vĩnh viễn
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </motion.div>
   );
 };
 
-export default AdminStoresManagement;
