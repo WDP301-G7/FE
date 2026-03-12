@@ -4,12 +4,12 @@ import { Navigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
+import StatusBadge from '@/components/StatusBadge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import {
   operationsService,
@@ -344,7 +344,7 @@ const PrescriptionRequestsPage: React.FC = () => {
               <TableRow key={r.id}>
                 <TableCell>{r.id}</TableCell>
                 <TableCell>{new Date(r.createdDate).toLocaleString()}</TableCell>
-                <TableCell><Badge>{r.status}</Badge></TableCell>
+                <TableCell><StatusBadge status={r.status} /></TableCell>
                 <TableCell className="space-x-1">
                   <Button size="sm" variant="outline" onClick={() => openDetail(r.id)}>
                     <Eye size={16} />

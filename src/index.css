@@ -226,3 +226,38 @@
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground) / 0.5);
 }
+
+.sidebar-menu .ant-menu-item {
+  margin: 6px 12px;
+  border-radius: 10px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+}
+
+.sidebar-menu .ant-menu-item-icon {
+  font-size: 18px;
+  color: #6b7280;
+}
+
+.sidebar-menu .ant-menu-item:hover {
+  background: #f5f7ff !important;
+}
+
+.sidebar-menu .ant-menu-item-selected {
+  background: #eef2ff !important;
+  color: #4a44c2 !important;
+  font-weight: 600;
+}
+
+.sidebar-menu .ant-menu-item-selected .ant-menu-item-icon {
+  color: #1c13ce;
+}
+
+.ant-layout-sider {
+  background: rgb(255, 255, 255) !important;
+}
+
+.ant-menu-item-selected::after {
+  border-right: none !important;
+}

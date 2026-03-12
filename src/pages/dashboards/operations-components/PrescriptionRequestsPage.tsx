@@ -4,12 +4,12 @@ import { Navigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
+import StatusBadge from '@/components/StatusBadge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import {
   operationsService,
@@ -323,6 +323,7 @@ const PrescriptionRequestsPage: React.FC = () => {
           <TableHeader>
             <TableRow>
               <TableHead>Mã đơn</TableHead>
+              <TableHead>Khách hàng</TableHead>
               <TableHead>Ngày</TableHead>
               <TableHead>Trạng thái</TableHead>
               <TableHead>Hành động</TableHead>
@@ -332,8 +333,9 @@ const PrescriptionRequestsPage: React.FC = () => {
             {requests.map((r) => (
               <TableRow key={r.id}>
                 <TableCell>{r.id}</TableCell>
+                <TableCell>{r.customer?.fullName || 'N/A'}</TableCell>
                 <TableCell>{new Date(r.createdAt).toLocaleString()}</TableCell>
-                <TableCell><Badge>{r.status}</Badge></TableCell>
+                <TableCell><StatusBadge status={r.status} /></TableCell>
                 <TableCell className="space-x-1">
                   <Button size="sm" variant="outline" onClick={() => openDetail(r.id)}>
                     <Eye size={16} />
@@ -485,6 +487,23 @@ const PrescriptionRequestsPage: React.FC = () => {
             <DialogTitle>Tạo đơn kính từ đơn thuốc</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            {/* Prescription images so staff can refer while filling order */}
+            {selected?.images && selected.images.length > 0 && (
+              <div>
+                <Label>Ảnh đơn thuốc</Label>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  {selected.images.map((img) => (
+                    <img
+                      key={img.id}
+                      src={img.imageUrl}
+                      alt="Đơn thuốc"
+                      className="w-full h-auto rounded border"
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div>
               <Label>Thêm sản phẩm *</Label>
               <Select onValueChange={handleAddProduct}>

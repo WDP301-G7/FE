@@ -115,6 +115,14 @@ class ReturnService {
       data = payload.results;
     }
 
+    // ensure returnItems property exists (some endpoints use `items` key)
+    data = data.map((r: any) => {
+      if (r.items && !r.returnItems) {
+        return { ...r, returnItems: r.items };
+      }
+      return r;
+    });
+
     const pag =
       payload.pagination ||
       payload.pageInfo ||
@@ -221,7 +229,11 @@ class ReturnService {
   // Get return by ID
   async getReturnById(id: string): Promise<ReturnRequest> {
     const response = await api.get(`/returns/${id}`);
-    return response.data.data;
+    const ret: any = response.data.data;
+    if (ret.items && !ret.returnItems) {
+      ret.returnItems = ret.items;
+    }
+    return ret;
   }
 
   // Staff: Upload images when receiving returned items
