@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ConfigProvider } from "antd";
 import { AuthProvider } from "@/context/AuthContext";
+import { ThemeProvider } from "@/context/ThemeContext";
 import MainLayout from "@/components/layout/MainLayout";
 import LoginPage from "@/pages/LoginPage";
 import RegisterPage from "@/pages/RegisterPage";
@@ -15,6 +16,9 @@ import ReturnPage from "@/pages/dashboards/operations-components/ReturnPage";
 import AdminOrdersManagement from "@/pages/dashboards/admin-components/AdminOrdersManagement";
 import AdminUsersManagement from "@/pages/dashboards/admin-components/AdminUsersManagement";
 import AdminSystemsManagement from "@/pages/dashboards/admin-components/AdminSystemsManagement";
+import { AdminProductManagement } from "@/pages/dashboards/admin-components/AdminProductManagement";
+import { AdminReviews } from "@/pages/dashboards/admin-components/AdminReviews";
+import AdminStoresManagement from "@/pages/dashboards/admin-components/AdminStoresManagement";
 
 // operations role pages
 import OperationsOrderOps from "@/pages/dashboards/operations-components/OrderOperationsPage";
@@ -22,7 +26,7 @@ import OperationsStores from "@/pages/dashboards/operations-components/StoresMan
 import OperationsInventory from "@/pages/dashboards/operations-components/InventoryManagement";
 import PrescriptionRequestsPage from "@/pages/dashboards/operations-components/PrescriptionRequestsPage";
 import NotFound from "./pages/NotFound";
-import AdminStoresManagement from "./pages/dashboards/admin-components/AdminStoresManagement";
+
 import ReviewManagementPage from "./pages/dashboards/operations-components/ReviewManagementPage";
 
 const queryClient = new QueryClient();

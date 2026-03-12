@@ -24,6 +24,13 @@ interface AppSidebarProps {
   onCollapse: (collapsed: boolean) => void;
 }
 
+interface MenuItem {
+  key: string;
+  icon: React.ReactNode;
+  label: string;
+  roles?: string[];
+}
+
 const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
   const navigate = useNavigate();
   const location = useLocation();

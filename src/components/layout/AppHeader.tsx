@@ -1,98 +1,174 @@
-import React from 'react';
-import { Layout, Avatar, Dropdown, Space, Typography } from 'antd';
-import {
-  UserOutlined,
-  LogoutOutlined,
-  SettingOutlined,
-  BellOutlined,
-} from '@ant-design/icons';
-import type { MenuProps } from 'antd';
+import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { roleLabels } from '@/mock-data/users';
+import { useTheme } from '@/context/ThemeContext';
 import { useNavigate } from 'react-router-dom';
-
-const { Header } = Layout;
-const { Text } = Typography;
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Badge } from '@/components/ui/badge';
+import { Bell, Search, User, Settings, LogOut, Moon, Sun } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { cn } from '@/lib/utils';
 
 const AppHeader: React.FC = () => {
   const { user, logout } = useAuth();
+  const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
-  const menuItems: MenuProps['items'] = [
-    {
-      key: 'profile',
-      label: 'Profile',
-      icon: <UserOutlined />,
-    },
-    {
-      key: 'settings',
-      label: 'Settings',
-      icon: <SettingOutlined />,
-    },
-    {
-      type: 'divider',
-    },
-    {
-      key: 'logout',
-      label: 'Logout',
-      icon: <LogoutOutlined />,
-      onClick: handleLogout,
-    },
-  ];
+  const toggleDarkMode = () => {
+    setTheme(theme === 'dark' ? 'light' : 'dark');
+  };
 
-  const getRoleBadgeClass = (role: string) => {
-    switch (role) {
-      case 'sales':
-        return 'role-badge role-badge-sales';
-      case 'operations':
-        return 'role-badge role-badge-operations';
-      case 'manager':
-        return 'role-badge role-badge-manager';
+  const getRoleBadgeColor = (role: string) => {
+    const normalizedRole = role?.toLowerCase();
+    switch (normalizedRole) {
       case 'admin':
-        return 'role-badge role-badge-admin';
+        return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400';
+      case 'manager':
+        return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
+      case 'operations':
+      case 'operation':
+        return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
+      case 'staff':
+        return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400';
       default:
-        return 'role-badge';
+        return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400';
     }
   };
 
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
   return (
-    <Header className="flex items-center justify-between px-8 pt-2 bg-card border-b border-border h-16">
-      <div className="flex items-center gap-4">
-        <Text className="text-lg font-semibold text-foreground hidden md:block ">
-          EyeCare Store Management System
-        </Text>
-      </div>
+    <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="flex h-16 items-center justify-between px-6">
+        {/* Left section - Search */}
+        <div className="flex items-center gap-4 flex-1 max-w-md">
+          {searchOpen ? (
+            <motion.div
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: '100%', opacity: 1 }}
+              className="relative w-full"
+            >
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search..."
+                className="pl-9 pr-4"
+                autoFocus
+                onBlur={() => setSearchOpen(false)}
+              />
+            </motion.div>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => setSearchOpen(true)}
+            >
+              <Search className="h-4 w-4" />
+              <span className="hidden md:inline">Search</span>
+              <kbd className="hidden md:inline pointer-events-none h-5 select-none items-center gap-1 rounded border border-border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 ml-2">
+                ⌘K
+              </kbd>
+            </Button>
+          )}
+        </div>
 
-      <div className="flex items-center gap-4">
-        <button className="relative p-2 rounded-lg hover:bg-muted transition-colors">
-          <BellOutlined className="text-xl text-muted-foreground" />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full"></span>
-        </button>
+        {/* Right section - Actions */}
+        <div className="flex items-center gap-3">
+          {/* Dark Mode Toggle */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleDarkMode}
+            className="relative rounded-full"
+          >
+            {theme === 'dark' ? (
+              <Sun className="h-5 w-5" />
+            ) : (
+              <Moon className="h-5 w-5" />
+            )}
+          </Button>
 
-        <Dropdown menu={{ items: menuItems }} placement="bottomRight" trigger={['click']}>
-          <button className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted transition-colors cursor-pointer">
-            <Avatar
-              size={36}
-              icon={<UserOutlined />}
-              className="bg-primary"
-            />
-            <div className="hidden md:flex flex-col items-start">
-              <Text className="text-sm font-medium text-foreground">
-                {user?.name}
-              </Text>
-              <span className={getRoleBadgeClass(user?.role || '')}>
-                {user?.role && roleLabels[user.role]}
-              </span>
-            </div>
-          </button>
-        </Dropdown>
+          {/* Notifications */}
+          <Button variant="ghost" size="icon" className="relative rounded-full">
+            <Bell className="h-5 w-5" />
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-destructive rounded-full" />
+          </Button>
+
+          {/* User Menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                className="relative h-10 gap-3 rounded-full pl-2 pr-3 hover:bg-muted"
+              >
+                <Avatar className="h-7 w-7">
+                  <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                    {user?.name ? getInitials(user.name) : 'U'}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="hidden md:flex flex-col items-start">
+                  <span className="text-sm font-medium text-foreground">
+                    {user?.name}
+                  </span>
+                  <Badge
+                    className={cn(
+                      'text-[10px] px-1.5 py-0 h-4 font-medium',
+                      getRoleBadgeColor(user?.role || '')
+                    )}
+                  >
+                    {user?.role}
+                  </Badge>
+                </div>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>
+                <div className="flex flex-col space-y-1">
+                  <p className="text-sm font-medium">{user?.name}</p>
+                  <p className="text-xs text-muted-foreground">{user?.email}</p>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem>
+                <User className="mr-2 h-4 w-4" />
+                <span>Profile</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <Settings className="mr-2 h-4 w-4" />
+                <span>Settings</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleLogout} className="text-destructive">
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Logout</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
-    </Header>
+    </header>
   );
 };
 
