@@ -61,9 +61,9 @@ const AppHeader: React.FC = () => {
   };
 
   return (
-    <Header className="flex items-center justify-between px-6 bg-card border-b border-border h-16">
+    <Header className="flex items-center justify-between px-8 pt-2 bg-card border-b border-border h-16">
       <div className="flex items-center gap-4">
-        <Text className="text-lg font-semibold text-foreground hidden md:block">
+        <Text className="text-lg font-semibold text-foreground hidden md:block ">
           EyeCare Store Management System
         </Text>
       </div>

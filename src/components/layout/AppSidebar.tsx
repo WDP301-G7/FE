@@ -1,5 +1,5 @@
-import React from 'react';
-import { Layout, Menu } from 'antd';
+import React from "react";
+import { Layout, Menu } from "antd";
 import {
   DashboardOutlined,
   ShoppingCartOutlined,
@@ -12,10 +12,10 @@ import {
   CalendarOutlined,
   EyeOutlined,
   RetweetOutlined,
-} from '@ant-design/icons';
-import type { MenuProps } from 'antd';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '@/context/AuthContext';
+} from "@ant-design/icons";
+import type { MenuProps } from "antd";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 
 const { Sider } = Layout;
 
@@ -27,107 +27,103 @@ interface AppSidebarProps {
 const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, hasRole } = useAuth();
+  const { hasRole } = useAuth();
 
-  // Define menu items based on user role
-  const getMenuItems = (): MenuProps['items'] => {
-    const items: MenuProps['items'] = [];
+  const getMenuItems = (): MenuProps["items"] => {
+    const items: MenuProps["items"] = [];
 
-    // Dashboard - available to all
+    // Dashboard
     items.push({
-      key: '/dashboard',
+      key: "/dashboard",
       icon: <DashboardOutlined />,
-      label: 'Dashboard',
+      label: "Dashboard",
     });
 
-    // Manager specific menus
-    if (hasRole(['MANAGER', 'manager'])) {
-      // Manager chỉ xem orders và overview
-    }
-
-    // Orders - for Staff, Manager
-    if (hasRole(['STAFF', 'staff', 'MANAGER', 'manager'])) {
+    // Staff + Manager
+    if (hasRole(["STAFF", "staff", "MANAGER", "manager"])) {
       items.push({
-        key: '/orders',
+        key: "/orders",
         icon: <ShoppingCartOutlined />,
-        label: 'Orders',
+        label: "Orders",
       });
     }
 
-    // Operations-specific links
-    if (hasRole(['OPERATIONS', 'operations', 'OPERATION', 'operation'])) {
-      items.push({
-        key: '/operations/orders',
-        icon: <CalendarOutlined />, // reuse calendar icon
-        label: 'Duyệt Đơn Hàng',
-      });
-      
-      items.push({
-        key: '/operations/prescriptions',
-        icon: <FileProtectOutlined />,
-        label: 'Đơn Thuốc',
-      });
-      items.push({
-        key: '/operations/returns',
-        icon: <RetweetOutlined />,
-        label: 'Trả Hàng',
-      });
-    
+    // Operations
+    if (hasRole(["OPERATIONS", "operations", "OPERATION", "operation"])) {
+      items.push(
+        {
+          key: "/operations/orders",
+          icon: <CalendarOutlined />,
+          label: "Duyệt Đơn Hàng",
+        },
+        {
+          key: "/operations/prescriptions",
+          icon: <FileProtectOutlined />,
+          label: "Đơn Thuốc",
+        },
+        {
+          key: "/operations/returns",
+          icon: <RetweetOutlined />,
+          label: "Trả Hàng",
+        },
+        {
+          key: "/operations/reviews",
+          icon: <AppstoreOutlined />,
+          label: "Quản Lý Đánh Giá",
+        }
+      );
     }
 
-    // Admin Management - Admin only
-    if (hasRole(['admin', 'ADMIN'])) {
-      items.push({
-        key: '/admin/orders',
-        icon: <ShoppingCartOutlined />, 
-        label: 'Quản Lý Đơn Hàng',
-      });
-      items.push({
-        key: '/admin/orders',
-        icon: <CalendarOutlined />,
-        label: 'Duyệt Đơn',
-      });
-       items.push({
-        key: '/admin/stores',
-        icon: <ShoppingCartOutlined />,
-        label: 'Quản Lý Cửa Hàng',
-      });
-      items.push({
-        key: '/admin/inventory',
-        icon: <FileProtectOutlined />,
-        label: 'Quản Lý Kho Hàng',
-      });
-      
-      
-      items.push({
-        key: '/admin/users',
-        icon: <TeamOutlined />,
-        label: 'Quản Lý Người Dùng',
-      });
-      
-      items.push({
-        key: '/admin/systems',
-        icon: <SettingOutlined />,
-        label: 'Quản Lý Hệ Thống',
-      });
-      
-      items.push({
-        key: '/audit-logs',
-        icon: <AuditOutlined />,
-        label: 'Audit Logs',
-      });
-      
-      items.push({
-        key: '/permissions',
-        icon: <SafetyCertificateOutlined />,
-        label: 'Permissions',
-      });
+    // Admin
+    if (hasRole(["ADMIN", "admin"])) {
+      items.push(
+        {
+          key: "/admin/orders",
+          icon: <ShoppingCartOutlined />,
+          label: "Quản Lý Đơn Hàng",
+        },
+        {
+          key: "/admin/approve-orders",
+          icon: <CalendarOutlined />,
+          label: "Duyệt Đơn",
+        },
+        {
+          key: "/admin/stores",
+          icon: <AppstoreOutlined />,
+          label: "Quản Lý Cửa Hàng",
+        },
+        {
+          key: "/admin/inventory",
+          icon: <FileProtectOutlined />,
+          label: "Quản Lý Kho Hàng",
+        },
+        {
+          key: "/admin/users",
+          icon: <TeamOutlined />,
+          label: "Quản Lý Người Dùng",
+        },
+        {
+          key: "/admin/systems",
+          icon: <SettingOutlined />,
+          label: "Quản Lý Hệ Thống",
+        },
+        {
+          key: "/audit-logs",
+          icon: <AuditOutlined />,
+          label: "Audit Logs",
+        },
+        {
+          key: "/permissions",
+          icon: <SafetyCertificateOutlined />,
+          label: "Permissions",
+        }
+      );
     }
 
     return items;
   };
 
-  const handleMenuClick: MenuProps['onClick'] = (e) => {
+  const handleMenuClick: MenuProps["onClick"] = (e) => {
     navigate(e.key);
   };
 
@@ -138,27 +134,28 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
       onCollapse={onCollapse}
       width={260}
       collapsedWidth={80}
-      className="min-h-screen"
-      theme="dark"
+      className="min-h-screen bg-white border-r border-gray-200"
+      trigger={null}
     >
-      <div className="flex items-center justify-center h-16 border-b border-sidebar-border">
-        <div className="flex items-center gap-2">
-          <EyeOutlined className="text-2xl text-sidebar-primary" />
-          {!collapsed && (
-            <span className="text-lg font-bold text-sidebar-foreground">
-              EyeCare Store
-            </span>
-          )}
-        </div>
+      {/* Logo */}
+      <div className="flex items-center gap-3 px-6 h-16 border-b border-gray-100">
+        <EyeOutlined className="text-2xl text-indigo-600" />
+
+        {!collapsed && (
+          <span className="text-lg font-semibold text-gray-700">
+            EyeCare Store
+          </span>
+        )}
       </div>
 
+      {/* Menu */}
       <Menu
-        theme="dark"
         mode="inline"
         selectedKeys={[location.pathname]}
         items={getMenuItems()}
         onClick={handleMenuClick}
-        className="mt-2"
+        className="mt-4 border-none sidebar-menu"
+        style={{ background: "transparent" }}
       />
     </Sider>
   );

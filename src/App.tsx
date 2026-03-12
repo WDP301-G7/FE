@@ -22,6 +22,8 @@ import OperationsStores from "@/pages/dashboards/operations-components/StoresMan
 import OperationsInventory from "@/pages/dashboards/operations-components/InventoryManagement";
 import PrescriptionRequestsPage from "@/pages/dashboards/operations-components/PrescriptionRequestsPage";
 import NotFound from "./pages/NotFound";
+import AdminStoresManagement from "./pages/dashboards/admin-components/AdminStoresManagement";
+import ReviewManagementPage from "./pages/dashboards/operations-components/ReviewManagementPage";
 
 const queryClient = new QueryClient();
 
@@ -51,12 +53,16 @@ const App = () => (
                 <Route path="admin/orders" element={<AdminOrdersManagement />} />
                 <Route path="admin/users" element={<AdminUsersManagement />} />
                 <Route path="admin/systems" element={<AdminSystemsManagement />} />
+                <Route path="admin/stores" element={<AdminStoresManagement />} />
+                
+
                 {/* operations-specific routes */}
                 <Route path="operations/orders" element={<OperationsOrderOps />} />
                 <Route path="operations/prescriptions" element={<PrescriptionRequestsPage />} />
                 <Route path="operations/stores" element={<OperationsStores />} />
                 <Route path="operations/inventory" element={<OperationsInventory />} />
                 <Route path="operations/returns" element={<ReturnPage />} />
+                <Route path="operations/reviews" element={<ReviewManagementPage />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>

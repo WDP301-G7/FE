@@ -37,6 +37,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import StatusBadge from '@/components/StatusBadge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
@@ -233,17 +234,9 @@ export default function ReturnPage() {
     }
   };
 
+  // use global StatusBadge for colored status labels
   const getStatusBadge = (status: string) => {
-    const statusConfig: Record<string, { label: string; variant: any }> = {
-      PENDING: { label: 'Chờ phê duyệt', variant: 'secondary' },
-      APPROVED: { label: 'Đã phê duyệt', variant: 'default' },
-      COMPLETED: { label: 'Hoàn thành', variant: 'default' },
-      REJECTED: { label: 'Bị từ chối', variant: 'destructive' },
-      CANCELLED: { label: 'Đã hủy', variant: 'outline' },
-    };
-
-    const config = statusConfig[status];
-    return <Badge variant={config?.variant}>{config?.label || status}</Badge>;
+    return <StatusBadge status={status} />;
   };
 
   const getTypeBadge = (type: string) => {
@@ -421,7 +414,7 @@ export default function ReturnPage() {
                         </div>
                       </TableCell>
                       <TableCell>{getTypeBadge(returnReq.type)}</TableCell>
-                      <TableCell>{getStatusBadge(returnReq.status)}</TableCell>
+                      <TableCell><StatusBadge status={returnReq.status} /></TableCell>
                       <TableCell>
                         {returnReq.type === 'RETURN'
                           ? formatCurrency(returnReq.refundAmount || 0)
@@ -507,7 +500,7 @@ export default function ReturnPage() {
                 </div>
                 <div>
                   <Label className="text-xs font-semibold text-gray-600">Trạng thái</Label>
-                  <p className="mt-1">{getStatusBadge(selectedReturn.status)}</p>
+                  <p className="mt-1"><StatusBadge status={selectedReturn.status} /></p>
                 </div>
                 <div>
                   <Label className="text-xs font-semibold text-gray-600">Lý do</Label>
@@ -540,9 +533,9 @@ export default function ReturnPage() {
                 </div>
               )}
 
-              {/* Return Items */}
+              {/* Return Items (or requested products) */}
               <div className="border-t pt-4">
-                <h3 className="font-semibold mb-3">Sản phẩm trả hàng</h3>
+                <h3 className="font-semibold mb-3">Sản phẩm khách yêu cầu</h3>
                 <div className="space-y-3">
                   {(selectedReturn.returnItems ?? []).map((item) => (
                     <div key={item.id} className="bg-gray-50 p-3 rounded-lg text-sm">
@@ -572,6 +565,20 @@ export default function ReturnPage() {
                   ))}
                 </div>
               </div>
+
+              {/* Exchange products list for easy reference */}
+              {selectedReturn && selectedReturn.type === 'EXCHANGE' && (
+                <div className="border-t pt-4">
+                  <h3 className="font-semibold mb-3">Sản phẩm muốn đổi</h3>
+                  <ul className="list-disc pl-5 space-y-1 text-sm text-gray-700">
+                    {(selectedReturn.returnItems ?? [])
+                      .filter((item) => item.exchangeProduct)
+                      .map((item) => (
+                        <li key={item.id}>{item.exchangeProduct?.name}</li>
+                      ))}
+                  </ul>
+                </div>
+              )}
 
               {/* Description */}
               {selectedReturn.description && (

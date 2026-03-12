@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
+import StatusBadge from '@/components/StatusBadge';
 import { useToast } from '@/hooks/use-toast';
 import { operationsService, OrderDetails, GetOrdersParams } from '@/services/operations.service';
 import { adminService } from '@/services/admin.service';
@@ -238,17 +238,9 @@ const OrderOperationsPage: React.FC = () => {
     }).format(num);
   };
 
-  const getStatusBadge = (status: string) => {
-    const variants: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-      PENDING: 'outline',
-      CONFIRMED: 'default',
-      PROCESSING: 'secondary',
-      READY: 'default',
-      CANCELLED: 'destructive',
-    };
-    return <Badge variant={variants[status] || 'outline'}>{status}</Badge>;
-  };
-
+  // status rendering is now handled by a shared component
+  // (mapping and label formatting lives in components/StatusBadge.tsx)
+  // const getStatusBadge is no longer needed here.
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('vi-VN');
@@ -256,22 +248,41 @@ const OrderOperationsPage: React.FC = () => {
 
   return (
     <div className="p-6 space-y-6">
-      <div>
+      <div className="space-y-1">
         <h1 className="text-3xl font-bold tracking-tight">Quản lý đơn hàng</h1>
         <p className="text-muted-foreground">Xem và quản lý đơn hàng</p>
       </div>
 
-      <Card>
+    
+
+      {/* summary cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-white rounded-lg shadow p-4">
+          <p className="text-sm text-muted-foreground">Tổng đơn</p>
+          <p className="text-xl font-bold">{totalItems}</p>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4">
+          <p className="text-sm text-muted-foreground">Đơn hoàn thành</p>
+          <p className="text-xl font-bold">{orders.filter(o => o.status === 'COMPLETED').length}</p>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4">
+          <p className="text-sm text-muted-foreground">Đã xác nhận</p>
+          <p className="text-xl font-bold">{orders.filter(o => o.status === 'CONFIRMED').length}</p>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4">
+          <p className="text-sm text-muted-foreground">Bị hủy</p>
+          <p className="text-xl font-bold">{orders.filter(o => o.status === 'CANCELLED').length}</p>
+        </div>
+      </div>
+
+      {/* orders table card */}
+      <Card className="shadow-lg rounded-lg">
         <CardHeader>
-          <CardTitle>Hoạt động đặt hàng</CardTitle>
-          <CardDescription>Xem và quản lý đơn hàng</CardDescription>
+          <CardTitle>Danh sách đơn</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex justify-between items-center mb-4 gap-4">
-            <Select
-              value={statusFilter || "__all"}
-              onValueChange={(v) => setStatusFilter(v === "__all" ? "" : v)}
-            >
+          <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
+            <Select value={statusFilter || "__all"} onValueChange={(v) => setStatusFilter(v === "__all" ? "" : v)}>
               <SelectTrigger className="w-[220px]">
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
@@ -279,27 +290,27 @@ const OrderOperationsPage: React.FC = () => {
                 <SelectItem value="__all">Tất cả trạng thái</SelectItem>
                 <SelectItem value="PENDING">Pending</SelectItem>
                 <SelectItem value="CONFIRMED">Confirmed</SelectItem>
-                <SelectItem value="WAITING_CUSTOMER">Waiting for Customer</SelectItem>
+                <SelectItem value="WAITING_CUSTOMER">Waiting</SelectItem>
                 <SelectItem value="READY">Ready</SelectItem>
                 <SelectItem value="CANCELLED">Cancelled</SelectItem>
               </SelectContent>
             </Select>
-            <Button onClick={() => { setCurrentPage(1); loadOrders(); }} disabled={loading}>
+            <Button onClick={() => { setCurrentPage(1); loadOrders(); }} disabled={loading} className="rounded-full px-4">
               Refresh
             </Button>
           </div>
-
-          <div className="border rounded-lg overflow-hidden">
-            <Table>
-              <TableHeader>
+          {/* use white card and soft divider instead of strong border */}
+          <div className="bg-white shadow-sm sm:rounded-lg overflow-hidden">
+            <Table className="min-w-full divide-y divide-gray-200">
+              <TableHeader className="bg-gray-50">
                 <TableRow>
-                  <TableHead>Mã đơn</TableHead>
+                  <TableHead className="text-gray-600 uppercase tracking-wide">Mã đơn</TableHead>
                   <TableHead>Trạng thái</TableHead>
                   <TableHead>Tổng tiền</TableHead>
-                  <TableHead>Ngày tạo đơn</TableHead>
+                  <TableHead>Ngày tạo</TableHead>
                   <TableHead>Khách hàng</TableHead>
                   <TableHead>Nhân viên</TableHead>
-                  <TableHead className="text-right">Hành động</TableHead>
+                  <TableHead className="text-right text-gray-600 uppercase tracking-wide">Hành động</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -311,18 +322,19 @@ const OrderOperationsPage: React.FC = () => {
                   </TableRow>
                 ) : (
                   orders.map((order) => (
-                    <TableRow key={order.id}>
-                      <TableCell className="font-medium">{order.id}</TableCell>
-                      <TableCell>{getStatusBadge(order.status)}</TableCell>
-                      <TableCell>{formatCurrency(order.totalAmount)}</TableCell>
-                      <TableCell>{formatDate(order.createdAt)}</TableCell>
-                      <TableCell>{order.customer.fullName || 'N/A'}</TableCell>
-                      <TableCell>{order.staffId || 'Not assigned'}</TableCell>
+                    <TableRow key={order.id} className="odd:bg-white even:bg-gray-50 hover:bg-gray-100">
+                      <TableCell className="font-medium text-gray-800 text-sm">{order.id}</TableCell>
+                      <TableCell className="text-sm text-gray-700"><StatusBadge status={order.status} /></TableCell>
+                      <TableCell className="text-sm text-gray-700">{formatCurrency(order.totalAmount)}</TableCell>
+                      <TableCell className="text-sm text-gray-700">{formatDate(order.createdAt)}</TableCell>
+                      <TableCell className="text-sm text-gray-700">{order.customer.fullName || 'N/A'}</TableCell>
+                      <TableCell className="text-sm text-gray-700">{order.staffId || 'Not assigned'}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-2 justify-end flex-wrap">
                           <Button
                             size="sm"
-                            variant="outline"
+                            variant="default"
+                            className="rounded-full px-3"
                             onClick={() => openDetails(order)}
                           >
                             <Eye className="h-4 w-4" />
@@ -332,6 +344,7 @@ const OrderOperationsPage: React.FC = () => {
                               <Button
                                 size="sm"
                                 variant="default"
+                                className="rounded-full px-3"
                                 onClick={() => openConfirm(order)}
                               >
                                 <CheckCircle className="h-4 w-4 mr-1" />
@@ -340,13 +353,15 @@ const OrderOperationsPage: React.FC = () => {
                               <Button
                                 size="sm"
                                 variant="destructive"
+                                className="rounded-full px-3"
                                 onClick={() => openCancel(order)}
                               >
                                 <XCircle className="h-4 w-4 mr-1" />
                                 Hủy
                               </Button>
                             </>
-                          )}                        </div>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -354,10 +369,8 @@ const OrderOperationsPage: React.FC = () => {
               </TableBody>
             </Table>
           </div>
-          
-          {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4">
+            <div className="flex items-center justify-between mt-4 p-2 bg-white rounded-md shadow-inner">
               <div className="text-sm text-muted-foreground">
                 Trang {currentPage} of {totalPages} (Tổng: {totalItems} đơn hàng)
               </div>
@@ -369,8 +382,6 @@ const OrderOperationsPage: React.FC = () => {
                       className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
                     />
                   </PaginationItem>
-                  
-                  {/* Page numbers */}
                   {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                     const pageNum = i + 1;
                     return (
@@ -385,13 +396,11 @@ const OrderOperationsPage: React.FC = () => {
                       </PaginationItem>
                     );
                   })}
-                  
                   {totalPages > 5 && (
                     <PaginationItem>
                       <span className="px-2">...</span>
                     </PaginationItem>
                   )}
-                  
                   <PaginationItem>
                     <PaginationNext
                       onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
@@ -419,7 +428,7 @@ const OrderOperationsPage: React.FC = () => {
               </div>
               <div>
                 <Label className="font-semibold">Trạng thái</Label>
-                <p className="text-sm">{getStatusBadge(selectedOrder.status)}</p>
+                <p className="text-sm"><StatusBadge status={selectedOrder.status} /></p>
               </div>
               <div>
                 <Label className="font-semibold">Tổng giá</Label>
