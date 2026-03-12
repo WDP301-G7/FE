@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { Navigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { reviewService, Review } from "@/services/review.service";
+import { Review, updateReviewReply, addReviewReply, getReviews, deleteReview } from "@/services/review.service";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,7 +69,7 @@ const ReviewManagementPage: React.FC = () => {
   const loadReviews = async () => {
     setLoading(true);
     try {
-      const res = await reviewService.getReviews({
+      const res = await getReviews({
         page: pagination.page,
         limit: pagination.limit,
         status: statusFilter || undefined,
@@ -78,17 +78,17 @@ const ReviewManagementPage: React.FC = () => {
 
       console.log("Reviews response:", res);
 
-      const reviewsData = res.data?.data || [];
-      const meta = res.data?.meta;
+      const reviewsData = res.items || [];
 
       setReviews(reviewsData);
 
-      if (meta) {
-        setPagination(prev => ({
-          ...prev,
-          total: meta.total
-        }));
-      }
+      setPagination(prev => ({
+        ...prev,
+        total: res.total
+      }));
+
+
+
 
     } catch (error: any) {
       toast({
@@ -105,7 +105,7 @@ const ReviewManagementPage: React.FC = () => {
     if (!confirm("Are you sure you want to delete this review?")) return;
 
     try {
-      await reviewService.deleteReview(id);
+      await deleteReview(id);
 
       toast({
         title: "Success",
@@ -134,7 +134,7 @@ const ReviewManagementPage: React.FC = () => {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          
+
           Đánh giá
         </CardTitle>
 
@@ -224,12 +224,12 @@ const ReviewManagementPage: React.FC = () => {
                           // shouldn't happen, but guard
                           updated = selectedReview;
                         } else if (selectedReview.reply && editingReply) {
-                          updated = await reviewService.updateReviewReply(
+                          updated = await updateReviewReply(
                             selectedReview.id,
                             replyText.trim()
                           );
                         } else {
-                          updated = await reviewService.replyToReview(
+                          updated = await addReviewReply(
                             selectedReview.id,
                             replyText.trim()
                           );
@@ -316,10 +316,10 @@ const ReviewManagementPage: React.FC = () => {
               ) : (
                 reviews.map(r => (
                   <TableRow key={r.id}>
-<TableCell>{r.product?.name || "-"}</TableCell>
-                    
+                    <TableCell>{r.product?.name || "-"}</TableCell>
+
                     <TableCell>{r.customer?.fullName || "-"}</TableCell>
-                    
+
                     <TableCell>{r.order?.orderNumber || r.orderId || "-"}</TableCell>
 
                     <TableCell>
@@ -334,7 +334,7 @@ const ReviewManagementPage: React.FC = () => {
                       {r.comment || "-"}
                     </TableCell>
 
-                          <TableCell>{r.status ? <StatusBadge status={r.status} /> : "-"}</TableCell>
+                    <TableCell>{r.status ? <StatusBadge status={r.status} /> : "-"}</TableCell>
 
                     <TableCell>
                       {r.createdAt
@@ -355,13 +355,7 @@ const ReviewManagementPage: React.FC = () => {
                         Xem
                       </Button>
 
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDelete(r.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                     
                     </TableCell>
                   </TableRow>
                 ))

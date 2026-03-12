@@ -89,21 +89,19 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
           icon: <ShoppingCartOutlined />,
           label: "Quản Lý Đơn Hàng",
         },
-        {
-          key: "/admin/approve-orders",
-          icon: <CalendarOutlined />,
-          label: "Duyệt Đơn",
-        },
+       
         {
           key: "/admin/stores",
           icon: <AppstoreOutlined />,
           label: "Quản Lý Cửa Hàng",
         },
-        {
-          key: "/admin/inventory",
+      
+         {
+          key: "/admin/products",
           icon: <FileProtectOutlined />,
-          label: "Quản Lý Kho Hàng",
+          label: "Quản Lý Sản Phẩm",
         },
+      
         {
           key: "/admin/users",
           icon: <TeamOutlined />,
@@ -114,16 +112,12 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
           icon: <SettingOutlined />,
           label: "Quản Lý Hệ Thống",
         },
-        {
-          key: "/audit-logs",
-          icon: <AuditOutlined />,
-          label: "Audit Logs",
+         {
+          key: "/admin/reviews",
+          icon: <SettingOutlined />,
+          label: "Quản Lý Đánh Giá",
         },
-        {
-          key: "/permissions",
-          icon: <SafetyCertificateOutlined />,
-          label: "Permissions",
-        }
+        
       );
     }
 
