@@ -33,47 +33,50 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <ConfigProvider
-      theme={{
-        token: {
-          colorPrimary: '#0891b2',
-          borderRadius: 8,
-        },
-      }}
-    >
-      <TooltipProvider>
-        <AuthProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/register" element={<RegisterPage />} />
-              <Route path="/" element={<MainLayout />}>
-                <Route index element={<Navigate to="/dashboard" replace />} />
-                <Route path="dashboard" element={<Dashboard />} />
-                <Route path="orders" element={<MyAssignedOrders />} />
-                <Route path="returns" element={<ReturnManagement />} />
-                <Route path="admin/orders" element={<AdminOrdersManagement />} />
-                <Route path="admin/users" element={<AdminUsersManagement />} />
-                <Route path="admin/systems" element={<AdminSystemsManagement />} />
-                <Route path="admin/stores" element={<AdminStoresManagement />} />
-                
+    <ThemeProvider defaultTheme="light" storageKey="wdp-ui-theme">
+      <ConfigProvider
+        theme={{
+          token: {
+            colorPrimary: '#0891b2',
+            borderRadius: 8,
+          },
+        }}
+      >
+        <TooltipProvider>
+          <AuthProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/register" element={<RegisterPage />} />
+                <Route path="/" element={<MainLayout />}>
+                  <Route index element={<Navigate to="/dashboard" replace />} />
+                  <Route path="dashboard" element={<Dashboard />} />
+                  <Route path="orders" element={<MyAssignedOrders />} />
+                  <Route path="returns" element={<ReturnManagement />} />
+                  <Route path="admin/orders" element={<AdminOrdersManagement />} />
+                  <Route path="admin/users" element={<AdminUsersManagement />} />
+                  <Route path="admin/systems" element={<AdminSystemsManagement />} />
+                  <Route path="admin/stores" element={<AdminStoresManagement />} />
+                  <Route path="admin/reviews" element={<AdminReviews />} />
+                  
 
-                {/* operations-specific routes */}
-                <Route path="operations/orders" element={<OperationsOrderOps />} />
-                <Route path="operations/prescriptions" element={<PrescriptionRequestsPage />} />
-                <Route path="operations/stores" element={<OperationsStores />} />
-                <Route path="operations/inventory" element={<OperationsInventory />} />
-                <Route path="operations/returns" element={<ReturnPage />} />
-                <Route path="operations/reviews" element={<ReviewManagementPage />} />
-              </Route>
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </AuthProvider>
-      </TooltipProvider>
-    </ConfigProvider>
+                  {/* operations-specific routes */}
+                  <Route path="operations/orders" element={<OperationsOrderOps />} />
+                  <Route path="operations/prescriptions" element={<PrescriptionRequestsPage />} />
+                  <Route path="operations/stores" element={<OperationsStores />} />
+                  <Route path="operations/inventory" element={<OperationsInventory />} />
+                  <Route path="operations/returns" element={<ReturnPage />} />
+                  <Route path="operations/reviews" element={<ReviewManagementPage />} />
+                </Route>
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </AuthProvider>
+        </TooltipProvider>
+      </ConfigProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 

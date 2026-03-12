@@ -74,7 +74,7 @@ import type { Review, ReviewStats, GetReviewsParams } from '@/services/review.se
 import { productService } from '@/services/product.service';
 
 export const AdminReviews: React.FC = () => {
-  const { hasRole } = useAuth();
+  const { hasRole, user } = useAuth();
   const { toast } = useToast();
 
   // State
@@ -119,6 +119,7 @@ export const AdminReviews: React.FC = () => {
       const params: GetReviewsParams = {
         page: pagination.page,
         limit: pagination.limit,
+        populate: ['customer', 'reply', 'product'], // Populate customer email/phone, reply, and product
       };
 
       if (statusFilter !== 'ALL') {
@@ -155,7 +156,6 @@ export const AdminReviews: React.FC = () => {
         avgRating: Math.round(avgRating * 10) / 10,
       });
     } catch (error) {
-      console.error('❌ Failed to load reviews:', error);
       // Reset to empty state on error
       setReviews([]);
       setPagination(prev => ({ ...prev, total: 0 }));
@@ -187,7 +187,6 @@ export const AdminReviews: React.FC = () => {
 
   // Preload product images for all reviews
   const preloadProductImages = async (reviews: Review[]) => {
-    console.log('🔄 Preloading product images for', reviews.length, 'reviews');
     const newImageCache: Record<string, string> = {};
     const uniqueProductIds = new Set<string>();
     
@@ -197,8 +196,6 @@ export const AdminReviews: React.FC = () => {
         uniqueProductIds.add(review.productId);
       }
     });
-    
-    console.log('📦 Found', uniqueProductIds.size, 'unique products to fetch images for');
     
     try {
       // Fetch product details for all unique products
@@ -213,15 +210,14 @@ export const AdminReviews: React.FC = () => {
             }
           }
         } catch (err) {
-          console.log('⚠️ Failed to fetch images for product:', productId);
+          // Silent fail - image not critical
         }
       });
       
       await Promise.all(productPromises);
-      console.log('✅ Preloaded', Object.keys(newImageCache).length, 'product images');
       setProductImages(prevCache => ({ ...prevCache, ...newImageCache }));
     } catch (error) {
-      console.log('❌ Error preloading product images:', error);
+      // Silent fail
     }
   };
 
@@ -242,19 +238,21 @@ export const AdminReviews: React.FC = () => {
         }
       }
     } catch (error) {
-      console.log('Failed to fetch product image for:', review.productId);
+      // Silent fail - image not critical
     }
   };
 
   // View review details
   const handleViewDetails = async (review: Review) => {
     try {
-      const fullReview = await reviewService.getReviewById(review.id);
-      setSelectedReview(fullReview);
+      // Use review data from table directly (already has reply if exists)
+      // Backend GET /reviews/:id doesn't populate reply field
+      
+      setSelectedReview(review);
       setIsDetailDialogOpen(true);
       
       // Load product image if not cached
-      await loadProductImage(fullReview);
+      await loadProductImage(review);
     } catch (error) {
       toast({
         title: 'Lỗi',
@@ -317,8 +315,6 @@ export const AdminReviews: React.FC = () => {
     try {
       // Fetch latest review data to ensure we have up-to-date reply info
       const freshReview = await reviewService.getReviewById(review.id);
-      console.log('🔍 Fresh review data:', freshReview);
-      console.log('🔍 Reply exists?', freshReview.reply ? 'YES' : 'NO', freshReview.reply);
       setSelectedReview(freshReview);
       setReplyContent(freshReview.reply?.replyContent || '');
       setIsReplyDialogOpen(true);
@@ -357,30 +353,62 @@ export const AdminReviews: React.FC = () => {
     setReplyLoading(true);
     try {
       const data = { replyContent: replyContent.trim() };
+      const reviewId = selectedReview.id;
+      
+      let updatedReviewData;
 
       if (selectedReview.reply) {
-        // Update existing reply
-        await reviewService.updateReviewReply(selectedReview.id, data);
+        // Update existing reply - backend returns full Review with updated reply
+        updatedReviewData = await reviewService.updateReviewReply(reviewId, data);
         toast({
           title: 'Thành công',
           description: 'Đã cập nhật phản hồi',
         });
       } else {
-        // Create new reply
-        await reviewService.addReviewReply(selectedReview.id, data);
+        // Create new reply - backend returns full Review with new reply
+        updatedReviewData = await reviewService.addReviewReply(reviewId, data);
         toast({
           title: 'Thành công',
           description: 'Đã thêm phản hồi',
         });
       }
 
+      // Backend doesn't populate reply field, manually create it
+      if (!updatedReviewData.reply) {
+        updatedReviewData.reply = selectedReview.reply 
+          ? {
+              ...selectedReview.reply,
+              replyContent: data.replyContent,
+              updatedAt: new Date().toISOString(),
+            }
+          : {
+              id: crypto.randomUUID(),
+              reviewId: reviewId,
+              replyContent: data.replyContent,
+              staffId: user?.id || 'unknown',
+              staff: {
+                id: user?.id || 'unknown',
+                fullName: user?.name || 'Admin',
+              },
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            };
+      }
+
+      // Close reply dialog
       setIsReplyDialogOpen(false);
       setReplyContent('');
-      setSelectedReview(null);
-      loadReviews();
-    } catch (error: unknown) {
-      console.error('Reply error:', error);
       
+      // Update the review in the reviews list with new reply data
+      setReviews(prevReviews => 
+        prevReviews.map(r => r.id === updatedReviewData.id ? updatedReviewData : r)
+      );
+      
+      // Use the updated review data directly (already has reply populated)
+      setSelectedReview(updatedReviewData);
+      setIsDetailDialogOpen(true);
+      await loadProductImage(updatedReviewData);
+    } catch (error: unknown) {
       // Parse error message from backend
       let errorMessage = 'Không thể gửi phản hồi';
       let shouldRetryWithUpdate = false;
@@ -390,7 +418,6 @@ export const AdminReviews: React.FC = () => {
         
         if (axiosError.response?.status === 409) {
           // 409 Conflict: Reply already exists, automatically retry with PUT
-          console.log('⚠️ 409 Conflict detected - Reply already exists. Retrying with PUT...');
           shouldRetryWithUpdate = true;
         } else if (axiosError.response?.data?.message) {
           errorMessage = axiosError.response.data.message;
@@ -401,20 +428,53 @@ export const AdminReviews: React.FC = () => {
       if (shouldRetryWithUpdate) {
         try {
           const data = { replyContent: replyContent.trim() };
-          await reviewService.updateReviewReply(selectedReview.id, data);
+          const reviewId = selectedReview.id;
+          // Backend returns full Review with updated reply
+          const updatedReviewData = await reviewService.updateReviewReply(reviewId, data);
           toast({
             title: 'Thành công',
             description: 'Đã cập nhật phản hồi',
           });
           
+          // Backend doesn't populate reply field, manually create it
+          if (!updatedReviewData.reply) {
+            updatedReviewData.reply = selectedReview.reply 
+              ? {
+                  ...selectedReview.reply,
+                  replyContent: data.replyContent,
+                  updatedAt: new Date().toISOString(),
+                }
+              : {
+                  id: crypto.randomUUID(),
+                  reviewId: reviewId,
+                  replyContent: data.replyContent,
+                  staffId: user?.id || 'unknown',
+                  staff: {
+                    id: user?.id || 'unknown',
+                    fullName: user?.name || 'Admin',
+                  },
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                };
+          }
+          
+          // Close reply dialog
           setIsReplyDialogOpen(false);
           setReplyContent('');
-          setSelectedReview(null);
-          loadReviews();
+          
+          // Update the review in the reviews list with new reply data
+          setReviews(prevReviews => 
+            prevReviews.map(r => r.id === updatedReviewData.id ? updatedReviewData : r)
+          );
+          
+          // Use the updated review data directly
+          setSelectedReview(updatedReviewData);
+          setIsDetailDialogOpen(true);
+          await loadProductImage(updatedReviewData);
+          
           setReplyLoading(false);
           return; // Exit successfully
         } catch (retryError) {
-          console.error('Retry with PUT also failed:', retryError);
           errorMessage = 'Không thể cập nhật phản hồi. Vui lòng thử lại.';
         }
       }
@@ -795,9 +855,10 @@ export const AdminReviews: React.FC = () => {
 
           <div className="flex-1 overflow-y-auto pr-2 -mr-2 min-h-0">
             {selectedReview && (
-              <div className="space-y-4 py-2">
-                {/* Customer & Product Info Card */}
-                <Card>
+              <>
+                <div className="space-y-4 py-2">
+                  {/* Customer & Product Info Card */}
+                  <Card>
                   <CardHeader>
                     <CardTitle className="text-lg flex items-center gap-2">
                       <User className="h-5 w-5" />
@@ -1019,7 +1080,8 @@ export const AdminReviews: React.FC = () => {
                     </CardContent>
                   </Card>
                 )}
-              </div>
+                </div>
+              </>
             )}
           </div>
         </DialogContent>

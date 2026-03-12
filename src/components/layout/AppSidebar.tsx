@@ -12,6 +12,7 @@ import {
   CalendarOutlined,
   EyeOutlined,
   RetweetOutlined,
+  StarOutlined,
 } from "@ant-design/icons";
 import type { MenuProps } from "antd";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -98,6 +99,11 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
           key: "/admin/stores",
           icon: <AppstoreOutlined />,
           label: "Quản Lý Cửa Hàng",
+        },
+        {
+          key: "/admin/reviews",
+          icon: <StarOutlined />,
+          label: "Quản Lý Đánh Giá",
         },
         {
           key: "/admin/inventory",
