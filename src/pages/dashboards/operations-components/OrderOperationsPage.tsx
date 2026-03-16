@@ -1,22 +1,34 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Navigate } from 'react-router-dom';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import StatusBadge from '@/components/StatusBadge';
 import { useToast } from '@/hooks/use-toast';
 import { operationsService, OrderDetails, GetOrdersParams } from '@/services/operations.service';
 import { adminService } from '@/services/admin.service';
-import { Eye, CheckCircle, XCircle, Calendar } from 'lucide-react';
-import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
+import StatusBadge from '@/components/StatusBadge';
+import {
+  Card,
+  Typography,
+  Table,
+  Tag,
+  Button,
+  Space,
+  Select,
+  Modal,
+  Form,
+  Input,
+} from 'antd';
+import { motion } from 'framer-motion';
+import {
+  EyeOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  ReloadOutlined,
+} from '@ant-design/icons';
 
-// Staff type for dropdown
+const { Title, Text } = Typography;
+const { Option } = Select;
+const { TextArea } = Input;
+
 interface StaffMember {
   id: string;
   fullName: string;
@@ -34,70 +46,50 @@ const OrderOperationsPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [selectedOrder, setSelectedOrder] = useState<OrderDetails | null>(null);
-  
-  // Pagination states
+
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50); // Increased to show more orders per page
+  const [pageSize, setPageSize] = useState(50);
   const [totalItems, setTotalItems] = useState(0);
-  const totalPages = Math.ceil(totalItems / pageSize);
-  
-  // Modal states
+
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isCancelOpen, setIsCancelOpen] = useState(false);
-  // removed processing/ready dialogs
 
-  // Confirm form
   const [appointmentDate, setAppointmentDate] = useState('');
   const [appointmentNotes, setAppointmentNotes] = useState('');
   const [assignedStaffId, setAssignedStaffId] = useState('');
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
-
-  // Cancel form
   const [cancelReason, setCancelReason] = useState('');
 
-  // fetch staff users via API
   useEffect(() => {
     const loadStaffs = async () => {
       try {
-        // Try with role filter first
-        console.log('Attempting to load staff with role=STAFF filter...');
         let res = await adminService.getUsers({ page: 1, limit: 100, role: 'STAFF' });
-        console.log('Staff API response with role filter:', res);
-        
-        // API returns data.users array
-        let users = (res as any).users || (res as any).items || (res as any).data || (Array.isArray(res) ? res : []);
-        console.log('Extracted users with role filter:', users);
-        
-        // If no users with role filter, try without filter
-        if ((!users || users.length === 0)) {
-          console.log('No staff found with role filter, trying without filter...');
+        let users =
+          (res as any).users ||
+          (res as any).items ||
+          (res as any).data ||
+          (Array.isArray(res) ? res : []);
+        if (!users || users.length === 0) {
           res = await adminService.getUsers({ page: 1, limit: 100 });
-          console.log('Staff API response without filter:', res);
-          users = (res as any).users || (res as any).items || (res as any).data || (Array.isArray(res) ? res : []);
-          console.log('Extracted users without filter:', users);
+          users =
+            (res as any).users ||
+            (res as any).items ||
+            (res as any).data ||
+            (Array.isArray(res) ? res : []);
         }
-        
-        const staffArray = users.map((u: any) => {
-          console.log('Processing user:', u);
-          return { id: u.id, fullName: u.fullName, email: u.email };
-        });
-        console.log('Final staff list:', staffArray);
-        setStaffList(staffArray);
-      } catch (err: any) {
-        console.error('Failed to load staff list:', err);
-        console.error('Error details:', err.response?.data);
-        // Set empty staff list on error instead of crashing
+        setStaffList(
+          users.map((u: any) => ({ id: u.id, fullName: u.fullName, email: u.email }))
+        );
+      } catch {
         setStaffList([]);
       }
     };
-
     loadStaffs();
     loadOrders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, currentPage, pageSize]);
-  
-  // Reset pagination when status filter changes
+
   useEffect(() => {
     setCurrentPage(1);
   }, [statusFilter]);
@@ -105,29 +97,15 @@ const OrderOperationsPage: React.FC = () => {
   const loadOrders = async () => {
     setLoading(true);
     try {
-      const params: GetOrdersParams = {
-        page: currentPage,
-        size: pageSize,
-      };
-      if (statusFilter && statusFilter !== "__all") params.status = statusFilter;
+      const params: GetOrdersParams = { page: currentPage, size: pageSize };
+      if (statusFilter && statusFilter !== '__all') params.status = statusFilter;
       const response = await operationsService.getAllOrders(params);
-      console.log('loadOrders params:', params);
-      console.log('loadOrders response:', response);
-      console.log('pageInfo:', response.pageInfo);
-      console.log('orders count:', response.orders.length);
-      
-      // Response now includes orders array and pageInfo
       setOrders(response.orders || []);
-      
-      // Calculate total from pageInfo if available, otherwise use length
-      const total = response.pageInfo?.totalElements || response.orders.length;
-      console.log('Calculated total:', total);
-      setTotalItems(total);
+      setTotalItems(response.pageInfo?.totalElements || response.orders.length);
     } catch (err: any) {
-      console.error('Error loading orders:', err);
       toast({
-        title: 'Error',
-        description: err.response?.data?.message || 'Failed to load orders',
+        title: 'Lỗi',
+        description: err.response?.data?.message || 'Tải dữ liệu đơn hàng thất bại',
         variant: 'destructive',
       });
       setOrders([]);
@@ -144,7 +122,9 @@ const OrderOperationsPage: React.FC = () => {
 
   const openConfirm = (order: OrderDetails) => {
     setSelectedOrder(order);
-    setAppointmentDate(order.createdDate ? new Date(order.createdDate).toISOString().slice(0, 16) : '');
+    setAppointmentDate(
+      order.createdDate ? new Date(order.createdDate).toISOString().slice(0, 16) : ''
+    );
     setAppointmentNotes('');
     setAssignedStaffId('');
     setIsConfirmOpen(true);
@@ -153,38 +133,27 @@ const OrderOperationsPage: React.FC = () => {
   const submitConfirm = async () => {
     if (!selectedOrder || !appointmentDate || !assignedStaffId) {
       toast({
-        title: 'Error',
-        description: 'Please fill in all required fields',
+        title: 'Lỗi',
+        description: 'Vui lòng điền đầy đủ thông tin bắt buộc',
         variant: 'destructive',
       });
       return;
     }
     setLoading(true);
     try {
-      // Convert datetime-local format to ISO 8601 with Z
-      const dateObj = new Date(appointmentDate + ':00.000Z');
-      const isoDate = dateObj.toISOString();
-      
-      console.log('Sending confirm request with:');
-      console.log('- appointmentDate:', isoDate);
-      console.log('- appointmentNotes:', appointmentNotes);
-      console.log('- assignedStaffId:', assignedStaffId);
-      
+      const isoDate = new Date(appointmentDate + ':00.000Z').toISOString();
       await operationsService.confirmOrder(selectedOrder.id, {
         appointmentDate: isoDate,
         appointmentNotes,
         assignedStaffId,
       });
-      toast({
-        title: 'Success',
-        description: 'Order accepted and appointment scheduled',
-      });
+      toast({ title: 'Thành công', description: 'Xác nhận đơn và đặt lịch hẹn thành công' });
       setIsConfirmOpen(false);
       loadOrders();
     } catch (err: any) {
       toast({
-        title: 'Error',
-        description: err.response?.data?.message || 'Failed to confirm order',
+        title: 'Lỗi',
+        description: err.response?.data?.message || 'Xác nhận đơn thất bại',
         variant: 'destructive',
       });
     } finally {
@@ -201,27 +170,22 @@ const OrderOperationsPage: React.FC = () => {
   const submitCancel = async () => {
     if (!selectedOrder || !cancelReason.trim()) {
       toast({
-        title: 'Error',
-        description: 'Please provide a reason for cancellation',
+        title: 'Lỗi',
+        description: 'Vui lòng nhập lý do hủy đơn',
         variant: 'destructive',
       });
       return;
     }
     setLoading(true);
     try {
-      await operationsService.cancelOrder(selectedOrder.id, {
-        reason: cancelReason,
-      });
-      toast({
-        title: 'Success',
-        description: 'Order cancelled successfully',
-      });
+      await operationsService.cancelOrder(selectedOrder.id, { reason: cancelReason });
+      toast({ title: 'Thành công', description: 'Hủy đơn hàng thành công' });
       setIsCancelOpen(false);
       loadOrders();
     } catch (err: any) {
       toast({
-        title: 'Error',
-        description: err.response?.data?.message || 'Failed to cancel order',
+        title: 'Lỗi',
+        description: err.response?.data?.message || 'Hủy đơn thất bại',
         variant: 'destructive',
       });
     } finally {
@@ -229,317 +193,301 @@ const OrderOperationsPage: React.FC = () => {
     }
   };
 
-
   const formatCurrency = (amount?: string | number) => {
-    const num = typeof amount === 'string' ? parseFloat(amount) : (amount || 0);
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND',
-    }).format(num);
+    const num = typeof amount === 'string' ? parseFloat(amount) : amount || 0;
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(num);
   };
 
-  // status rendering is now handled by a shared component
-  // (mapping and label formatting lives in components/StatusBadge.tsx)
-  // const getStatusBadge is no longer needed here.
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('vi-VN');
   };
 
+  // Derived stats
+  const completedCount = orders.filter((o) => o.status === 'COMPLETED').length;
+  const confirmedCount = orders.filter((o) => o.status === 'CONFIRMED').length;
+  const cancelledCount = orders.filter((o) => o.status === 'CANCELLED').length;
+
+  const columns = [
+    {
+      title: 'Mã đơn',
+      dataIndex: 'id',
+      key: 'id',
+      render: (val: string) => <Text strong style={{ fontSize: 12 }}>{val}</Text>,
+    },
+    {
+      title: 'Trạng thái',
+      dataIndex: 'status',
+      key: 'status',
+      render: (val: string) => <StatusBadge status={val} />,
+    },
+    {
+      title: 'Tổng tiền',
+      dataIndex: 'totalAmount',
+      key: 'totalAmount',
+      render: (val: any) => <Text strong>{formatCurrency(val)}</Text>,
+    },
+    {
+      title: 'Ngày tạo',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      render: (val: string) => <Text>{formatDate(val)}</Text>,
+    },
+    {
+      title: 'Khách hàng',
+      key: 'customer',
+      render: (_: unknown, record: OrderDetails) => (
+        <Text>{record.customer?.fullName || 'N/A'}</Text>
+      ),
+    },
+    {
+      title: 'Nhân viên',
+      dataIndex: 'staffId',
+      key: 'staffId',
+      render: (val: string) => <Text>{val || 'Chưa phân công'}</Text>,
+    },
+    {
+      title: 'Hành động',
+      key: 'actions',
+      align: 'right' as const,
+      render: (_: unknown, record: OrderDetails) => (
+        <Space>
+          <Button
+            icon={<EyeOutlined />}
+            size="small"
+            onClick={() => openDetails(record)}
+          >
+            Xem
+          </Button>
+          {record.status === 'CONFIRMED' && (
+            <>
+              <Button
+                icon={<CheckCircleOutlined />}
+                size="small"
+                type="primary"
+                onClick={() => openConfirm(record)}
+              >
+                Xác nhận
+              </Button>
+              <Button
+                icon={<CloseCircleOutlined />}
+                size="small"
+                danger
+                onClick={() => openCancel(record)}
+              >
+                Hủy
+              </Button>
+            </>
+          )}
+        </Space>
+      ),
+    },
+  ];
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.4 } },
+  };
+
   return (
-    <div className="p-6 space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-3xl font-bold tracking-tight">Quản lý đơn hàng</h1>
-        <p className="text-muted-foreground">Xem và quản lý đơn hàng</p>
+    <motion.div
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+      className="space-y-6"
+    >
+      {/* Stat Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {[
+          { label: 'Tổng đơn hàng', value: totalItems },
+          { label: 'Hoàn thành', value: completedCount },
+          { label: 'Đã xác nhận', value: confirmedCount },
+          { label: 'Bị hủy', value: cancelledCount },
+        ].map((stat, i) => (
+          <motion.div
+            key={stat.label}
+            variants={itemVariants}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: i * 0.1, duration: 0.3 }}
+          >
+            <Card className="stat-card">
+              <div className="space-y-2">
+                <Text className="text-muted-foreground">{stat.label}</Text>
+                <Title level={3} className="!mb-0 !text-foreground">
+                  {stat.value}
+                </Title>
+              </div>
+            </Card>
+          </motion.div>
+        ))}
       </div>
 
-    
-
-      {/* summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-sm text-muted-foreground">Tổng đơn</p>
-          <p className="text-xl font-bold">{totalItems}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-sm text-muted-foreground">Đơn hoàn thành</p>
-          <p className="text-xl font-bold">{orders.filter(o => o.status === 'COMPLETED').length}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-sm text-muted-foreground">Đã xác nhận</p>
-          <p className="text-xl font-bold">{orders.filter(o => o.status === 'CONFIRMED').length}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-sm text-muted-foreground">Bị hủy</p>
-          <p className="text-xl font-bold">{orders.filter(o => o.status === 'CANCELLED').length}</p>
-        </div>
-      </div>
-
-      {/* orders table card */}
-      <Card className="shadow-lg rounded-lg">
-        <CardHeader>
-          <CardTitle>Danh sách đơn</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
-            <Select value={statusFilter || "__all"} onValueChange={(v) => setStatusFilter(v === "__all" ? "" : v)}>
-              <SelectTrigger className="w-[220px]">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all">Tất cả trạng thái</SelectItem>
-                <SelectItem value="PENDING">Pending</SelectItem>
-                <SelectItem value="CONFIRMED">Confirmed</SelectItem>
-                <SelectItem value="WAITING_CUSTOMER">Waiting</SelectItem>
-                <SelectItem value="READY">Ready</SelectItem>
-                <SelectItem value="CANCELLED">Cancelled</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button onClick={() => { setCurrentPage(1); loadOrders(); }} disabled={loading} className="rounded-full px-4">
-              Refresh
-            </Button>
-          </div>
-          {/* use white card and soft divider instead of strong border */}
-          <div className="bg-white shadow-sm sm:rounded-lg overflow-hidden">
-            <Table className="min-w-full divide-y divide-gray-200">
-              <TableHeader className="bg-gray-50">
-                <TableRow>
-                  <TableHead className="text-gray-600 uppercase tracking-wide">Mã đơn</TableHead>
-                  <TableHead>Trạng thái</TableHead>
-                  <TableHead>Tổng tiền</TableHead>
-                  <TableHead>Ngày tạo</TableHead>
-                  <TableHead>Khách hàng</TableHead>
-                  <TableHead>Nhân viên</TableHead>
-                  <TableHead className="text-right text-gray-600 uppercase tracking-wide">Hành động</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(!Array.isArray(orders) || orders.length === 0) ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                      Không có đơn hàng nào !
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  orders.map((order) => (
-                    <TableRow key={order.id} className="odd:bg-white even:bg-gray-50 hover:bg-gray-100">
-                      <TableCell className="font-medium text-gray-800 text-sm">{order.id}</TableCell>
-                      <TableCell className="text-sm text-gray-700"><StatusBadge status={order.status} /></TableCell>
-                      <TableCell className="text-sm text-gray-700">{formatCurrency(order.totalAmount)}</TableCell>
-                      <TableCell className="text-sm text-gray-700">{formatDate(order.createdAt)}</TableCell>
-                      <TableCell className="text-sm text-gray-700">{order.customer.fullName || 'N/A'}</TableCell>
-                      <TableCell className="text-sm text-gray-700">{order.staffId || 'Not assigned'}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex gap-2 justify-end flex-wrap">
-                          <Button
-                            size="sm"
-                            variant="default"
-                            className="rounded-full px-3"
-                            onClick={() => openDetails(order)}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          {order.status === 'CONFIRMED' && (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="default"
-                                className="rounded-full px-3"
-                                onClick={() => openConfirm(order)}
-                              >
-                                <CheckCircle className="h-4 w-4 mr-1" />
-                                Xác nhận
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                className="rounded-full px-3"
-                                onClick={() => openCancel(order)}
-                              >
-                                <XCircle className="h-4 w-4 mr-1" />
-                                Hủy
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4 p-2 bg-white rounded-md shadow-inner">
-              <div className="text-sm text-muted-foreground">
-                Trang {currentPage} of {totalPages} (Tổng: {totalItems} đơn hàng)
-              </div>
-              <Pagination>
-                <PaginationContent>
-                  <PaginationItem>
-                    <PaginationPrevious
-                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                      className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
-                    />
-                  </PaginationItem>
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    const pageNum = i + 1;
-                    return (
-                      <PaginationItem key={pageNum}>
-                        <PaginationLink
-                          onClick={() => setCurrentPage(pageNum)}
-                          isActive={currentPage === pageNum}
-                          className="cursor-pointer"
-                        >
-                          {pageNum}
-                        </PaginationLink>
-                      </PaginationItem>
-                    );
-                  })}
-                  {totalPages > 5 && (
-                    <PaginationItem>
-                      <span className="px-2">...</span>
-                    </PaginationItem>
-                  )}
-                  <PaginationItem>
-                    <PaginationNext
-                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                      className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
-                    />
-                  </PaginationItem>
-                </PaginationContent>
-              </Pagination>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Detail Dialog */}
-      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Chi tiết đơn hàng</DialogTitle>
-          </DialogHeader>
-          {selectedOrder && (
-            <div className="space-y-4">
-              <div>
-                <Label className="font-semibold">Mã đơn hàng</Label>
-                <p className="text-sm">{selectedOrder.id}</p>
-              </div>
-              <div>
-                <Label className="font-semibold">Trạng thái</Label>
-                <p className="text-sm"><StatusBadge status={selectedOrder.status} /></p>
-              </div>
-              <div>
-                <Label className="font-semibold">Tổng giá</Label>
-                <p className="text-sm">{formatCurrency(selectedOrder.totalAmount)}</p>
-              </div>
-              <div>
-                <Label className="font-semibold">Ngày tạo</Label>
-                <p className="text-sm">{formatDate(selectedOrder.createdAt)}</p>
-              </div>
-              <div>
-                <Label className="font-semibold">Khách hàng</Label>
-                <p className="text-sm">{selectedOrder.customer?.fullName || 'N/A'}</p>
-              </div>
-              <div>
-                <Label className="font-semibold">Nhân viên</Label>
-                <p className="text-sm">{selectedOrder.staffId || 'Not assigned'}</p>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDetailOpen(false)}>
-              Đóng
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Confirm Dialog */}
-      <Dialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Đặt lịch hẹn</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="appointmentDate">Ngày & Giờ Hẹn</Label>
-              <Input
-                id="appointmentDate"
-                type="datetime-local"
-                value={appointmentDate}
-                onChange={(e) => setAppointmentDate(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label htmlFor="appointmentNotes">Ghi chú về cuộc hẹn</Label>
-              <Textarea
-                id="appointmentNotes"
-                placeholder="Enter any notes for the appointment"
-                value={appointmentNotes}
-                onChange={(e) => setAppointmentNotes(e.target.value)}
-                rows={3}
-              />
-            </div>
-            <div>
-              <Label htmlFor="staffId">Chọn nhân viên</Label>
-              <Select value={assignedStaffId} onValueChange={setAssignedStaffId}>
-                <SelectTrigger id="staffId">
-                  <SelectValue placeholder="Select staff member" />
-                </SelectTrigger>
-                <SelectContent>
-                  {staffList.map((staff) => (
-                    <SelectItem key={staff.id} value={staff.id}>
-                      {staff.fullName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+      {/* Main Table Card */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5, duration: 0.5 }}
+      >
+        <Card className="dashboard-section">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+            <Title level={4} className="!text-foreground !mb-0">
+              Quản lý đơn hàng
+            </Title>
+            <Space wrap>
+              <Select
+                style={{ width: 200 }}
+                value={statusFilter || '__all'}
+                onChange={(v) => setStatusFilter(v === '__all' ? '' : v)}
+              >
+                <Option value="__all">Tất cả trạng thái</Option>
+                <Option value="PENDING">Pending</Option>
+                <Option value="CONFIRMED">Confirmed</Option>
+                <Option value="WAITING_CUSTOMER">Waiting</Option>
+                <Option value="READY">Ready</Option>
+                <Option value="CANCELLED">Cancelled</Option>
               </Select>
-            </div>
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={() => { setCurrentPage(1); loadOrders(); }}
+                loading={loading}
+              >
+                Làm mới
+              </Button>
+            </Space>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsConfirmOpen(false)}>
-              Hủy
-            </Button>
-            <Button onClick={submitConfirm} disabled={loading}>
-              {loading ? 'Confirming...' : 'Accept Order'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
-      {/* Cancel Dialog */}
-      <Dialog open={isCancelOpen} onOpenChange={setIsCancelOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Hủy Đơn Hàng</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
+          <Table
+            dataSource={orders}
+            columns={columns}
+            rowKey="id"
+            loading={loading}
+            pagination={{
+              current: currentPage,
+              pageSize: pageSize,
+              total: totalItems,
+              showSizeChanger: true,
+              showTotal: (total) => `Tổng ${total} đơn hàng`,
+              onChange: (page, size) => {
+                setCurrentPage(page);
+                setPageSize(size);
+              },
+            }}
+            scroll={{ x: 'max-content' }}
+          />
+        </Card>
+      </motion.div>
+
+      {/* Detail Modal */}
+      <Modal
+        title="Chi tiết đơn hàng"
+        open={isDetailOpen}
+        onCancel={() => setIsDetailOpen(false)}
+        footer={
+          <Button onClick={() => setIsDetailOpen(false)}>Đóng</Button>
+        }
+        destroyOnClose
+      >
+        {selectedOrder && (
+          <div className="space-y-3 py-2">
+            {[
+              { label: 'Mã đơn hàng', value: selectedOrder.id },
+              { label: 'Tổng giá', value: formatCurrency(selectedOrder.totalAmount) },
+              { label: 'Ngày tạo', value: formatDate(selectedOrder.createdAt) },
+              { label: 'Khách hàng', value: selectedOrder.customer?.fullName || 'N/A' },
+              { label: 'Nhân viên', value: selectedOrder.staffId || 'Chưa phân công' },
+            ].map(({ label, value }) => (
+              <div key={label}>
+                <Text type="secondary" style={{ fontSize: 12 }}>{label}</Text>
+                <div><Text strong>{value}</Text></div>
+              </div>
+            ))}
             <div>
-              <Label htmlFor="cancelReason">Lý do Hủy</Label>
-              <Textarea
-                id="cancelReason"
-                placeholder="Vui lòng cung cấp lý do hủy đơn hàng này"
-                value={cancelReason}
-                onChange={(e) => setCancelReason(e.target.value)}
-                rows={4}
-              />
+              <Text type="secondary" style={{ fontSize: 12 }}>Trạng thái</Text>
+              <div><StatusBadge status={selectedOrder.status} /></div>
             </div>
           </div>
-          <DialogFooter>
-        
-            <Button variant="outline" onClick={() => setIsCancelOpen(false)}>
-              Đóng
-            </Button>
-            <Button variant="destructive" onClick={submitCancel} disabled={loading}>
-              {loading ? 'Cancelling...' : 'Cancel Order'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        )}
+      </Modal>
 
-    </div>
+      {/* Confirm Modal */}
+      <Modal
+        title="Đặt lịch hẹn"
+        open={isConfirmOpen}
+        onCancel={() => setIsConfirmOpen(false)}
+        footer={null}
+        destroyOnClose
+      >
+        <Form layout="vertical" className="pt-2">
+          <Form.Item label="Ngày & Giờ Hẹn" required>
+            <Input
+              type="datetime-local"
+              value={appointmentDate}
+              onChange={(e) => setAppointmentDate(e.target.value)}
+            />
+          </Form.Item>
+          <Form.Item label="Ghi chú về cuộc hẹn">
+            <TextArea
+              placeholder="Nhập ghi chú cho cuộc hẹn"
+              value={appointmentNotes}
+              onChange={(e) => setAppointmentNotes(e.target.value)}
+              rows={3}
+            />
+          </Form.Item>
+          <Form.Item label="Chọn nhân viên" required>
+            <Select
+              placeholder="Chọn nhân viên"
+              value={assignedStaffId || undefined}
+              onChange={setAssignedStaffId}
+              style={{ width: '100%' }}
+            >
+              {staffList.map((staff) => (
+                <Option key={staff.id} value={staff.id}>
+                  {staff.fullName}
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+          <div className="flex justify-end gap-2">
+            <Button onClick={() => setIsConfirmOpen(false)}>Hủy</Button>
+            <Button type="primary" onClick={submitConfirm} loading={loading}>
+              Xác nhận đơn
+            </Button>
+          </div>
+        </Form>
+      </Modal>
+
+      {/* Cancel Modal */}
+      <Modal
+        title="Hủy Đơn Hàng"
+        open={isCancelOpen}
+        onCancel={() => setIsCancelOpen(false)}
+        footer={null}
+        destroyOnClose
+      >
+        <Form layout="vertical" className="pt-2">
+          <Form.Item label="Lý do Hủy" required>
+            <TextArea
+              placeholder="Vui lòng cung cấp lý do hủy đơn hàng này"
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              rows={4}
+            />
+          </Form.Item>
+          <div className="flex justify-end gap-2">
+            <Button onClick={() => setIsCancelOpen(false)}>Đóng</Button>
+            <Button danger onClick={submitCancel} loading={loading}>
+              Xác nhận hủy
+            </Button>
+          </div>
+        </Form>
+      </Modal>
+    </motion.div>
   );
 };
 

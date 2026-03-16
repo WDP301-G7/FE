@@ -40,3 +40,30 @@
 .read-the-docs {
   color: #888;
 }
+
+/* ===== Sidebar collapsed style ===== */
+.ant-layout-sider-collapsed .ant-menu-item {
+  font-size: 11px;
+  padding-left: 16px !important;
+}
+
+.ant-layout-sider-collapsed .ant-menu-item .anticon {
+  font-size: 16px;
+}
+
+/* Thu nhỏ logo khi sidebar collapse */
+.ant-layout-sider-collapsed .ant-layout-sider-children span {
+  font-size: 12px;
+}
+
+/* Làm menu gọn hơn */
+.sidebar-menu .ant-menu-item {
+  height: 40px;
+  line-height: 40px;
+}
+
+/* Hover nhẹ cho đẹp */
+.sidebar-menu .ant-menu-item:hover {
+  background-color: #f5f7ff;
+  color: #4f46e5;
+}
