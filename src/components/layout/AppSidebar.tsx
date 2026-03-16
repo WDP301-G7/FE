@@ -1,5 +1,5 @@
 import React from "react";
-import { Layout, Menu } from "antd";
+import { Layout, Menu, Button } from "antd";
 import {
   DashboardOutlined,
   ShoppingCartOutlined,
@@ -7,11 +7,11 @@ import {
   TeamOutlined,
   SettingOutlined,
   FileProtectOutlined,
-  AuditOutlined,
-  SafetyCertificateOutlined,
   CalendarOutlined,
   EyeOutlined,
   RetweetOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
 } from "@ant-design/icons";
 import type { MenuProps } from "antd";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -24,13 +24,6 @@ interface AppSidebarProps {
   onCollapse: (collapsed: boolean) => void;
 }
 
-interface MenuItem {
-  key: string;
-  icon: React.ReactNode;
-  label: string;
-  roles?: string[];
-}
-
 const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -39,14 +32,12 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
   const getMenuItems = (): MenuProps["items"] => {
     const items: MenuProps["items"] = [];
 
-    // Dashboard
     items.push({
       key: "/dashboard",
       icon: <DashboardOutlined />,
       label: "Dashboard",
     });
 
-    // Staff + Manager
     if (hasRole(["STAFF", "staff", "MANAGER", "manager"])) {
       items.push({
         key: "/orders",
@@ -55,7 +46,6 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
       });
     }
 
-    // Operations
     if (hasRole(["OPERATIONS", "operations", "OPERATION", "operation"])) {
       items.push(
         {
@@ -81,7 +71,6 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
       );
     }
 
-    // Admin
     if (hasRole(["ADMIN", "admin"])) {
       items.push(
         {
@@ -89,19 +78,21 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
           icon: <ShoppingCartOutlined />,
           label: "Quản Lý Đơn Hàng",
         },
-       
         {
           key: "/admin/stores",
           icon: <AppstoreOutlined />,
           label: "Quản Lý Cửa Hàng",
         },
-      
-         {
+        {
           key: "/admin/products",
           icon: <FileProtectOutlined />,
           label: "Quản Lý Sản Phẩm",
         },
-      
+        {
+          key: "/admin/inventory",
+          icon: <FileProtectOutlined />,
+          label: "Quản Lý Tồn Kho",
+        },
         {
           key: "/admin/users",
           icon: <TeamOutlined />,
@@ -112,12 +103,11 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
           icon: <SettingOutlined />,
           label: "Quản Lý Hệ Thống",
         },
-         {
+        {
           key: "/admin/reviews",
           icon: <SettingOutlined />,
           label: "Quản Lý Đánh Giá",
-        },
-        
+        }
       );
     }
 
@@ -138,18 +128,25 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
       className="min-h-screen bg-white border-r border-gray-200"
       trigger={null}
     >
-      {/* Logo */}
-      <div className="flex items-center gap-3 px-6 h-16 border-b border-gray-100">
-        <EyeOutlined className="text-2xl text-indigo-600" />
+      {/* Logo + Collapse Button */}
+      <div className="flex items-center justify-between px-4 h-16 border-b border-gray-100">
+        <div className="flex items-center gap-3">
+          <EyeOutlined className="text-2xl text-indigo-600" />
 
-        {!collapsed && (
-          <span className="text-lg font-semibold text-gray-700">
-            EyeCare Store
-          </span>
-        )}
+          {!collapsed && (
+            <span className="text-lg font-semibold text-gray-700">
+              EyeCare Store
+            </span>
+          )}
+        </div>
+
+        <Button
+          type="text"
+          icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+          onClick={() => onCollapse(!collapsed)}
+        />
       </div>
 
-      {/* Menu */}
       <Menu
         mode="inline"
         selectedKeys={[location.pathname]}

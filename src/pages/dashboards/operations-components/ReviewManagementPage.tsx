@@ -2,43 +2,43 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { Navigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { Review, updateReviewReply, addReviewReply, getReviews, deleteReview } from "@/services/review.service";
-
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow
-} from "@/components/ui/table";
-
+  Review,
+  updateReviewReply,
+  addReviewReply,
+  getReviews,
+  deleteReview,
+} from "@/services/review.service";
+import StatusBadge from "@/components/StatusBadge";
 import {
   Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from "@/components/ui/card";
-
+  Typography,
+  Table,
+  Tag,
+  Button,
+  Space,
+  Select,
+  Modal,
+  Form,
+  Input,
+  Rate,
+  Divider,
+} from "antd";
+import { motion } from "framer-motion";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle
-} from "@/components/ui/dialog";
+  EyeOutlined,
+  DeleteOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+  StarFilled,
+} from "@ant-design/icons";
 
-import { Search, Trash2, Star } from "lucide-react";
-import StatusBadge from '@/components/StatusBadge';
+const { Title, Text } = Typography;
+const { Option } = Select;
+const { TextArea } = Input;
 
 const ReviewManagementPage: React.FC = () => {
   const { hasRole } = useAuth();
-
   if (!hasRole(["OPERATIONS", "operations", "OPERATION", "operation"])) {
     return <Navigate to="/dashboard" replace />;
   }
@@ -52,15 +52,12 @@ const ReviewManagementPage: React.FC = () => {
   const [ratingFilter, setRatingFilter] = useState("");
 
   const [selectedReview, setSelectedReview] = useState<Review | null>(null);
-  const [replyText, setReplyText] = useState<string>('');
+  const [replyText, setReplyText] = useState<string>("");
   const [editingReply, setEditingReply] = useState<boolean>(false);
   const [openDetail, setOpenDetail] = useState(false);
+  const [replyLoading, setReplyLoading] = useState(false);
 
-  const [pagination, setPagination] = useState({
-    page: 1,
-    limit: 10,
-    total: 0
-  });
+  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0 });
 
   useEffect(() => {
     loadReviews();
@@ -73,338 +70,383 @@ const ReviewManagementPage: React.FC = () => {
         page: pagination.page,
         limit: pagination.limit,
         status: statusFilter || undefined,
-        rating: ratingFilter ? Number(ratingFilter) : undefined
+        rating: ratingFilter ? Number(ratingFilter) : undefined,
       });
-
-      console.log("Reviews response:", res);
-
-      const reviewsData = res.items || [];
-
-      setReviews(reviewsData);
-
-      setPagination(prev => ({
-        ...prev,
-        total: res.total
-      }));
-
-
-
-
+      setReviews(res.items || []);
+      setPagination((prev) => ({ ...prev, total: res.total }));
     } catch (error: any) {
       toast({
-        title: "Error",
-        description:
-          error.response?.data?.message || "Failed to load reviews",
-        variant: "destructive"
+        title: "Lỗi",
+        description: error.response?.data?.message || "Tải đánh giá thất bại",
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
     }
   };
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this review?")) return;
 
-    try {
-      await deleteReview(id);
-
-      toast({
-        title: "Success",
-        description: "Review deleted successfully"
-      });
-
-      loadReviews();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description:
-          error.response?.data?.message || "Failed to delete review",
-        variant: "destructive"
-      });
-    }
+  const handleDelete = (id: string) => {
+    Modal.confirm({
+      title: "Xác nhận xoá",
+      content: "Bạn có chắc muốn xoá đánh giá này không?",
+      okText: "Xoá",
+      okType: "danger",
+      cancelText: "Huỷ",
+      onOk: async () => {
+        try {
+          await deleteReview(id);
+          toast({ title: "Thành công", description: "Xoá đánh giá thành công" });
+          loadReviews();
+        } catch (error: any) {
+          toast({
+            title: "Lỗi",
+            description: error.response?.data?.message || "Xoá thất bại",
+            variant: "destructive",
+          });
+        }
+      },
+    });
   };
 
   const openDetailReview = (review: Review) => {
     setSelectedReview(review);
-    setReplyText(review.reply || '');
+    setReplyText(review.reply || "");
     setEditingReply(false);
     setOpenDetail(true);
   };
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+  const handleSubmitReply = async () => {
+    if (!selectedReview) return;
+    if (!replyText.trim()) {
+      toast({ title: "Lỗi", description: "Nội dung phản hồi trống", variant: "destructive" });
+      return;
+    }
+    setReplyLoading(true);
+    try {
+      let updated: Review;
+      if (selectedReview.reply && editingReply) {
+        updated = await updateReviewReply(selectedReview.id, replyText.trim());
+      } else {
+        updated = await addReviewReply(selectedReview.id, replyText.trim());
+      }
+      setSelectedReview(updated);
+      setEditingReply(false);
+      toast({
+        title: "Thành công",
+        description: selectedReview.reply && editingReply ? "Phản hồi đã được cập nhật" : "Đã gửi phản hồi",
+      });
+      loadReviews();
+    } catch (err: any) {
+      toast({
+        title: "Lỗi",
+        description: err.response?.data?.message || "Không thể gửi phản hồi",
+        variant: "destructive",
+      });
+    } finally {
+      setReplyLoading(false);
+    }
+  };
 
-          Đánh giá
-        </CardTitle>
+  // Derived stats
+  const avgRating =
+    reviews.length > 0
+      ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
+      : "0";
+  const pendingCount = reviews.filter((r) => r.status === "pending").length;
+  const repliedCount = reviews.filter((r) => r.reply).length;
 
-        <CardDescription>
-          Quản lý đánh giá của khách hàng cho sản phẩm
-        </CardDescription>
-      </CardHeader>
-
-      <Dialog open={openDetail} onOpenChange={setOpenDetail}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Chi tiết đánh giá</DialogTitle>
-          </DialogHeader>
-
-          {selectedReview && (
-            <div className="space-y-4">
-
-              <div>
-                <Label>Sản phẩm</Label>
-                <p className="text-sm">{selectedReview.product?.name}</p>
-              </div>
-
-              <div>
-                <Label>Khách hàng</Label>
-                <p className="text-sm">{selectedReview.customer?.fullName}</p>
-              </div>
-
-              <div>
-                <Label>Đơn hàng</Label>
-                <p className="text-sm">{selectedReview.order?.orderNumber || selectedReview.orderId || 'N/A'}</p>
-              </div>
-
-              <div>
-                <Label>Bình luận</Label>
-                <p className="text-sm">{selectedReview.comment || "Không có bình luận"}</p>
-              </div>
-
-              <div>
-                <Label>Trạng thái</Label>
-                <p className="text-sm">
-                  {selectedReview.status ? <StatusBadge status={selectedReview.status} /> : "-"}
-                </p>
-              </div>
-
-              <div>
-                <Label>Ngày tạo</Label>
-                <p className="text-sm">
-                  {new Date(selectedReview.createdAt).toLocaleString()}
-                </p>
-              </div>
-
-              {/* reply section */}
-              <div className="border-t pt-4">
-                <Label>Phản hồi của nhân viên</Label>
-                {!editingReply && selectedReview.reply ? (
-                  <div className="flex justify-between items-start">
-                    <p className="text-sm whitespace-pre-wrap flex-1">{selectedReview.reply}</p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="ml-2"
-                      onClick={() => setEditingReply(true)}
-                    >
-                      Sửa
-                    </Button>
-                  </div>
-                ) : (
-                  <Textarea
-                    placeholder="Nhập nội dung phản hồi..."
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                  />
-                )}
-                {(editingReply || !selectedReview.reply) && (
-                  <Button
-                    className="mt-2"
-                    onClick={async () => {
-                      if (!selectedReview) return;
-                      if (!replyText.trim()) {
-                        toast({ title: 'Error', description: 'Nội dung phản hồi trống', variant: 'destructive' });
-                        return;
-                      }
-                      setLoading(true);
-                      try {
-                        let updated;
-                        if (selectedReview.reply && !editingReply) {
-                          // shouldn't happen, but guard
-                          updated = selectedReview;
-                        } else if (selectedReview.reply && editingReply) {
-                          updated = await updateReviewReply(
-                            selectedReview.id,
-                            replyText.trim()
-                          );
-                        } else {
-                          updated = await addReviewReply(
-                            selectedReview.id,
-                            replyText.trim()
-                          );
-                        }
-                        setSelectedReview(updated);
-                        setEditingReply(false);
-                        toast({ title: 'Thành công', description: selectedReview.reply && editingReply ? 'Phản hồi đã được cập nhật' : 'Đã gửi phản hồi' });
-                      } catch (err: any) {
-                        toast({ title: 'Error', description: err.response?.data?.message || 'Không thể gửi phản hồi', variant: 'destructive' });
-                      } finally {
-                        setLoading(false);
-                      }
-                    }}
-                  >
-                    {selectedReview.reply && editingReply ? 'Cập nhật phản hồi' : 'Gửi phản hồi'}
-                  </Button>
-                )}
-              </div>
-
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      <CardContent>
-        {/* Filters */}
-        <div className="flex gap-3 mb-4">
-          <div className="flex items-center gap-2">
-            <Label>Trạng thái</Label>
-            <Input
-              placeholder="approved / pending"
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Label>Đánh giá</Label>
-            <Input
-              type="number"
-              placeholder="1 - 5"
-              value={ratingFilter}
-              onChange={e => setRatingFilter(e.target.value)}
-            />
-          </div>
-
-          <Button variant="outline" size="icon">
-            <Search className="h-4 w-4" />
+  const columns = [
+    {
+      title: "Sản phẩm",
+      key: "product",
+      render: (_: unknown, record: Review) => (
+        <Text strong>{record.product?.name || "—"}</Text>
+      ),
+    },
+    {
+      title: "Khách hàng",
+      key: "customer",
+      render: (_: unknown, record: Review) => (
+        <Text>{record.customer?.fullName || "—"}</Text>
+      ),
+    },
+    {
+      title: "Đơn hàng",
+      key: "order",
+      render: (_: unknown, record: Review) => (
+        <Text style={{ fontSize: 12 }}>
+          {record.order?.orderNumber || record.orderId || "—"}
+        </Text>
+      ),
+    },
+    {
+      title: "Đánh giá",
+      dataIndex: "rating",
+      key: "rating",
+      render: (val: number) => (
+        <Rate disabled defaultValue={val} style={{ fontSize: 14 }} />
+      ),
+    },
+    {
+      title: "Bình luận",
+      dataIndex: "comment",
+      key: "comment",
+      render: (val: string) => (
+        <Text ellipsis style={{ maxWidth: 200 }}>
+          {val || "—"}
+        </Text>
+      ),
+    },
+    {
+      title: "Trạng thái",
+      dataIndex: "status",
+      key: "status",
+      render: (val: string) => (val ? <StatusBadge status={val} /> : <Text>—</Text>),
+    },
+    {
+      title: "Ngày tạo",
+      dataIndex: "createdAt",
+      key: "createdAt",
+      render: (val: string) => (
+        <Text>{val ? new Date(val).toLocaleDateString("vi-VN") : "—"}</Text>
+      ),
+    },
+    {
+      title: "Phản hồi",
+      dataIndex: "reply",
+      key: "reply",
+      render: (val: string) =>
+        val ? (
+          <Tag color="green">Đã phản hồi</Tag>
+        ) : (
+          <Tag color="orange">Chưa phản hồi</Tag>
+        ),
+    },
+    {
+      title: "Hành động",
+      key: "actions",
+      align: "right" as const,
+      render: (_: unknown, record: Review) => (
+        <Space>
+          <Button
+            icon={<EyeOutlined />}
+            size="small"
+            onClick={() => openDetailReview(record)}
+          >
+            Xem
           </Button>
-        </div>
+          <Button
+            icon={<DeleteOutlined />}
+            size="small"
+            danger
+            onClick={() => handleDelete(record.id)}
+          >
+            Xoá
+          </Button>
+        </Space>
+      ),
+    },
+  ];
 
-        {/* Table */}
-        <div className="border rounded-lg">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Sản phẩm</TableHead>
-                <TableHead>Khách hàng</TableHead>
-                <TableHead>Đơn hàng</TableHead>
-                <TableHead>Đánh giá</TableHead>
-                <TableHead>Bình luận</TableHead>
-                <TableHead>Trạng thái</TableHead>
-                <TableHead>Ngày tạo</TableHead>
-                <TableHead>Phản hồi</TableHead>
-                <TableHead className="text-right">
-                  Actions
-                </TableHead>
-              </TableRow>
-            </TableHeader>
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
+  };
 
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center">
-                    Đang tải...
-                  </TableCell>
-                </TableRow>
-              ) : !reviews || reviews.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center">
-                    Không tìm thấy đánh giá nào
-                  </TableCell>
-                </TableRow>
-              ) : (
-                reviews.map(r => (
-                  <TableRow key={r.id}>
-                    <TableCell>{r.product?.name || "-"}</TableCell>
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.4 } },
+  };
 
-                    <TableCell>{r.customer?.fullName || "-"}</TableCell>
+  return (
+    <motion.div
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+      className="space-y-6"
+    >
+      {/* Stat Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {[
+          { label: "Tổng đánh giá", value: pagination.total },
+          { label: "Điểm TB", value: avgRating },
+          { label: "Chờ duyệt", value: pendingCount },
+          { label: "Đã phản hồi", value: repliedCount },
+        ].map((stat, i) => (
+          <motion.div
+            key={stat.label}
+            variants={itemVariants}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: i * 0.1, duration: 0.3 }}
+          >
+            <Card className="stat-card">
+              <div className="space-y-2">
+                <Text className="text-muted-foreground">{stat.label}</Text>
+                <Title level={3} className="!mb-0 !text-foreground">
+                  {stat.value}
+                </Title>
+              </div>
+            </Card>
+          </motion.div>
+        ))}
+      </div>
 
-                    <TableCell>{r.order?.orderNumber || r.orderId || "-"}</TableCell>
-
-                    <TableCell>
-                      <p className="flex gap-1">
-                        {Array.from({ length: r.rating }).map((_, i) => (
-                          <Star key={i} className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                        ))}
-                      </p>
-                    </TableCell>
-
-                    <TableCell className="max-w-[250px] truncate">
-                      {r.comment || "-"}
-                    </TableCell>
-
-                    <TableCell>{r.status ? <StatusBadge status={r.status} /> : "-"}</TableCell>
-
-                    <TableCell>
-                      {r.createdAt
-                        ? new Date(r.createdAt).toLocaleDateString()
-                        : "-"}
-                    </TableCell>
-
-                    <TableCell className="max-w-[150px] truncate text-sm" title={r.reply || ''}>
-                      {r.reply ? r.reply : "-"}
-                    </TableCell>
-
-                    <TableCell className="text-right flex gap-2 justify-end">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openDetailReview(r)}
-                      >
-                        Xem
-                      </Button>
-
-                     
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-
-        {/* Pagination */}
-        <div className="flex justify-between items-center mt-4">
-          <p className="text-sm text-muted-foreground">
-            Đang hiển thị {reviews?.length || 0} của {pagination.total} đánh giá
-          </p>
-
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={pagination.page === 1}
-              onClick={() =>
-                setPagination(prev => ({
-                  ...prev,
-                  page: prev.page - 1
-                }))
-              }
-            >
-              Trước
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={
-                pagination.page * pagination.limit >=
-                pagination.total
-              }
-              onClick={() =>
-                setPagination(prev => ({
-                  ...prev,
-                  page: prev.page + 1
-                }))
-              }
-            >
-              Sau
-            </Button>
+      {/* Main Table Card */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5, duration: 0.5 }}
+      >
+        <Card className="dashboard-section">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+            <Title level={4} className="!text-foreground !mb-0">
+              Quản lý Đánh giá
+            </Title>
+            <Space wrap>
+              <Select
+                style={{ width: 180 }}
+                value={statusFilter || "__all"}
+                onChange={(v) => {
+                  setStatusFilter(v === "__all" ? "" : v);
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                }}
+              >
+                <Option value="__all">Tất cả trạng thái</Option>
+                <Option value="approved">Đã duyệt</Option>
+                <Option value="pending">Chờ duyệt</Option>
+                <Option value="rejected">Bị từ chối</Option>
+              </Select>
+              <Select
+                style={{ width: 150 }}
+                value={ratingFilter || "__all"}
+                onChange={(v) => {
+                  setRatingFilter(v === "__all" ? "" : v);
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                }}
+              >
+                <Option value="__all">Tất cả sao</Option>
+                {[5, 4, 3, 2, 1].map((n) => (
+                  <Option key={n} value={String(n)}>
+                    {n} sao
+                  </Option>
+                ))}
+              </Select>
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={() => { setPagination((p) => ({ ...p, page: 1 })); loadReviews(); }}
+                loading={loading}
+              >
+                Làm mới
+              </Button>
+            </Space>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+
+          <Table
+            dataSource={reviews}
+            columns={columns}
+            rowKey="id"
+            loading={loading}
+            pagination={{
+              current: pagination.page,
+              pageSize: pagination.limit,
+              total: pagination.total,
+              showSizeChanger: true,
+              showTotal: (total) => `Tổng ${total} đánh giá`,
+              onChange: (page, pageSize) =>
+                setPagination((prev) => ({ ...prev, page, limit: pageSize })),
+            }}
+            scroll={{ x: "max-content" }}
+          />
+        </Card>
+      </motion.div>
+
+      {/* Detail Modal */}
+      <Modal
+        title="Chi tiết Đánh giá"
+        open={openDetail}
+        onCancel={() => setOpenDetail(false)}
+        footer={<Button onClick={() => setOpenDetail(false)}>Đóng</Button>}
+        destroyOnClose
+        width={560}
+      >
+        {selectedReview && (
+          <div className="space-y-3 py-2">
+            {[
+              { label: "Sản phẩm", value: selectedReview.product?.name || "—" },
+              { label: "Khách hàng", value: selectedReview.customer?.fullName || "—" },
+              {
+                label: "Đơn hàng",
+                value: selectedReview.order?.orderNumber || selectedReview.orderId || "N/A",
+              },
+              {
+                label: "Bình luận",
+                value: selectedReview.comment || "Không có bình luận",
+              },
+              {
+                label: "Ngày tạo",
+                value: new Date(selectedReview.createdAt).toLocaleString("vi-VN"),
+              },
+            ].map(({ label, value }) => (
+              <div key={label}>
+                <Text type="secondary" style={{ fontSize: 12 }}>{label}</Text>
+                <div><Text strong>{value}</Text></div>
+              </div>
+            ))}
+
+            <div>
+              <Text type="secondary" style={{ fontSize: 12 }}>Đánh giá</Text>
+              <div>
+                <Rate disabled defaultValue={selectedReview.rating} style={{ fontSize: 16 }} />
+              </div>
+            </div>
+
+            <div>
+              <Text type="secondary" style={{ fontSize: 12 }}>Trạng thái</Text>
+              <div>
+                {selectedReview.status ? <StatusBadge status={selectedReview.status} /> : "—"}
+              </div>
+            </div>
+
+            <Divider orientation="left">
+              <Text strong>Phản hồi của nhân viên</Text>
+            </Divider>
+
+            {!editingReply && selectedReview.reply ? (
+              <div className="space-y-2">
+                <Text>{selectedReview.reply}</Text>
+                <div>
+                  <Button size="small" onClick={() => setEditingReply(true)}>
+                    Sửa phản hồi
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <TextArea
+                  placeholder="Nhập nội dung phản hồi..."
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  rows={3}
+                />
+                <div className="flex gap-2">
+                  {editingReply && (
+                    <Button onClick={() => setEditingReply(false)}>Huỷ</Button>
+                  )}
+                  <Button
+                    type="primary"
+                    onClick={handleSubmitReply}
+                    loading={replyLoading}
+                  >
+                    {selectedReview.reply && editingReply ? "Cập nhật phản hồi" : "Gửi phản hồi"}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+    </motion.div>
   );
 };
 

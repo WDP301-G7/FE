@@ -28,6 +28,8 @@ import PrescriptionRequestsPage from "@/pages/dashboards/operations-components/P
 import NotFound from "./pages/NotFound";
 
 import ReviewManagementPage from "./pages/dashboards/operations-components/ReviewManagementPage";
+import AdminStores from "./pages/dashboards/admin-components/AdminStoresManagement";
+import AdminInventoryManagement from "./pages/dashboards/admin-components/AdminInventoryManagement";
 
 const queryClient = new QueryClient();
 
@@ -59,8 +61,10 @@ const App = () => (
                 <Route path="admin/systems" element={<AdminSystemsManagement />} />
                 <Route path="admin/products" element={<AdminProductManagement />} />
                 <Route path="admin/reviews" element={<AdminReviews />} />
+                <Route path="admin/stores" element={<AdminStores />} />
+                 <Route path="admin/inventory" element={<AdminInventoryManagement />} />
                 
-                
+              
                 
 
                 {/* operations-specific routes */}

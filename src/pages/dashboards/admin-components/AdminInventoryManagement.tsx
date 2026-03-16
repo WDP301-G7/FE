@@ -2,23 +2,45 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
-import { inventoryService, Inventory, CreateInventoryData, UpdateInventoryData } from '@/services/inventory.service';
+import {
+  inventoryService,
+  Inventory,
+  CreateInventoryData,
+  UpdateInventoryData,
+} from '@/services/inventory.service';
 import { productService, Product } from '@/services/product.service';
 import { storeService, Store } from '@/services/store.service';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, Search } from 'lucide-react';
+import {
+  Card,
+  Typography,
+  Table,
+  Tag,
+  Button,
+  Space,
+  Input,
+  Select,
+  Modal,
+  Form,
+  InputNumber,
+} from 'antd';
+import { motion } from 'framer-motion';
+import {
+  SearchOutlined,
+  PlusOutlined,
+  FilterOutlined,
+  EditOutlined,
+  DeleteOutlined,
+} from '@ant-design/icons';
+
+const { Title, Text } = Typography;
+const { Option } = Select;
 
 export const AdminInventoryManagement: React.FC = () => {
   const { hasRole } = useAuth();
   if (!hasRole(['ADMIN', 'admin'])) {
     return <Navigate to="/dashboard" replace />;
   }
+
   const { toast } = useToast();
 
   const [inventories, setInventories] = useState<Inventory[]>([]);
@@ -29,33 +51,20 @@ export const AdminInventoryManagement: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
 
-  // filters
   const [filterProductId, setFilterProductId] = useState<string | undefined>(undefined);
   const [filterStoreId, setFilterStoreId] = useState<string | undefined>(undefined);
   const [filterLowStock, setFilterLowStock] = useState<'ALL' | 'LOW' | 'OK'>('ALL');
 
-  // Dialogs
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editing, setEditing] = useState<Inventory | null>(null);
-
-  const [isReserveOpen, setIsReserveOpen] = useState(false);
-  const [reserveInventory, setReserveInventory] = useState<Inventory | null>(null);
-  const [reserveQuantity, setReserveQuantity] = useState<number>(1);
-
-  const [formData, setFormData] = useState<CreateInventoryData>({ productId: '', storeId: '', quantity: 0, reservedQuantity: 0 });
-
-  // Form errors for create/edit
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  // Reserve-specific error
-  const [reserveError, setReserveError] = useState<string | null>(null);
 
-  const clearFieldError = (field: string) => setFormErrors(prev => { const c = { ...prev }; delete (c as any)[field]; return c; });
+  const [createForm] = Form.useForm();
+  const [editForm] = Form.useForm();
 
-  // Track pending async actions per inventory id to avoid duplicate operations and show optimistic UI
   const [pendingActions, setPendingActions] = useState<Record<string, boolean>>({});
 
-  // Small retry helper with exponential backoff for transient errors
   const retryAsync = async <T,>(fn: () => Promise<T>, retries = 2, delay = 300): Promise<T> => {
     let attempt = 0;
     while (true) {
@@ -64,7 +73,7 @@ export const AdminInventoryManagement: React.FC = () => {
       } catch (err) {
         if (attempt >= retries) throw err;
         attempt++;
-        await new Promise(res => setTimeout(res, delay * Math.pow(2, attempt - 1)));
+        await new Promise((res) => setTimeout(res, delay * Math.pow(2, attempt - 1)));
       }
     }
   };
@@ -83,14 +92,11 @@ export const AdminInventoryManagement: React.FC = () => {
         productService.getProducts({ page: 1, limit: 1000 }),
         storeService.getStores({ page: 1, limit: 1000 }),
       ]);
-
-      // productService.getProducts may return variety of shapes, normalize
-      const prodList = (prodRes as any).data || (prodRes as any);
-      const storeList = (storeRes as any).data || (storeRes as any);
-
-      setProducts(Array.isArray(prodList) ? prodList : (prodList.items || prodList.data || []));
-      setStores(Array.isArray(storeList) ? storeList : (storeList.items || storeList.data || []));
-    } catch (error: any) {
+      const prodList = (prodRes as any).data || prodRes;
+      const storeList = (storeRes as any).data || storeRes;
+      setProducts(Array.isArray(prodList) ? prodList : prodList.items || prodList.data || []);
+      setStores(Array.isArray(storeList) ? storeList : storeList.items || storeList.data || []);
+    } catch {
       toast({ title: 'Lỗi', description: 'Tải sản phẩm hoặc cửa hàng thất bại', variant: 'destructive' });
     }
   };
@@ -105,7 +111,6 @@ export const AdminInventoryManagement: React.FC = () => {
 
       const res: any = await inventoryService.getInventories(params);
 
-      // Normalize response
       let items: Inventory[] = [];
       let total = 0;
       if (res && Array.isArray(res.data)) {
@@ -114,425 +119,503 @@ export const AdminInventoryManagement: React.FC = () => {
       } else if (res && Array.isArray(res)) {
         items = res;
         total = res.length;
-      } else if (res && res.items && Array.isArray(res.items)) {
+      } else if (res?.items && Array.isArray(res.items)) {
         items = res.items;
         total = res.total || res.items.length;
-      } else if (res && res.data && Array.isArray(res.data.data)) {
+      } else if (res?.data && Array.isArray(res.data.data)) {
         items = res.data.data;
         total = res.data.pagination?.total || items.length;
       } else {
-        items = res.data || [];
+        items = res?.data || [];
       }
 
       setInventories(items);
-      setPagination(prev => ({ ...prev, total }));
+      setPagination((prev) => ({ ...prev, total }));
     } catch (error: any) {
-      toast({ title: 'Lỗi', description: error.response?.data?.message || 'Tải dữ liệu tồn kho thất bại', variant: 'destructive' });
+      toast({
+        title: 'Lỗi',
+        description: error.response?.data?.message || 'Tải dữ liệu tồn kho thất bại',
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const resetForm = () => {
-    setFormData({ productId: '', storeId: '', quantity: 0, reservedQuantity: 0 });
-    setEditing(null);
-  };
-
-  const openCreate = () => {
-    resetForm();
-    setIsCreateOpen(true);
+  const handleCreate = async (values: any) => {
+    try {
+      const data: CreateInventoryData = {
+        productId: values.productId,
+        storeId: values.storeId,
+        quantity: values.quantity,
+        reservedQuantity: values.reservedQuantity ?? 0,
+      };
+      await inventoryService.createInventory(data);
+      toast({ title: 'Thành công', description: 'Tạo tồn kho thành công' });
+      setIsCreateOpen(false);
+      createForm.resetFields();
+      loadInventories();
+    } catch (error: any) {
+      const msg = error.response?.data?.message || 'Tạo tồn kho thất bại';
+      toast({ title: 'Lỗi', description: msg, variant: 'destructive' });
+    }
   };
 
   const openEdit = (inv: Inventory) => {
     setEditing(inv);
-    setFormData({ productId: inv.productId, storeId: inv.storeId, quantity: inv.quantity, reservedQuantity: inv.reservedQuantity });
+    editForm.setFieldsValue({
+      quantity: inv.quantity,
+      reservedQuantity: inv.reservedQuantity,
+    });
     setIsEditOpen(true);
   };
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    // Client-side validation (set field errors)
-    const errs: Record<string, string> = {};
-    if (!formData.productId) errs.productId = 'Chưa chọn sản phẩm';
-    if (!formData.storeId) errs.storeId = 'Chưa chọn cửa hàng';
-    if (formData.quantity < 0) errs.quantity = 'Số lượng phải >= 0';
-    if ((formData.reservedQuantity || 0) < 0) errs.reservedQuantity = 'Số lượng đã đặt trước phải >= 0';
-    if ((formData.reservedQuantity || 0) > formData.quantity) errs.reservedQuantity = 'Số lượng đã đặt trước không thể lớn hơn tổng số lượng';
-    if (Object.keys(errs).length) { setFormErrors(errs); return; }
-
-    try {
-      await inventoryService.createInventory(formData);
-      setFormErrors({});
-      toast({ title: 'Thành công', description: 'Tạo tồn kho thành công' });
-      setIsCreateOpen(false);
-      loadInventories();
-    } catch (error: any) {
-      const serverMessage = error.response?.data?.message;
-      const serverErrors = error.response?.data?.errors;
-      const newErrs: Record<string, string> = {};
-
-      if (serverErrors) {
-        if (Array.isArray(serverErrors)) {
-          serverErrors.forEach((it: any) => {
-            if (typeof it === 'string') newErrs._form = (newErrs._form ? newErrs._form + '; ' : '') + it;
-            else if (it.field) newErrs[it.field] = it.message || JSON.stringify(it);
-            else newErrs._form = (newErrs._form ? newErrs._form + '; ' : '') + JSON.stringify(it);
-          });
-        } else if (typeof serverErrors === 'object') {
-          Object.assign(newErrs, serverErrors);
-        }
-      } else if (serverMessage) {
-        newErrs._form = serverMessage;
-      }
-
-      setFormErrors(newErrs);
-    }
-  };
-
-  const handleUpdate = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleUpdate = async (values: any) => {
     if (!editing) return;
-
-    // Client-side validation (set field errors)
-    const errs: Record<string, string> = {};
-    if (formData.quantity < 0) errs.quantity = 'Số lượng phải >= 0';
-    if ((formData.reservedQuantity || 0) < 0) errs.reservedQuantity = 'Số lượng đã đặt trước phải >= 0';
-    if ((formData.reservedQuantity || 0) > formData.quantity) errs.reservedQuantity = 'Số lượng đã đặt trước không thể lớn hơn tổng số lượng';
-    if (Object.keys(errs).length) { setFormErrors(errs); return; }
-
     try {
-      const data: UpdateInventoryData = { quantity: formData.quantity, reservedQuantity: formData.reservedQuantity };
+      const data: UpdateInventoryData = {
+        quantity: values.quantity,
+        reservedQuantity: values.reservedQuantity,
+      };
       await inventoryService.updateInventory(editing.id, data);
-      setFormErrors({});
       toast({ title: 'Thành công', description: 'Cập nhật tồn kho thành công' });
       setIsEditOpen(false);
+      editForm.resetFields();
+      setEditing(null);
       loadInventories();
     } catch (error: any) {
-      const serverMessage = error.response?.data?.message;
-      const serverErrors = error.response?.data?.errors;
-      const newErrs: Record<string, string> = {};
+      const msg = error.response?.data?.message || 'Cập nhật tồn kho thất bại';
+      toast({ title: 'Lỗi', description: msg, variant: 'destructive' });
+    }
+  };
 
-      if (serverErrors) {
-        if (Array.isArray(serverErrors)) {
-          serverErrors.forEach((it: any) => {
-            if (typeof it === 'string') newErrs._form = (newErrs._form ? newErrs._form + '; ' : '') + it;
-            else if (it.field) newErrs[it.field] = it.message || JSON.stringify(it);
-            else newErrs._form = (newErrs._form ? newErrs._form + '; ' : '') + JSON.stringify(it);
+  const handleDelete = (id: string) => {
+    Modal.confirm({
+      title: 'Xác nhận xoá',
+      content: 'Bạn có chắc muốn xoá bản ghi tồn kho này không?',
+      okText: 'Xoá',
+      okType: 'danger',
+      cancelText: 'Huỷ',
+      onOk: async () => {
+        try {
+          await inventoryService.deleteInventory(id);
+          toast({ title: 'Thành công', description: 'Xoá tồn kho thành công' });
+          loadInventories();
+        } catch (error: any) {
+          toast({
+            title: 'Lỗi',
+            description: error.response?.data?.message || 'Xoá thất bại',
+            variant: 'destructive',
           });
-        } else if (typeof serverErrors === 'object') {
-          Object.assign(newErrs, serverErrors);
         }
-      } else if (serverMessage) {
-        newErrs._form = serverMessage;
-      }
-
-      setFormErrors(newErrs);
-    }
+      },
+    });
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Bạn có chắc muốn xóa bản ghi tồn kho này không?')) return;
-    try {
-      await inventoryService.deleteInventory(id);
-      toast({ title: 'Thành công', description: 'Xóa tồn kho thành công' });
-      loadInventories();
-    } catch (error: any) {
-      toast({ title: 'Lỗi', description: error.response?.data?.message || 'Xóa thất bại', variant: 'destructive' });
-    }
+  const doRelease = (inv: Inventory) => {
+    let inputValue = 1;
+    Modal.confirm({
+      title: 'Giải phóng tồn kho',
+      content: (
+        <div style={{ marginTop: 12 }}>
+          <Text>Nhập số lượng cần giải phóng:</Text>
+          <InputNumber
+            min={1}
+            max={inv.reservedQuantity}
+            defaultValue={1}
+            style={{ width: '100%', marginTop: 8 }}
+            onChange={(val) => { inputValue = val as number; }}
+          />
+        </div>
+      ),
+      okText: 'Giải phóng',
+      cancelText: 'Huỷ',
+      onOk: async () => {
+        const q = inputValue;
+        if (!q || q <= 0) return;
+        const id = inv.id;
+        const prev = inventories;
+        setInventories((list) =>
+          list.map((it) =>
+            it.id === id ? { ...it, reservedQuantity: Math.max(0, it.reservedQuantity - q) } : it
+          )
+        );
+        setPendingActions((p) => ({ ...p, [id]: true }));
+        try {
+          const updated = await retryAsync(() => inventoryService.adjustReserved(id, -q));
+          setInventories((list) => list.map((it) => (it.id === id ? updated : it)));
+          toast({ title: 'Thành công', description: 'Giải phóng tồn kho thành công' });
+        } catch (error: any) {
+          setInventories(prev);
+          const msg = error.response?.data?.message || error.message;
+          toast({ title: 'Lỗi', description: msg || 'Giải phóng thất bại', variant: 'destructive' });
+        } finally {
+          setPendingActions((p) => { const c = { ...p }; delete c[id]; return c; });
+          loadInventories();
+        }
+      },
+    });
   };
 
-  const openReserve = (inv: Inventory) => {
-    setReserveInventory(inv);
-    setReserveQuantity(1);
-    setReserveError(null);
-    setIsReserveOpen(true);
+  const getProductName = (productId: string) =>
+    products.find((p) => p.id === productId)?.name || productId;
+  const getStoreName = (storeId: string) =>
+    stores.find((s) => s.id === storeId)?.name || storeId;
+
+  const getStockTag = (inv: Inventory) => {
+    const available = Math.max(0, inv.quantity - inv.reservedQuantity);
+    if (available === 0) return <Tag color="red">Hết hàng</Tag>;
+    if (available <= 5) return <Tag color="orange">Còn ít</Tag>;
+    return <Tag color="green">Bình thường</Tag>;
   };
 
-  const doReserve = async () => {
-    if (!reserveInventory) return;
-    setReserveError(null);
-    const available = Math.max(0, reserveInventory.quantity - reserveInventory.reservedQuantity);
-    if (reserveQuantity <= 0) { setReserveError('Số lượng đặt trước phải lớn hơn 0'); return; }
-    if (reserveQuantity > available) { setReserveError('Số lượng đặt trước vượt quá khả dụng'); return; }
+  // Derived stats
+  const totalInventories = inventories.length;
+  const lowStockCount = inventories.filter(
+    (inv) => Math.max(0, inv.quantity - inv.reservedQuantity) <= 5
+  ).length;
+  const totalReserved = inventories.reduce((sum, inv) => sum + inv.reservedQuantity, 0);
+  const totalAvailable = inventories.reduce(
+    (sum, inv) => sum + Math.max(0, inv.quantity - inv.reservedQuantity),
+    0
+  );
 
-    const id = reserveInventory.id;
-    const prev = inventories;
-    // optimistic update
-    setInventories(list => list.map(it => it.id === id ? ({ ...it, reservedQuantity: Math.min(it.quantity, it.reservedQuantity + reserveQuantity) }) : it));
-    setPendingActions(p => ({ ...p, [id]: true }));
+  const columns = [
+    {
+      title: 'Sản phẩm',
+      key: 'product',
+      render: (_: unknown, record: Inventory) => (
+        <Text strong>{getProductName(record.productId)}</Text>
+      ),
+    },
+    {
+      title: 'Cửa hàng',
+      key: 'store',
+      render: (_: unknown, record: Inventory) => (
+        <Text>{getStoreName(record.storeId)}</Text>
+      ),
+    },
+    {
+      title: 'Số lượng',
+      dataIndex: 'quantity',
+      key: 'quantity',
+      render: (val: number) => <Text strong>{val}</Text>,
+    },
+    {
+      title: 'Đã đặt trước',
+      dataIndex: 'reservedQuantity',
+      key: 'reservedQuantity',
+      render: (val: number) => <Tag color="blue">{val}</Tag>,
+    },
+    {
+      title: 'Khả dụng',
+      key: 'available',
+      render: (_: unknown, record: Inventory) => {
+        const available = Math.max(0, record.quantity - record.reservedQuantity);
+        return <Text strong>{available}</Text>;
+      },
+    },
+    {
+      title: 'Trạng thái',
+      key: 'status',
+      render: (_: unknown, record: Inventory) => getStockTag(record),
+    },
+    {
+      title: 'Hành động',
+      key: 'actions',
+      align: 'right' as const,
+      render: (_: unknown, record: Inventory) => (
+        <Space>
+          <Button
+            icon={<EditOutlined />}
+            size="small"
+            onClick={() => openEdit(record)}
+            disabled={!!pendingActions[record.id]}
+          >
+            Sửa
+          </Button>
+          <Button
+            icon={<DeleteOutlined />}
+            size="small"
+            danger
+            onClick={() => handleDelete(record.id)}
+            disabled={!!pendingActions[record.id]}
+          >
+            Xoá
+          </Button>
+        </Space>
+      ),
+    },
+  ];
 
-    try {
-      const updated = await retryAsync(() => inventoryService.adjustReserved(id, reserveQuantity));
-      // Merge server-returned item if provided
-      setInventories(list => list.map(it => it.id === id ? updated : it));
-      setReserveError(null);
-      toast({ title: 'Thành công', description: 'Đặt trước thành công' });
-      setIsReserveOpen(false);
-    } catch (error: any) {
-      // revert optimistic update
-      setInventories(prev);
-      const serverMessage = error.response?.data?.message || error.message;
-      setReserveError(serverMessage || 'Đặt trước thất bại');
-    } finally {
-      setPendingActions(p => { const c = { ...p }; delete c[id]; return c; });
-      loadInventories();
-    }
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
   };
 
-  const doRelease = async (inv: Inventory) => {
-    const qStr = prompt('Nhập số lượng cần giải phóng', '1');
-    if (!qStr) return;
-    const q = parseInt(qStr, 10);
-    if (isNaN(q) || q <= 0) return toast({ title: 'Lỗi', description: 'Số lượng không hợp lệ', variant: 'destructive' });
-
-    const id = inv.id;
-    const prev = inventories;
-    // optimistic update
-    setInventories(list => list.map(it => it.id === id ? ({ ...it, reservedQuantity: Math.max(0, it.reservedQuantity - q) }) : it));
-    setPendingActions(p => ({ ...p, [id]: true }));
-
-    try {
-      const updated = await retryAsync(() => inventoryService.adjustReserved(id, -q));
-      setInventories(list => list.map(it => it.id === id ? updated : it));
-      toast({ title: 'Thành công', description: 'Giải phóng tồn kho thành công' });
-    } catch (error: any) {
-      // revert optimistic update
-      setInventories(prev);
-      const msg = error.response?.data?.message || error.message;
-      toast({ title: 'Lỗi', description: msg || 'Giải phóng thất bại', variant: 'destructive' });
-    } finally {
-      setPendingActions(p => { const c = { ...p }; delete c[id]; return c; });
-      loadInventories();
-    }
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.4 } },
   };
-
-  const getProductName = (productId: string) => products.find(p => p.id === productId)?.name || productId;
-  const getStoreName = (storeId: string) => stores.find(s => s.id === storeId)?.name || storeId;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">Quản lý tồn kho</CardTitle>
-        <CardDescription>Quản lý số lượng tồn và đặt trước</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex justify-between items-center mb-4">
-          <div className="flex items-center gap-2 flex-1 max-w-2xl">
-            <Input placeholder="Tìm kiếm..." value={search} onChange={(e) => setSearch(e.target.value)} className="flex-1" />
-            <Select value={filterProductId ?? '__ALL__'} onValueChange={(v) => setFilterProductId(v === '__ALL__' ? undefined : v)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Lọc theo sản phẩm" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__ALL__">Tất cả sản phẩm</SelectItem>
-                {products.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={filterStoreId ?? '__ALL__'} onValueChange={(v) => setFilterStoreId(v === '__ALL__' ? undefined : v)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Lọc theo cửa hàng" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__ALL__">Tất cả cửa hàng</SelectItem>
-                {stores.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={filterLowStock} onValueChange={(v) => setFilterLowStock(v as any)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">Tất cả</SelectItem>
-                <SelectItem value="LOW">Còn ít</SelectItem>
-                <SelectItem value="OK">Bình thường</SelectItem>
-              </SelectContent>
-            </Select>
+    <motion.div
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+      className="space-y-6"
+    >
+      {/* Stat Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {[
+          { label: 'Tổng bản ghi', value: totalInventories },
+          { label: 'Hàng sắp hết', value: lowStockCount },
+          { label: 'Tổng đặt trước', value: totalReserved },
+          { label: 'Tổng khả dụng', value: totalAvailable },
+        ].map((stat, i) => (
+          <motion.div
+            key={stat.label}
+            variants={itemVariants}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: i * 0.1, duration: 0.3 }}
+          >
+            <Card className="stat-card">
+              <div className="space-y-2">
+                <Text className="text-muted-foreground">{stat.label}</Text>
+                <Title level={3} className="!mb-0 !text-foreground">
+                  {stat.value}
+                </Title>
+              </div>
+            </Card>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Main Table Card */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5, duration: 0.5 }}
+      >
+        <Card className="dashboard-section">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+            <Title level={4} className="!text-foreground !mb-0">
+              Quản lý tồn kho
+            </Title>
+            <Space wrap>
+              <Input
+                placeholder="Tìm kiếm..."
+                prefix={<SearchOutlined />}
+                style={{ width: 200 }}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              <Select
+                style={{ width: 180 }}
+                value={filterProductId ?? '__ALL__'}
+                onChange={(v) => setFilterProductId(v === '__ALL__' ? undefined : v)}
+              >
+                <Option value="__ALL__">Tất cả sản phẩm</Option>
+                {products.map((p) => (
+                  <Option key={p.id} value={p.id}>
+                    {p.name}
+                  </Option>
+                ))}
+              </Select>
+              <Select
+                style={{ width: 180 }}
+                value={filterStoreId ?? '__ALL__'}
+                onChange={(v) => setFilterStoreId(v === '__ALL__' ? undefined : v)}
+              >
+                <Option value="__ALL__">Tất cả cửa hàng</Option>
+                {stores.map((s) => (
+                  <Option key={s.id} value={s.id}>
+                    {s.name}
+                  </Option>
+                ))}
+              </Select>
+              <Select
+                style={{ width: 150 }}
+                value={filterLowStock}
+                onChange={(v) => setFilterLowStock(v as any)}
+              >
+                <Option value="ALL">Tất cả</Option>
+                <Option value="LOW">Còn ít</Option>
+                <Option value="OK">Bình thường</Option>
+              </Select>
+              <Button icon={<FilterOutlined />}>Lọc</Button>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => {
+                  createForm.resetFields();
+                  setIsCreateOpen(true);
+                }}
+              >
+                Thêm tồn kho
+              </Button>
+            </Space>
           </div>
-          <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2"/>Thêm tồn kho</Button>
-        </div>
 
-        <div className="border rounded-lg">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Sản phẩm</TableHead>
-                <TableHead>Cửa hàng</TableHead>
-                <TableHead>Số lượng</TableHead>
-                <TableHead>Đã đặt trước</TableHead>
-                <TableHead>Khả dụng</TableHead>
-                <TableHead className="text-right">Hành động</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow><TableCell colSpan={6} className="text-center">Đang tải...</TableCell></TableRow>
-              ) : inventories.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="text-center">Chưa có bản ghi tồn kho</TableCell></TableRow>
-              ) : (
-                inventories.map(inv => (
-                  <TableRow key={inv.id}>
-                    <TableCell className="font-medium">{getProductName(inv.productId)}</TableCell>
-                    <TableCell>{getStoreName(inv.storeId)}</TableCell>
-                    <TableCell>{inv.quantity}</TableCell>
-                    <TableCell>{inv.reservedQuantity}</TableCell>
-                    <TableCell>{Math.max(0, inv.quantity - inv.reservedQuantity)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button variant="ghost" size="sm" onClick={() => openReserve(inv)} disabled={!!pendingActions[inv.id]}>Đặt trước</Button>
-                        <Button variant="ghost" size="sm" onClick={() => doRelease(inv)} disabled={!!pendingActions[inv.id]}>Giải phóng</Button>
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(inv)} aria-label="Chỉnh sửa" disabled={!!pendingActions[inv.id]}><Pencil className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(inv.id)} aria-label="Xóa" disabled={!!pendingActions[inv.id]}><Trash2 className="h-4 w-4" /></Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+          <Table
+            dataSource={inventories}
+            columns={columns}
+            rowKey="id"
+            loading={loading}
+            pagination={{
+              current: pagination.page,
+              pageSize: pagination.limit,
+              total: pagination.total,
+              showSizeChanger: true,
+              showTotal: (total) => `Tổng ${total} bản ghi`,
+              onChange: (page, pageSize) =>
+                setPagination((prev) => ({ ...prev, page, limit: pageSize })),
+            }}
+            scroll={{ x: 'max-content' }}
+          />
+        </Card>
+      </motion.div>
 
-        <div className="flex justify-between items-center mt-4">
-          <p className="text-sm text-muted-foreground">Hiển thị {inventories.length} trên {pagination.total} bản ghi</p>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={pagination.page === 1} onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}>Trước</Button>
-            <Button variant="outline" size="sm" disabled={pagination.page * pagination.limit >= pagination.total} onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}>Tiếp</Button>
+      {/* Create Modal */}
+      <Modal
+        title="Tạo tồn kho"
+        open={isCreateOpen}
+        onCancel={() => setIsCreateOpen(false)}
+        footer={null}
+        destroyOnClose
+      >
+        <Form
+          form={createForm}
+          layout="vertical"
+          onFinish={handleCreate}
+          initialValues={{ quantity: 0, reservedQuantity: 0 }}
+        >
+          <Form.Item
+            label="Sản phẩm"
+            name="productId"
+            rules={[{ required: true, message: 'Chưa chọn sản phẩm' }]}
+          >
+            <Select placeholder="Chọn sản phẩm">
+              {products.map((p) => (
+                <Option key={p.id} value={p.id}>
+                  {p.name}
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            label="Cửa hàng"
+            name="storeId"
+            rules={[{ required: true, message: 'Chưa chọn cửa hàng' }]}
+          >
+            <Select placeholder="Chọn cửa hàng">
+              {stores.map((s) => (
+                <Option key={s.id} value={s.id}>
+                  {s.name}
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            label="Số lượng"
+            name="quantity"
+            rules={[
+              { required: true, message: 'Vui lòng nhập số lượng' },
+              { type: 'number', min: 0, message: 'Số lượng phải >= 0' },
+            ]}
+          >
+            <InputNumber min={0} style={{ width: '100%' }} />
+          </Form.Item>
+
+          <Form.Item
+            label="Số lượng đã đặt trước"
+            name="reservedQuantity"
+            rules={[
+              { type: 'number', min: 0, message: 'Số lượng đã đặt trước phải >= 0' },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (value === undefined || value <= getFieldValue('quantity')) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(
+                    new Error('Số lượng đặt trước không thể lớn hơn tổng số lượng')
+                  );
+                },
+              }),
+            ]}
+          >
+            <InputNumber min={0} style={{ width: '100%' }} />
+          </Form.Item>
+
+          <div className="flex justify-end gap-2">
+            <Button onClick={() => setIsCreateOpen(false)}>Huỷ</Button>
+            <Button type="primary" htmlType="submit">
+              Tạo
+            </Button>
           </div>
-        </div>
-      </CardContent>
+        </Form>
+      </Modal>
 
-      {/* Create Dialog */}
-      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Tạo tồn kho</DialogTitle>
-            <DialogDescription>Tạo bản ghi tồn kho cho sản phẩm và cửa hàng.</DialogDescription>
-          </DialogHeader>
+      {/* Edit Modal */}
+      <Modal
+        title="Chỉnh sửa tồn kho"
+        open={isEditOpen}
+        onCancel={() => { setIsEditOpen(false); setEditing(null); }}
+        footer={null}
+        destroyOnClose
+      >
+        <Form form={editForm} layout="vertical" onFinish={handleUpdate}>
+          <Form.Item label="Sản phẩm">
+            <Input value={editing ? getProductName(editing.productId) : ''} readOnly />
+          </Form.Item>
 
-          <form onSubmit={handleCreate}>
-            <div className="space-y-4 mt-4">
-              <div>
-                <Label>Sản phẩm</Label>
-                <Select value={formData.productId} onValueChange={(v) => { setFormData(prev => ({ ...prev, productId: v })); clearFieldError('productId'); }}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Chọn sản phẩm" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {products.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                {formErrors.productId && <p className="text-sm text-destructive mt-1">{formErrors.productId}</p>}
-              </div>
+          <Form.Item label="Cửa hàng">
+            <Input value={editing ? getStoreName(editing.storeId) : ''} readOnly />
+          </Form.Item>
 
-              <div>
-                <Label>Cửa hàng</Label>
-                <Select value={formData.storeId} onValueChange={(v) => { setFormData(prev => ({ ...prev, storeId: v })); clearFieldError('storeId'); }}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Chọn cửa hàng" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {stores.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                {formErrors.storeId && <p className="text-sm text-destructive mt-1">{formErrors.storeId}</p>}
-              </div>
+          <Form.Item
+            label="Số lượng"
+            name="quantity"
+            rules={[
+              { required: true, message: 'Vui lòng nhập số lượng' },
+              { type: 'number', min: 0, message: 'Số lượng phải >= 0' },
+            ]}
+          >
+            <InputNumber min={0} style={{ width: '100%' }} />
+          </Form.Item>
 
-              <div>
-                <Label>Số lượng</Label>
-                <Input type="number" value={formData.quantity} onChange={(e) => { setFormData(prev => ({ ...prev, quantity: parseInt(e.target.value || '0', 10) })); clearFieldError('quantity'); }} />
-                {formErrors.quantity && <p className="text-sm text-destructive mt-1">{formErrors.quantity}</p>}
-              </div>
+          <Form.Item
+            label="Số lượng đã đặt trước"
+            name="reservedQuantity"
+            rules={[
+              { type: 'number', min: 0, message: 'Số lượng đã đặt trước phải >= 0' },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (value === undefined || value <= getFieldValue('quantity')) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(
+                    new Error('Số lượng đặt trước không thể lớn hơn tổng số lượng')
+                  );
+                },
+              }),
+            ]}
+          >
+            <InputNumber min={0} style={{ width: '100%' }} />
+          </Form.Item>
 
-              <div>
-                <Label>Số lượng đã đặt trước</Label>
-                <Input type="number" value={formData.reservedQuantity} onChange={(e) => { setFormData(prev => ({ ...prev, reservedQuantity: parseInt(e.target.value || '0', 10) })); clearFieldError('reservedQuantity'); }} />
-                {formErrors.reservedQuantity && <p className="text-sm text-destructive mt-1">{formErrors.reservedQuantity}</p>}
-              </div>
-
-              {formErrors._form && <p className="text-sm text-destructive mb-2">{formErrors._form}</p>}
-
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="ghost" onClick={() => setIsCreateOpen(false)}>Hủy</Button>
-                <Button type="submit">Tạo</Button>
-              </div>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Dialog */}
-      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Chỉnh sửa tồn kho</DialogTitle>
-            <DialogDescription>Cập nhật số lượng cho bản ghi tồn kho này.</DialogDescription>
-          </DialogHeader>
-
-          <form onSubmit={handleUpdate}>
-            <div className="space-y-4 mt-4">
-              <div>
-                <Label>Sản phẩm</Label>
-                <Input value={getProductName(formData.productId)} readOnly />
-              </div>
-
-              <div>
-                <Label>Cửa hàng</Label>
-                <Input value={getStoreName(formData.storeId)} readOnly />
-              </div>
-
-              <div>
-                <Label>Số lượng</Label>
-                <Input type="number" value={formData.quantity} onChange={(e) => { setFormData(prev => ({ ...prev, quantity: parseInt(e.target.value || '0', 10) })); clearFieldError('quantity'); }} />
-                {formErrors.quantity && <p className="text-sm text-destructive mt-1">{formErrors.quantity}</p>}
-              </div>
-
-              <div>
-                <Label>Số lượng đã đặt trước</Label>
-                <Input type="number" value={formData.reservedQuantity} onChange={(e) => { setFormData(prev => ({ ...prev, reservedQuantity: parseInt(e.target.value || '0', 10) })); clearFieldError('reservedQuantity'); }} />
-                {formErrors.reservedQuantity && <p className="text-sm text-destructive mt-1">{formErrors.reservedQuantity}</p>}
-              </div>
-
-              {formErrors._form && <p className="text-sm text-destructive mb-2">{formErrors._form}</p>}
-
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="ghost" onClick={() => setIsEditOpen(false)}>Hủy</Button>
-                <Button type="submit">Lưu</Button>
-              </div>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Reserve Dialog */}
-      <Dialog open={isReserveOpen} onOpenChange={setIsReserveOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Đặt trước tồn kho</DialogTitle>
-            <DialogDescription>Đặt trước số lượng cho đơn hàng</DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 mt-4">
-            <div>
-              <Label>Sản phẩm</Label>
-              <Input value={reserveInventory ? getProductName(reserveInventory.productId) : ''} readOnly />
-            </div>
-            <div>
-              <Label>Khả dụng</Label>
-              <Input value={reserveInventory ? String(Math.max(0, reserveInventory.quantity - reserveInventory.reservedQuantity)) : ''} readOnly />
-            </div>
-            <div>
-              <Label>Số lượng đặt trước</Label>
-              <Input type="number" value={reserveQuantity} onChange={(e) => { setReserveQuantity(parseInt(e.target.value || '0', 10)); setReserveError(null); }} />
-              {reserveError && <p className="text-sm text-destructive mt-1">{reserveError}</p>}
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setIsReserveOpen(false)}>Hủy</Button>
-              <Button onClick={doReserve}>Đặt trước</Button>
-            </div>
+          <div className="flex justify-end gap-2">
+            <Button onClick={() => { setIsEditOpen(false); setEditing(null); }}>Huỷ</Button>
+            <Button type="primary" htmlType="submit">
+              Lưu
+            </Button>
           </div>
-        </DialogContent>
-      </Dialog>
-
-    </Card>
+        </Form>
+      </Modal>
+    </motion.div>
   );
 };
 
