@@ -111,6 +111,18 @@ const AdminDashboard: React.FC = () => {
 
   const quickSettings = [
     {
+      title: 'Quản Lý Người Dùng',
+      description: 'Quản lý tài khoản và phân quyền',
+      icon: <TeamOutlined className="text-2xl text-purple-600" />,
+      path: '/admin/users',
+    },
+    {
+      title: 'Quản Lý Đơn Hàng',
+      description: 'Xem và quản lý tất cả đơn hàng',
+      icon: <ShoppingOutlined className="text-2xl text-blue-600" />,
+      path: '/admin/orders',
+    },
+    {
       title: 'Cấu Hình Hệ Thống',
       description: 'Quản lý cài đặt hệ thống toàn cục',
       icon: <SettingOutlined className="text-2xl text-primary" />,
@@ -149,7 +161,7 @@ const AdminDashboard: React.FC = () => {
           {/* Quick Access Cards */}
           <Row gutter={[16, 16]} className="mb-6">
             {quickSettings.map((setting, index) => (
-              <Col xs={24} sm={12} lg={6} key={setting.title}>
+              <Col xs={24} sm={12} lg={8} key={setting.title}>
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
