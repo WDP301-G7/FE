@@ -44,6 +44,11 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
         icon: <ShoppingCartOutlined />,
         label: "Orders",
       });
+      items.push({
+        key: "/returns",
+        icon: <RetweetOutlined />,
+        label: "Đổi/Trả hàng",
+      });
     }
 
     if (hasRole(["OPERATIONS", "operations", "OPERATION", "operation"])) {

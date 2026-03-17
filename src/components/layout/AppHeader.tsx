@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import { Bell, Search, User, Settings, LogOut, Moon, Sun } from 'lucide-react';
+import { Bell, User, Settings, LogOut, Moon, Sun } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
@@ -22,7 +22,6 @@ const AppHeader: React.FC = () => {
   const { user, logout } = useAuth();
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
-  const [searchOpen, setSearchOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -62,36 +61,9 @@ const AppHeader: React.FC = () => {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="flex h-16 items-center justify-between px-6">
-        {/* Left section - Search */}
-        <div className="flex items-center gap-4 flex-1 max-w-md">
-          {searchOpen ? (
-            <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: '100%', opacity: 1 }}
-              className="relative w-full"
-            >
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search..."
-                className="pl-9 pr-4"
-                autoFocus
-                onBlur={() => setSearchOpen(false)}
-              />
-            </motion.div>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2"
-              onClick={() => setSearchOpen(true)}
-            >
-              <Search className="h-4 w-4" />
-              <span className="hidden md:inline">Search</span>
-              <kbd className="hidden md:inline pointer-events-none h-5 select-none items-center gap-1 rounded border border-border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 ml-2">
-                ⌘K
-              </kbd>
-            </Button>
-          )}
+        {/* Left section - Logo or Title */}
+        <div className="flex items-center gap-4">
+          <h1 className="text-xl font-semibold">EyeCare Store</h1>
         </div>
 
         {/* Right section - Actions */}
@@ -151,7 +123,7 @@ const AppHeader: React.FC = () => {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate(`/users/${user?.id}`)}>
                 <User className="mr-2 h-4 w-4" />
                 <span>Profile</span>
               </DropdownMenuItem>
