@@ -3,8 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MyAssignedOrders } from './MyAssignedOrders';
 import { ReturnManagement } from './ReturnManagement';
-import { DebugAssignedOrders } from './DebugAssignedOrders';
-import { LayoutDashboard, ClipboardList, Clock, ShoppingCart, RefreshCw, Bug } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, Clock, ShoppingCart, RefreshCw } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const StaffDashboard: React.FC = () => {
@@ -39,10 +38,6 @@ const StaffDashboard: React.FC = () => {
           <TabsTrigger value="returns">
             <RefreshCw className="h-4 w-4 mr-2" />
             Đổi/Trả hàng
-          </TabsTrigger>
-          <TabsTrigger value="debug">
-            <Bug className="h-4 w-4 mr-2" />
-            Debug API
           </TabsTrigger>
         </TabsList>
 
@@ -108,10 +103,6 @@ const StaffDashboard: React.FC = () => {
 
         <TabsContent value="returns">
           <ReturnManagement />
-        </TabsContent>
-
-        <TabsContent value="debug">
-          <DebugAssignedOrders />
         </TabsContent>
       </Tabs>
     </motion.div>
