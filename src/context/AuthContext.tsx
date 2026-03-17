@@ -6,7 +6,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (userData: any) => void;
   logout: () => void;
-  hasRole: (roles: UserRole[]) => boolean;
+  hasRole: (roles: UserRole | UserRole[] | string | string[]) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -69,9 +69,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.removeItem('refreshToken');
   }, []);
 
-  const hasRole = useCallback((roles: UserRole[]) => {
-    if (!user) return false;
-    return roles.includes(user.role);
+  const hasRole = useCallback((roles: UserRole | UserRole[] | string | string[]) => {
+    if (!user) {
+      console.log('❌ hasRole: no user');
+      return false;
+    }
+    
+    // Convert to array if single value
+    const roleArray = Array.isArray(roles) ? roles : [roles];
+    
+    // Normalize both user role and check roles to uppercase for case-insensitive comparison
+    const userRoleUpper = user.role.toUpperCase();
+    const normalizedRoles = roleArray.map(r => r.toUpperCase());
+    
+    const result = normalizedRoles.includes(userRoleUpper);
+    console.log('🔐 hasRole check:', {
+      userRole: user.role,
+      userRoleUpper,
+      checkingRoles: roles,
+      normalizedRoles,
+      result
+    });
+    
+    return result;
   }, [user]);
 
   return (
