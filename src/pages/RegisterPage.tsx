@@ -9,11 +9,10 @@ import { useToast } from '@/hooks/use-toast';
 import { authService } from '@/services/auth.service';
 import { 
   Eye, 
-  EyeOff,
-  ArrowLeft,
-  UserPlus
+  EyeOff
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import AuthImageSide from '@/components/AuthImageSide';
 
 const RegisterPage: React.FC = () => {
   const { isAuthenticated } = useAuth();
@@ -44,30 +43,30 @@ const RegisterPage: React.FC = () => {
     const newErrors: Record<string, string> = {};
 
     if (!fullName.trim() || fullName.length < 2) {
-      newErrors.fullName = 'Full name must be at least 2 characters';
+      newErrors.fullName = 'Họ tên phải có ít nhất 2 ký tự';
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!email.trim() || !emailRegex.test(email)) {
-      newErrors.email = 'Invalid email format';
+      newErrors.email = 'Email không hợp lệ';
     }
 
     if (!phone.trim()) {
-      newErrors.phone = 'Phone number is required';
+      newErrors.phone = 'Số điện thoại là bắt buộc';
     } else if (!/^[0-9]{10,11}$/.test(phone)) {
-      newErrors.phone = 'Phone must be 10-11 digits';
+      newErrors.phone = 'Số điện thoại phải có 10-11 chữ số';
     }
 
     if (!password || password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
+      newErrors.password = 'Mật khẩu phải có ít nhất 6 ký tự';
     }
 
     if (password !== confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match';
+      newErrors.confirmPassword = 'Mật khẩu xác nhận không khớp';
     }
 
     if (!agreeTerms) {
-      newErrors.terms = 'You must agree to the terms and conditions';
+      newErrors.terms = 'Bạn phải đồng ý với điều khoản';
     }
 
     setErrors(newErrors);
@@ -92,27 +91,21 @@ const RegisterPage: React.FC = () => {
         address: address || undefined,
       };
 
-      console.log('Register data:', { ...registerData, password: '***' });
       await authService.register(registerData);
       
       toast({
-        title: 'Success',
-        description: 'Registration successful! Please login.',
+        title: 'Thành công',
+        description: 'Đăng ký thành công! Vui lòng đăng nhập.',
       });
       
-      // After successful registration, redirect to login
       navigate('/login');
-    } catch (error: any) {
-      console.error('Registration error:', error);
-      console.error('Error response:', error.response?.data);
-      console.error('Error status:', error.response?.status);
-      console.error('Error details:', JSON.stringify(error.response?.data?.error, null, 2));
-      
-      const errorMessage = error.response?.data?.message || 'Registration failed. Please try again.';
-      const errorDetails = error.response?.data?.errors;
+    } catch (error) {
+      const err = error as { response?: { data?: { message?: string; errors?: string[] } } };
+      const errorMessage = err.response?.data?.message || 'Đăng ký thất bại. Vui lòng thử lại.';
+      const errorDetails = err.response?.data?.errors;
       
       toast({
-        title: 'Registration Failed',
+        title: 'Đăng ký thất bại',
         description: errorDetails ? `${errorMessage}: ${errorDetails.join(', ')}` : errorMessage,
         variant: 'destructive',
       });
@@ -122,90 +115,31 @@ const RegisterPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 flex items-center justify-center p-4 overflow-hidden">
-      {/* Animated background elements */}
-      <motion.div
-        className="absolute top-20 left-10 w-72 h-72 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-20"
-        animate={{
-          x: [0, 100, 0],
-          y: [0, -50, 0],
-        }}
-        transition={{
-          duration: 20,
-          repeat: Infinity,
-          ease: "easeInOut"
-        }}
-      />
-      <motion.div
-        className="absolute bottom-20 right-10 w-72 h-72 bg-blue-300 rounded-full mix-blend-multiply filter blur-xl opacity-20"
-        animate={{
-          x: [0, -100, 0],
-          y: [0, 50, 0],
-        }}
-        transition={{
-          duration: 15,
-          repeat: Infinity,
-          ease: "easeInOut"
-        }}
-      />
-      
-      <motion.div 
-        className="w-full max-w-2xl relative z-10"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
-      >
-        <motion.div 
-          className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-2xl p-8 border border-white/20"
-          whileHover={{ scale: 1.01 }}
-          transition={{ duration: 0.3 }}
-        >
-          {/* Back to Login Button */}
-          <motion.div
-            className="mb-6"
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.2, duration: 0.5 }}
-          >
-            <Button
-              variant="ghost"
-              onClick={() => navigate('/login')}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Login
-            </Button>
-          </motion.div>
+    <div className="min-h-screen flex">
+      {/* Left Side - Image (Shared Component - Không re-render khi chuyển trang) */}
+      <AuthImageSide />
 
+      {/* Right Side - Register Form */}
+      <div className="flex-1 flex items-center justify-center p-8 bg-gray-50 overflow-y-auto">
+        <motion.div 
+          key="register-form"
+          className="w-full max-w-2xl my-8"
+          initial={{ x: 100, opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          exit={{ x: 100, opacity: 0 }}
+          transition={{ duration: 0.5, ease: "easeInOut" }}
+        >
           {/* Header */}
-          <motion.div 
-            className="flex flex-col items-center justify-center mb-8"
-            initial={{ opacity: 0, scale: 0.5 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2, duration: 0.6, type: "spring" }}
+          <motion.div
+            className="mb-8"
+            initial={{ y: -20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.2 }}
           >
-            <div className="relative mb-4">
-              <UserPlus 
-                className="text-sidebar-primary" 
-                style={{ 
-                  fontSize: '80px',
-                  width: '80px',
-                  height: '80px',
-                  stroke: 'url(#gradient)',
-                  strokeWidth: 1.5
-                }} 
-              />
-              <svg width="0" height="0">
-                <defs>
-                  <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" style={{ stopColor: 'rgb(147, 51, 234)', stopOpacity: 1 }} />
-                    <stop offset="100%" style={{ stopColor: 'rgb(37, 99, 235)', stopOpacity: 1 }} />
-                  </linearGradient>
-                </defs>
-              </svg>
-            </div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Create Account</h1>
-            <p className="text-gray-600 text-center">Sign up to get started</p>
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">Đăng ký ngay</h1>
+            <p className="text-gray-600">
+              Bạn chưa có tài khoản Eyecare ?
+            </p>
           </motion.div>
 
           {/* Register Form */}
@@ -214,111 +148,86 @@ const RegisterPage: React.FC = () => {
             className="space-y-5"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.3, duration: 0.6 }}
+            transition={{ delay: 0.4 }}
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {/* Full Name Field */}
-              <motion.div 
-                className="space-y-2"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.4, duration: 0.5 }}
-              >
-                <Label htmlFor="fullName" className="text-sm font-normal text-gray-900">
-                  Full Name <span className="text-red-500">*</span>
+              <div className="space-y-2">
+                <Label htmlFor="fullName" className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                  Họ và tên<span className="text-red-500">*</span>
                 </Label>
                 <Input
                   id="fullName"
                   type="text"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className={`h-12 text-base transition-all duration-300 focus:scale-[1.02] ${errors.fullName ? 'border-red-500' : ''}`}
-                  placeholder="John Doe"
+                  className={`h-12 border-2 border-gray-200 focus:border-teal-500 transition-colors ${errors.fullName ? 'border-red-500' : ''}`}
+                  placeholder="Nguyễn Văn A"
                   disabled={isLoading}
                 />
                 {errors.fullName && (
                   <p className="text-red-500 text-sm">{errors.fullName}</p>
                 )}
-              </motion.div>
+              </div>
 
               {/* Email Field */}
-              <motion.div 
-                className="space-y-2"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.45, duration: 0.5 }}
-              >
-                <Label htmlFor="email" className="text-sm font-normal text-gray-900">
-                  Email <span className="text-red-500">*</span>
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                  Email<span className="text-red-500">*</span>
                 </Label>
                 <Input
                   id="email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className={`h-12 text-base transition-all duration-300 focus:scale-[1.02] ${errors.email ? 'border-red-500' : ''}`}
-                  placeholder="john@example.com"
+                  className={`h-12 border-2 border-gray-200 focus:border-teal-500 transition-colors ${errors.email ? 'border-red-500' : ''}`}
+                  placeholder="email@example.com"
                   disabled={isLoading}
                 />
                 {errors.email && (
                   <p className="text-red-500 text-sm">{errors.email}</p>
                 )}
-              </motion.div>
+              </div>
 
               {/* Phone Field */}
-              <motion.div 
-                className="space-y-2"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.5, duration: 0.5 }}
-              >
-                <Label htmlFor="phone" className="text-sm font-normal text-gray-900">
-                  Phone Number <span className="text-red-500">*</span>
+              <div className="space-y-2">
+                <Label htmlFor="phone" className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                  Số điện thoại<span className="text-red-500">*</span>
                 </Label>
                 <Input
                   id="phone"
                   type="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className={`h-12 text-base transition-all duration-300 focus:scale-[1.02] ${errors.phone ? 'border-red-500' : ''}`}
+                  className={`h-12 border-2 border-gray-200 focus:border-teal-500 transition-colors ${errors.phone ? 'border-red-500' : ''}`}
                   placeholder="0123456789"
                   disabled={isLoading}
                 />
                 {errors.phone && (
                   <p className="text-red-500 text-sm">{errors.phone}</p>
                 )}
-              </motion.div>
+              </div>
 
               {/* Address Field */}
-              <motion.div 
-                className="space-y-2"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.55, duration: 0.5 }}
-              >
-                <Label htmlFor="address" className="text-sm font-normal text-gray-900">
-                  Address
+              <div className="space-y-2">
+                <Label htmlFor="address" className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                  Địa chỉ
                 </Label>
                 <Input
                   id="address"
                   type="text"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  className="h-12 text-base transition-all duration-300 focus:scale-[1.02]"
-                  placeholder="123 Street, City"
+                  className="h-12 border-2 border-gray-200 focus:border-teal-500 transition-colors"
+                  placeholder="123 Đường ABC, TP.HCM"
                   disabled={isLoading}
                 />
-              </motion.div>
+              </div>
 
               {/* Password Field */}
-              <motion.div 
-                className="space-y-2"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.6, duration: 0.5 }}
-              >
-                <Label htmlFor="password" className="text-sm font-normal text-gray-900">
-                  Password <span className="text-red-500">*</span>
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                  Mật khẩu<span className="text-red-500">*</span>
                 </Label>
                 <div className="relative">
                   <Input
@@ -326,37 +235,28 @@ const RegisterPage: React.FC = () => {
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className={`h-12 text-base pr-10 transition-all duration-300 focus:scale-[1.02] ${errors.password ? 'border-red-500' : ''}`}
-                    placeholder="••••••••••"
+                    className={`h-12 border-2 border-gray-200 focus:border-teal-500 pr-10 transition-colors ${errors.password ? 'border-red-500' : ''}`}
+                    placeholder="Nhập mật khẩu"
                     disabled={isLoading}
                     autoComplete="new-password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                   >
-                    {showPassword ? (
-                      <EyeOff className="h-5 w-5" />
-                    ) : (
-                      <Eye className="h-5 w-5" />
-                    )}
+                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                   </button>
                 </div>
                 {errors.password && (
                   <p className="text-red-500 text-sm">{errors.password}</p>
                 )}
-              </motion.div>
+              </div>
 
               {/* Confirm Password Field */}
-              <motion.div 
-                className="space-y-2"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.65, duration: 0.5 }}
-              >
-                <Label htmlFor="confirmPassword" className="text-sm font-normal text-gray-900">
-                  Confirm Password <span className="text-red-500">*</span>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword" className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                  Xác nhận mật khẩu<span className="text-red-500">*</span>
                 </Label>
                 <div className="relative">
                   <Input
@@ -364,115 +264,95 @@ const RegisterPage: React.FC = () => {
                     type={showConfirmPassword ? 'text' : 'password'}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className={`h-12 text-base pr-10 transition-all duration-300 focus:scale-[1.02] ${errors.confirmPassword ? 'border-red-500' : ''}`}
-                    placeholder="••••••••••"
+                    className={`h-12 border-2 border-gray-200 focus:border-teal-500 pr-10 transition-colors ${errors.confirmPassword ? 'border-red-500' : ''}`}
+                    placeholder="Nhập lại mật khẩu"
                     disabled={isLoading}
                     autoComplete="new-password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                   >
-                    {showConfirmPassword ? (
-                      <EyeOff className="h-5 w-5" />
-                    ) : (
-                      <Eye className="h-5 w-5" />
-                    )}
+                    {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                   </button>
                 </div>
                 {errors.confirmPassword && (
                   <p className="text-red-500 text-sm">{errors.confirmPassword}</p>
                 )}
-              </motion.div>
+              </div>
             </div>
 
             {/* Terms & Conditions */}
-            <motion.div 
-              className="flex items-start space-x-2"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.7, duration: 0.5 }}
-            >
+            <div className="flex items-center space-x-2 pt-2">
               <Checkbox 
                 id="terms" 
                 checked={agreeTerms}
                 onCheckedChange={(checked) => setAgreeTerms(checked as boolean)}
                 disabled={isLoading}
-                className="mt-1"
               />
               <label
                 htmlFor="terms"
-                className="text-sm text-gray-700 cursor-pointer"
+                className="text-sm text-gray-700 cursor-pointer leading-tight"
               >
-                I agree to the{' '}
-                <a href="#" className="text-blue-600 hover:underline">
-                  Terms and Conditions
+                Tôi đồng ý với{' '}
+                <a href="#" className="text-teal-600 hover:underline font-medium">
+                  Điều khoản sử dụng
                 </a>{' '}
-                and{' '}
-                <a href="#" className="text-blue-600 hover:underline">
-                  Privacy Policy
+                và{' '}
+                <a href="#" className="text-teal-600 hover:underline font-medium">
+                  Chính sách bảo mật
                 </a>
               </label>
-            </motion.div>
+            </div>
             {errors.terms && (
               <p className="text-red-500 text-sm">{errors.terms}</p>
             )}
 
             {/* Sign Up Button */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.75, duration: 0.5 }}
+            <Button 
+              type="submit"
+              className="w-full h-12 text-base font-semibold bg-teal-500 hover:bg-teal-600 text-white transition-all duration-300 shadow-lg hover:shadow-xl"
+              disabled={isLoading}
             >
-              <Button 
-                type="submit"
-                className="w-full h-12 text-base font-medium bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl"
-                disabled={isLoading}
-              >
-                {isLoading ? (
+              {isLoading ? (
+                <span className="flex items-center gap-2">
                   <motion.div
-                    className="flex items-center gap-2"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                  >
-                    <motion.div
-                      className="w-5 h-5 border-2 border-white border-t-transparent rounded-full"
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                    />
-                    Creating account...
-                  </motion.div>
-                ) : (
-                  'Sign up'
-                )}
-              </Button>
-            </motion.div>
+                    className="w-5 h-5 border-2 border-white border-t-transparent rounded-full"
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                  />
+                  Đang xử lý...
+                </span>
+              ) : (
+                'Đăng ký'
+              )}
+            </Button>
           </motion.form>
 
           {/* Already have account */}
           <motion.div
-            className="mt-6 text-center"
+            className="mt-8 text-center"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.8, duration: 0.5 }}
+            transition={{ delay: 0.6 }}
           >
             <p className="text-sm text-gray-600">
-              Already have an account?{' '}
+              Bạn đã có tài khoản?{' '}
               <a 
                 href="/login" 
-                className="text-blue-600 hover:underline font-medium"
+                className="text-teal-600 hover:text-teal-700 font-semibold"
                 onClick={(e) => {
                   e.preventDefault();
                   navigate('/login');
                 }}
               >
-                Sign in
+                Đăng nhập ngay
               </a>
             </p>
           </motion.div>
         </motion.div>
-      </motion.div>
+      </div>
     </div>
   );
 };

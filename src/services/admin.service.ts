@@ -58,6 +58,78 @@ export interface PaginatedUsers {
   limit?: number;
 }
 
+// ============ MEMBERSHIP TYPES ============
+
+export interface MembershipTier {
+  id: string;
+  name: string;
+  minSpending: number;
+  maxSpending?: number | null;
+  discountPercent: number;
+  description?: string;
+  benefits?: string[];
+  color?: string; // For UI display
+  icon?: string; // For UI display
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateMembershipTierPayload {
+  name: string;
+  minSpending: number;
+  maxSpending?: number | null;
+  discountPercent: number;
+  description?: string;
+  benefits?: string[];
+  color?: string;
+  icon?: string;
+}
+
+export interface UpdateMembershipTierPayload {
+  name?: string;
+  minSpending?: number;
+  maxSpending?: number | null;
+  discountPercent?: number;
+  description?: string;
+  benefits?: string[];
+  color?: string;
+  icon?: string;
+}
+
+export interface UserMembership {
+  userId: string;
+  currentTier: MembershipTier;
+  accumulatedSpending: number;
+  nextTier?: MembershipTier | null;
+  spendingToNextTier?: number;
+  discountPercent: number;
+  joinedDate?: string;
+  lastUpdated?: string;
+}
+
+export interface AdjustPointsPayload {
+  amount: number; // Positive to add, negative to subtract
+  reason: string; // Explanation for the adjustment
+  note?: string; // Optional additional notes
+}
+
+export interface PointsHistoryEntry {
+  id: string;
+  userId: string;
+  amount: number;
+  reason: string;
+  note?: string;
+  adjustedBy?: string; // Staff/Admin who made the adjustment
+  createdAt: string;
+}
+
+export interface PaginatedPointsHistory {
+  items: PointsHistoryEntry[];
+  total: number;
+  page?: number;
+  limit?: number;
+}
+
 class AdminService {
   /** Get all orders with optional filters (admin) */
   async getOrders(params?: GetOrdersParams): Promise<PaginatedOrders> {
@@ -104,6 +176,57 @@ class AdminService {
   /** Get orders statistics */
   async getStats(): Promise<OrderStats> {
     const response = await api.get<{ data: OrderStats }>('/orders/stats');
+    return response.data.data;
+  }
+
+  // ============ MEMBERSHIP TIER MANAGEMENT ============
+  
+  /** Get all membership tiers */
+  async getMembershipTiers(): Promise<MembershipTier[]> {
+    const response = await api.get<{ data: MembershipTier[] }>('/membership/tiers');
+    return response.data.data;
+  }
+
+  /** Get single membership tier by ID */
+  async getMembershipTier(id: string): Promise<MembershipTier> {
+    const response = await api.get<{ data: MembershipTier }>(`/membership/tiers/${id}`);
+    return response.data.data;
+  }
+
+  /** Create new membership tier (admin only) */
+  async createMembershipTier(payload: CreateMembershipTierPayload): Promise<MembershipTier> {
+    const response = await api.post<{ data: MembershipTier }>('/membership/tiers', payload);
+    return response.data.data;
+  }
+
+  /** Update membership tier (admin only) */
+  async updateMembershipTier(id: string, payload: UpdateMembershipTierPayload): Promise<MembershipTier> {
+    const response = await api.put<{ data: MembershipTier }>(`/membership/tiers/${id}`, payload);
+    return response.data.data;
+  }
+
+  /** Delete membership tier (admin only) */
+  async deleteMembershipTier(id: string): Promise<void> {
+    await api.delete(`/membership/tiers/${id}`);
+  }
+
+  // ============ USER POINTS MANAGEMENT ============
+
+  /** Get user's membership details including points */
+  async getUserMembership(userId: string): Promise<UserMembership> {
+    const response = await api.get<{ data: UserMembership }>(`/users/${userId}/membership`);
+    return response.data.data;
+  }
+
+  /** Manually adjust user's accumulated points (admin only) */
+  async adjustUserPoints(userId: string, payload: AdjustPointsPayload): Promise<UserMembership> {
+    const response = await api.post<{ data: UserMembership }>(`/users/${userId}/membership/adjust-points`, payload);
+    return response.data.data;
+  }
+
+  /** Get user's points history */
+  async getUserPointsHistory(userId: string, params?: { page?: number; limit?: number }): Promise<PaginatedPointsHistory> {
+    const response = await api.get<{ data: PaginatedPointsHistory }>(`/users/${userId}/membership/points-history`, { params });
     return response.data.data;
   }
 }
