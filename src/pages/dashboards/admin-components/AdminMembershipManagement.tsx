@@ -85,6 +85,10 @@ const AdminMembershipManagement: React.FC = () => {
   const [userMembership, setUserMembership] = useState<UserMembership | null>(null);
   const [pointsHistory, setPointsHistory] = useState<PointsHistoryEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  
+  // User memberships for member list view
+  const [userMemberships, setUserMemberships] = useState<(UserMembership & { user: User })[]>([]);
+  const [loadingMemberships, setLoadingMemberships] = useState(false);
 
   // Dialogs
   const [isCreateTierDialogOpen, setIsCreateTierDialogOpen] = useState(false);
@@ -93,19 +97,26 @@ const AdminMembershipManagement: React.FC = () => {
   const [isAdjustPointsDialogOpen, setIsAdjustPointsDialogOpen] = useState(false);
   const [selectedTier, setSelectedTier] = useState<MembershipTier | null>(null);
 
-  // Search
+  // Search and filters
   const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [memberSearchTerm, setMemberSearchTerm] = useState('');
+  const [selectedTierFilter, setSelectedTierFilter] = useState<string>('all');
 
   // Form state for tier
   const [tierFormData, setTierFormData] = useState<CreateMembershipTierPayload>({
     name: '',
-    minSpending: 0,
-    maxSpending: null,
+    minSpend: 0,
+    maxSpend: null,
     discountPercent: 0,
+    warrantyMonths: 6,
+    returnDays: 7,
+    exchangeDays: 15,
     description: '',
     benefits: [],
     color: '#3b82f6',
-    icon: '🏆',
+    icon: '🥉',
+    sortOrder: 0,
+    periodDays: 365,
   });
 
   // Form state for points adjustment
@@ -114,6 +125,9 @@ const AdminMembershipManagement: React.FC = () => {
     reason: '',
     note: '',
   });
+
+  // Validation errors
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   // ============ AUTH CHECK ============
   if (!hasRole(['ADMIN'])) {
@@ -125,7 +139,7 @@ const AdminMembershipManagement: React.FC = () => {
     try {
       setLoading(true);
       const data = await adminService.getMembershipTiers();
-      setTiers(data.sort((a, b) => a.minSpending - b.minSpending));
+      setTiers(data.sort((a, b) => a.minSpend - b.minSpend));
     } catch (error) {
       toast({
         title: 'Lỗi',
@@ -142,9 +156,12 @@ const AdminMembershipManagement: React.FC = () => {
       const data = await userService.getUsers({
         page: 1,
         limit: 100,
-        role: 'CUSTOMER',
       });
-      setUsers(data.items || []);
+      // Filter customers on frontend
+      const customers = (data.items || []).filter(
+        (user) => user.role === 'CUSTOMER'
+      );
+      setUsers(customers);
     } catch (error) {
       toast({
         title: 'Lỗi',
@@ -158,12 +175,17 @@ const AdminMembershipManagement: React.FC = () => {
     try {
       const data = await adminService.getUserMembership(userId);
       setUserMembership(data);
-    } catch (error) {
+    } catch (error: any) {
+      const is404 = error?.response?.status === 404;
       toast({
         title: 'Lỗi',
-        description: 'Không thể tải thông tin membership của khách hàng',
+        description: is404 
+          ? '⚠️ Backend chưa implement API GET /users/:userId/membership. Vui lòng liên hệ Backend team để implement endpoint này.'
+          : error?.response?.data?.message || 'Không thể tải thông tin membership của khách hàng',
         variant: 'destructive',
       });
+      // Set null membership để UI biết là chưa có data
+      setUserMembership(null);
     }
   };
 
@@ -171,12 +193,81 @@ const AdminMembershipManagement: React.FC = () => {
     try {
       const data = await adminService.getUserPointsHistory(userId, { page: 1, limit: 50 });
       setPointsHistory(data.items || []);
-    } catch (error) {
+    } catch (error: any) {
+      const is404 = error?.response?.status === 404;
+      // Chỉ show toast nếu không phải 404 (404 có thể là user chưa có history)
+      if (!is404) {
+        toast({
+          title: 'Lỗi',
+          description: error?.response?.data?.message || 'Không thể tải lịch sử điểm',
+          variant: 'destructive',
+        });
+      }
+      setPointsHistory([]);
+    }
+  };
+
+  const fetchAllUserMemberships = async () => {
+    try {
+      setLoadingMemberships(true);
+      
+      // Fetch all users first (without role filter - backend might not support it)
+      const usersData = await userService.getUsers({
+        page: 1,
+        limit: 1000,
+      });
+      
+      // Filter customers on frontend
+      const customerUsers = (usersData.items || []).filter(
+        (user) => user.role === 'CUSTOMER'
+      );
+      
+      // Check if we have any users
+      if (customerUsers.length === 0) {
+        setUserMemberships([]);
+        toast({
+          title: 'Thông báo',
+          description: 'Không có khách hàng nào trong hệ thống',
+        });
+        return;
+      }
+      
+      // Fetch membership for each user (silently handle errors)
+      const membershipsPromises = customerUsers.map(async (user) => {
+        try {
+          const membership = await adminService.getUserMembership(user.id);
+          return { ...membership, user };
+        } catch (error: any) {
+          // Silently ignore 404 errors (user doesn't have membership yet)
+          if (error?.response?.status !== 404) {
+            console.warn(`Failed to fetch membership for user ${user.id}:`, error?.message);
+          }
+          return null;
+        }
+      });
+      
+      const membershipsResults = await Promise.all(membershipsPromises);
+      const validMemberships = membershipsResults.filter(m => m !== null) as (UserMembership & { user: User })[];
+      
+      setUserMemberships(validMemberships);
+      
+      // Show info if no memberships found
+      if (validMemberships.length === 0) {
+        toast({
+          title: 'Thông báo',
+          description: 'Chưa có khách hàng nào có dữ liệu membership. Backend cần implement API /api/users/:userId/membership',
+          variant: 'default',
+        });
+      }
+    } catch (error: any) {
+      console.error('Error fetching user memberships:', error);
       toast({
         title: 'Lỗi',
-        description: 'Không thể tải lịch sử điểm',
+        description: error?.response?.data?.message || 'Không thể tải danh sách thành viên. Vui lòng kiểm tra backend API.',
         variant: 'destructive',
       });
+    } finally {
+      setLoadingMemberships(false);
     }
   };
 
@@ -185,8 +276,56 @@ const AdminMembershipManagement: React.FC = () => {
     fetchUsers();
   }, []);
 
+  // ============ VALIDATION ============
+  const validateTierForm = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    if (!tierFormData.name || tierFormData.name.trim() === '') {
+      errors.name = 'Tên hạng là bắt buộc';
+    }
+
+    if (!tierFormData.icon || tierFormData.icon.trim() === '') {
+      errors.icon = 'Icon là bắt buộc';
+    }
+
+    if (tierFormData.minSpend < 0) {
+      errors.minSpend = 'minSpend phải >= 0';
+    }
+
+    if (tierFormData.discountPercent < 0 || tierFormData.discountPercent > 100) {
+      errors.discountPercent = 'Discount phải từ 0-100%';
+    }
+
+    if (tierFormData.warrantyMonths < 0) {
+      errors.warrantyMonths = 'Bảo hành phải >= 0';
+    }
+
+    if (tierFormData.returnDays < 0) {
+      errors.returnDays = 'Trả hàng phải >= 0';
+    }
+
+    if (tierFormData.exchangeDays < 0) {
+      errors.exchangeDays = 'Đổi hàng phải >= 0';
+    }
+
+    if (!tierFormData.description || tierFormData.description.trim() === '') {
+      errors.description = 'Mô tả là bắt buộc';
+    }
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   // ============ TIER MANAGEMENT ============
   const handleCreateTier = async () => {
+    if (!validateTierForm()) {
+      toast({
+        title: 'Lỗi Validation',
+        description: 'Vui lòng điền đầy đủ thông tin bắt buộc',
+        variant: 'destructive',
+      });
+      return;
+    }
     try {
       setLoading(true);
       await adminService.createMembershipTier(tierFormData);
@@ -210,6 +349,14 @@ const AdminMembershipManagement: React.FC = () => {
 
   const handleUpdateTier = async () => {
     if (!selectedTier) return;
+    if (!validateTierForm()) {
+      toast({
+        title: 'Lỗi Validation',
+        description: 'Vui lòng điền đầy đủ thông tin bắt buộc',
+        variant: 'destructive',
+      });
+      return;
+    }
     try {
       setLoading(true);
       await adminService.updateMembershipTier(selectedTier.id, tierFormData as UpdateMembershipTierPayload);
@@ -256,15 +403,21 @@ const AdminMembershipManagement: React.FC = () => {
 
   const openEditTierDialog = (tier: MembershipTier) => {
     setSelectedTier(tier);
+    setValidationErrors({});
     setTierFormData({
       name: tier.name,
-      minSpending: tier.minSpending,
-      maxSpending: tier.maxSpending,
+      minSpend: tier.minSpend,
+      maxSpend: tier.maxSpend,
       discountPercent: tier.discountPercent,
+      warrantyMonths: tier.warrantyMonths || 6,
+      returnDays: tier.returnDays || 7,
+      exchangeDays: tier.exchangeDays || 15,
       description: tier.description || '',
       benefits: tier.benefits || [],
       color: tier.color || '#3b82f6',
-      icon: tier.icon || '🏆',
+      icon: tier.icon || '🥉',
+      sortOrder: tier.sortOrder || 0,
+      periodDays: tier.periodDays || 365,
     });
     setIsEditTierDialogOpen(true);
   };
@@ -272,13 +425,18 @@ const AdminMembershipManagement: React.FC = () => {
   const resetTierForm = () => {
     setTierFormData({
       name: '',
-      minSpending: 0,
-      maxSpending: null,
+      minSpend: 0,
+      maxSpend: null,
       discountPercent: 0,
+      warrantyMonths: 6,
+      returnDays: 7,
+      exchangeDays: 15,
       description: '',
       benefits: [],
       color: '#3b82f6',
-      icon: '🏆',
+      icon: '🥉',
+      sortOrder: 0,
+      periodDays: 365,
     });
     setSelectedTier(null);
   };
@@ -335,6 +493,16 @@ const AdminMembershipManagement: React.FC = () => {
     user.email?.toLowerCase().includes(userSearchTerm.toLowerCase())
   );
 
+  const filteredMembers = userMemberships.filter((membership) => {
+    const matchesSearch = 
+      membership.user.fullName.toLowerCase().includes(memberSearchTerm.toLowerCase()) ||
+      membership.user.email?.toLowerCase().includes(memberSearchTerm.toLowerCase());
+    
+    const matchesTier = selectedTierFilter === 'all' || membership.currentTier.id === selectedTierFilter;
+    
+    return matchesSearch && matchesTier;
+  });
+
   // ============ RENDER ============
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -366,8 +534,12 @@ const AdminMembershipManagement: React.FC = () => {
             <Award className="h-4 w-4 mr-2" />
             Hạng thành viên
           </TabsTrigger>
-          <TabsTrigger value="users">
+          <TabsTrigger value="members" onClick={() => !loadingMemberships && fetchAllUserMemberships()}>
             <Users className="h-4 w-4 mr-2" />
+            Thành viên theo hạng
+          </TabsTrigger>
+          <TabsTrigger value="users">
+            <TrendingUp className="h-4 w-4 mr-2" />
             Điều chỉnh điểm
           </TabsTrigger>
         </TabsList>
@@ -400,12 +572,12 @@ const AdminMembershipManagement: React.FC = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Icon</TableHead>
-                      <TableHead>Tên hạng</TableHead>
-                      <TableHead>Chi tiêu tối thiểu</TableHead>
-                      <TableHead>Chi tiêu tối đa</TableHead>
-                      <TableHead>% Giảm giá</TableHead>
-                      <TableHead>Mô tả</TableHead>
+                      <TableHead>Hạng</TableHead>
+                      <TableHead>minSpend (ví dụ)</TableHead>
+                      <TableHead>Discount</TableHead>
+                      <TableHead>Bảo hành</TableHead>
+                      <TableHead>Trả hàng</TableHead>
+                      <TableHead>Đổi hàng</TableHead>
                       <TableHead className="text-right">Thao tác</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -413,28 +585,24 @@ const AdminMembershipManagement: React.FC = () => {
                     {tiers.map((tier) => (
                       <TableRow key={tier.id}>
                         <TableCell>
-                          <div
-                            className="w-10 h-10 rounded-full flex items-center justify-center text-xl"
-                            style={{ backgroundColor: tier.color + '20' }}
-                          >
-                            {tier.icon}
+                          <div className="flex items-center gap-2">
+                            <span className="text-2xl">{tier.icon || '🏆'}</span>
+                            <span className="font-semibold">{tier.name}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="font-semibold">{tier.name}</TableCell>
-                        <TableCell>{tier.minSpending.toLocaleString('vi-VN')} ₫</TableCell>
                         <TableCell>
-                          {tier.maxSpending
-                            ? tier.maxSpending.toLocaleString('vi-VN') + ' ₫'
-                            : 'Không giới hạn'}
+                          {tier.minSpend != null 
+                            ? tier.minSpend.toLocaleString('vi-VN') + ' ₫' 
+                            : '0 ₫'}
                         </TableCell>
                         <TableCell>
                           <Badge variant="secondary">
-                            {tier.discountPercent}%
+                            {tier.discountPercent ?? 0}%
                           </Badge>
                         </TableCell>
-                        <TableCell className="max-w-xs truncate">
-                          {tier.description || '-'}
-                        </TableCell>
+                        <TableCell>{tier.warrantyMonths || 0} tháng</TableCell>
+                        <TableCell>{tier.returnDays || 0} ngày</TableCell>
+                        <TableCell>{tier.exchangeDays || 0} ngày</TableCell>
                         <TableCell className="text-right">
                           <div className="flex gap-2 justify-end">
                             <Button
@@ -465,7 +633,155 @@ const AdminMembershipManagement: React.FC = () => {
           </Card>
         </TabsContent>
 
-        {/* TAB 2: User Points Adjustment */}
+        {/* TAB 2: Member List by Tier */}
+        <TabsContent value="members">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Danh sách thành viên theo hạng</CardTitle>
+                  <CardDescription>
+                    Xem tất cả khách hàng và hạng membership của họ
+                  </CardDescription>
+                </div>
+                <Button onClick={fetchAllUserMemberships} disabled={loadingMemberships} size="sm">
+                  <RefreshCw className={`h-4 w-4 mr-2 ${loadingMemberships ? 'animate-spin' : ''}`} />
+                  Làm mới
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {/* Filters */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Tìm kiếm theo tên hoặc email..."
+                    value={memberSearchTerm}
+                    onChange={(e) => setMemberSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="tier-filter" className="whitespace-nowrap">Lọc theo hạng:</Label>
+                  <select
+                    id="tier-filter"
+                    value={selectedTierFilter}
+                    onChange={(e) => setSelectedTierFilter(e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    <option value="all">Tất cả hạng</option>
+                    {tiers.map((tier) => (
+                      <option key={tier.id} value={tier.id}>
+                        {tier.icon} {tier.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="text-2xl font-bold">{userMemberships.length}</div>
+                    <p className="text-xs text-muted-foreground">Tổng thành viên</p>
+                  </CardContent>
+                </Card>
+                {tiers.slice(0, 3).map((tier) => {
+                  const count = userMemberships.filter(m => m.currentTier.id === tier.id).length;
+                  return (
+                    <Card key={tier.id}>
+                      <CardContent className="pt-6">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">{tier.icon}</span>
+                          <div>
+                            <div className="text-2xl font-bold">{count}</div>
+                            <p className="text-xs text-muted-foreground">{tier.name}</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+
+              {/* Table */}
+              {loadingMemberships ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-2" />
+                  Đang tải dữ liệu...
+                </div>
+              ) : filteredMembers.length === 0 ? (
+                <div className="text-center py-8">
+                  {userMemberships.length === 0 ? (
+                    <div className="max-w-md mx-auto">
+                      <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                      <p className="text-lg font-semibold mb-2">Chưa có dữ liệu thành viên</p>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Tính năng này yêu cầu backend implement API endpoint:<br/>
+                        <code className="text-xs bg-muted px-2 py-1 rounded mt-1 inline-block">
+                          GET /api/users/:userId/membership
+                        </code>
+                      </p>
+                      <Button onClick={fetchAllUserMemberships} variant="outline" size="sm">
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Thử tải lại
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground">Không tìm thấy thành viên nào</p>
+                  )}
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Khách hàng</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Số điện thoại</TableHead>
+                      <TableHead>Hạng hiện tại</TableHead>
+                      <TableHead className="text-right">Tổng chi tiêu</TableHead>
+                      <TableHead className="text-center">% Giảm giá</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredMembers.map((membership) => (
+                      <TableRow key={membership.user.id}>
+                        <TableCell className="font-medium">{membership.user.fullName}</TableCell>
+                        <TableCell>{membership.user.email || '-'}</TableCell>
+                        <TableCell>{membership.user.phone || '-'}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-8 h-8 rounded-full flex items-center justify-center text-sm"
+                              style={{ backgroundColor: membership.currentTier.color + '20' }}
+                            >
+                              {membership.currentTier.icon}
+                            </div>
+                            <span className="font-semibold">{membership.currentTier.name}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right font-semibold">
+                          {membership.accumulatedSpending != null
+                            ? membership.accumulatedSpending.toLocaleString('vi-VN') + ' ₫'
+                            : '0 ₫'}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="secondary" className="font-semibold">
+                            {membership.discountPercent ?? 0}%
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* TAB 3: User Points Adjustment */}
         <TabsContent value="users">
           <Card>
             <CardHeader>
@@ -543,85 +859,165 @@ const AdminMembershipManagement: React.FC = () => {
                 <Input
                   id="name"
                   value={tierFormData.name}
-                  onChange={(e) => setTierFormData({ ...tierFormData, name: e.target.value })}
-                  placeholder="VD: Đồng, Bạc, Vàng..."
+                  onChange={(e) => {
+                    setTierFormData({ ...tierFormData, name: e.target.value });
+                    if (validationErrors.name) {
+                      setValidationErrors({ ...validationErrors, name: '' });
+                    }
+                  }}
+                  placeholder="VD: Bronze, Silver, Gold..."
+                  className={validationErrors.name ? 'border-red-500' : ''}
                 />
+                {validationErrors.name && (
+                  <p className="text-sm text-red-500">{validationErrors.name}</p>
+                )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="icon">Icon</Label>
+                <Label htmlFor="icon">Icon *</Label>
                 <Input
                   id="icon"
                   value={tierFormData.icon}
-                  onChange={(e) => setTierFormData({ ...tierFormData, icon: e.target.value })}
-                  placeholder="VD: 🥉 🥈 🥇"
+                  onChange={(e) => {
+                    setTierFormData({ ...tierFormData, icon: e.target.value });
+                    if (validationErrors.icon) {
+                      setValidationErrors({ ...validationErrors, icon: '' });
+                    }
+                  }}
+                  placeholder="🥉 (Bronze) 🥈 (Silver) 🥇 (Gold)"
+                  className={validationErrors.icon ? 'border-red-500' : ''}
                 />
+                {validationErrors.icon && (
+                  <p className="text-sm text-red-500">{validationErrors.icon}</p>
+                )}
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="minSpending">Chi tiêu tối thiểu (₫) *</Label>
+                <Label htmlFor="minSpending">minSpend (₫) *</Label>
                 <Input
                   id="minSpending"
-                  type="number"
-                  value={tierFormData.minSpending}
-                  onChange={(e) =>
-                    setTierFormData({ ...tierFormData, minSpending: Number(e.target.value) })
-                  }
+                  type="text"
+                  value={tierFormData.minSpend === 0 ? '' : tierFormData.minSpend.toLocaleString('vi-VN')}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/[^0-9]/g, '');
+                    setTierFormData({ ...tierFormData, minSpend: value === '' ? 0 : Number(value) });
+                    if (validationErrors.minSpend) {
+                      setValidationErrors({ ...validationErrors, minSpend: '' });
+                    }
+                  }}
+                  placeholder="VD: 500,000"
+                  className={validationErrors.minSpend ? 'border-red-500' : ''}
                 />
+                {validationErrors.minSpend && (
+                  <p className="text-sm text-red-500">{validationErrors.minSpend}</p>
+                )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="maxSpending">Chi tiêu tối đa (₫)</Label>
-                <Input
-                  id="maxSpending"
-                  type="number"
-                  value={tierFormData.maxSpending || ''}
-                  onChange={(e) =>
-                    setTierFormData({
-                      ...tierFormData,
-                      maxSpending: e.target.value ? Number(e.target.value) : null,
-                    })
-                  }
-                  placeholder="Để trống nếu không giới hạn"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="discountPercent">% Giảm giá *</Label>
+                <Label htmlFor="discountPercent">Discount (%) *</Label>
                 <Input
                   id="discountPercent"
                   type="number"
                   min="0"
                   max="100"
-                  step="0.1"
+                  step="1"
                   value={tierFormData.discountPercent}
-                  onChange={(e) =>
-                    setTierFormData({ ...tierFormData, discountPercent: Number(e.target.value) })
-                  }
+                  onChange={(e) => {
+                    setTierFormData({ ...tierFormData, discountPercent: Number(e.target.value) });
+                    if (validationErrors.discountPercent) {
+                      setValidationErrors({ ...validationErrors, discountPercent: '' });
+                    }
+                  }}
+                  placeholder="VD: 0, 5, 10"
+                  className={validationErrors.discountPercent ? 'border-red-500' : ''}
                 />
+                {validationErrors.discountPercent && (
+                  <p className="text-sm text-red-500">{validationErrors.discountPercent}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="warrantyMonths">Bảo hành (tháng) *</Label>
+                <Input
+                  id="warrantyMonths"
+                  type="number"
+                  min="0"
+                  value={tierFormData.warrantyMonths}
+                  onChange={(e) => {
+                    setTierFormData({ ...tierFormData, warrantyMonths: Number(e.target.value) });
+                    if (validationErrors.warrantyMonths) {
+                      setValidationErrors({ ...validationErrors, warrantyMonths: '' });
+                    }
+                  }}
+                  placeholder="VD: 6, 9, 12"
+                  className={validationErrors.warrantyMonths ? 'border-red-500' : ''}
+                />
+                {validationErrors.warrantyMonths && (
+                  <p className="text-sm text-red-500">{validationErrors.warrantyMonths}</p>
+                )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="color">Màu sắc</Label>
+                <Label htmlFor="returnDays">Trả hàng (ngày) *</Label>
                 <Input
-                  id="color"
-                  type="color"
-                  value={tierFormData.color}
-                  onChange={(e) => setTierFormData({ ...tierFormData, color: e.target.value })}
+                  id="returnDays"
+                  type="number"
+                  min="0"
+                  value={tierFormData.returnDays}
+                  onChange={(e) => {
+                    setTierFormData({ ...tierFormData, returnDays: Number(e.target.value) });
+                    if (validationErrors.returnDays) {
+                      setValidationErrors({ ...validationErrors, returnDays: '' });
+                    }
+                  }}
+                  placeholder="VD: 7, 10, 14"
+                  className={validationErrors.returnDays ? 'border-red-500' : ''}
                 />
+                {validationErrors.returnDays && (
+                  <p className="text-sm text-red-500">{validationErrors.returnDays}</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="exchangeDays">Đổi hàng (ngày) *</Label>
+                <Input
+                  id="exchangeDays"
+                  type="number"
+                  min="0"
+                  value={tierFormData.exchangeDays}
+                  onChange={(e) => {
+                    setTierFormData({ ...tierFormData, exchangeDays: Number(e.target.value) });
+                    if (validationErrors.exchangeDays) {
+                      setValidationErrors({ ...validationErrors, exchangeDays: '' });
+                    }
+                  }}
+                  placeholder="VD: 15, 22, 30"
+                  className={validationErrors.exchangeDays ? 'border-red-500' : ''}
+                />
+                {validationErrors.exchangeDays && (
+                  <p className="text-sm text-red-500">{validationErrors.exchangeDays}</p>
+                )}
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">Mô tả</Label>
+              <Label htmlFor="description">Mô tả *</Label>
               <Textarea
                 id="description"
                 value={tierFormData.description}
-                onChange={(e) => setTierFormData({ ...tierFormData, description: e.target.value })}
+                onChange={(e) => {
+                  setTierFormData({ ...tierFormData, description: e.target.value });
+                  if (validationErrors.description) {
+                    setValidationErrors({ ...validationErrors, description: '' });
+                  }
+                }}
                 placeholder="Mô tả về hạng thành viên này..."
-                rows={3}
+                rows={2}
+                className={validationErrors.description ? 'border-red-500' : ''}
               />
+              {validationErrors.description && (
+                <p className="text-sm text-red-500">{validationErrors.description}</p>
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -653,82 +1049,158 @@ const AdminMembershipManagement: React.FC = () => {
                 <Input
                   id="edit-name"
                   value={tierFormData.name}
-                  onChange={(e) => setTierFormData({ ...tierFormData, name: e.target.value })}
+                  onChange={(e) => {
+                    setTierFormData({ ...tierFormData, name: e.target.value });
+                    if (validationErrors.name) {
+                      setValidationErrors({ ...validationErrors, name: '' });
+                    }
+                  }}
+                  className={validationErrors.name ? 'border-red-500' : ''}
                 />
+                {validationErrors.name && (
+                  <p className="text-sm text-red-500">{validationErrors.name}</p>
+                )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-icon">Icon</Label>
+                <Label htmlFor="edit-icon">Icon *</Label>
                 <Input
                   id="edit-icon"
                   value={tierFormData.icon}
-                  onChange={(e) => setTierFormData({ ...tierFormData, icon: e.target.value })}
+                  onChange={(e) => {
+                    setTierFormData({ ...tierFormData, icon: e.target.value });
+                    if (validationErrors.icon) {
+                      setValidationErrors({ ...validationErrors, icon: '' });
+                    }
+                  }}
+                  className={validationErrors.icon ? 'border-red-500' : ''}
                 />
+                {validationErrors.icon && (
+                  <p className="text-sm text-red-500">{validationErrors.icon}</p>
+                )}
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-minSpending">Chi tiêu tối thiểu (₫) *</Label>
+                <Label htmlFor="edit-minSpending">minSpend (₫) *</Label>
                 <Input
                   id="edit-minSpending"
-                  type="number"
-                  value={tierFormData.minSpending}
-                  onChange={(e) =>
-                    setTierFormData({ ...tierFormData, minSpending: Number(e.target.value) })
-                  }
+                  type="text"
+                  value={tierFormData.minSpend === 0 ? '' : tierFormData.minSpend.toLocaleString('vi-VN')}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/[^0-9]/g, '');
+                    setTierFormData({ ...tierFormData, minSpend: value === '' ? 0 : Number(value) });
+                    if (validationErrors.minSpend) {
+                      setValidationErrors({ ...validationErrors, minSpend: '' });
+                    }
+                  }}
+                  placeholder="VD: 500,000"
+                  className={validationErrors.minSpend ? 'border-red-500' : ''}
                 />
+                {validationErrors.minSpend && (
+                  <p className="text-sm text-red-500">{validationErrors.minSpend}</p>
+                )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-maxSpending">Chi tiêu tối đa (₫)</Label>
-                <Input
-                  id="edit-maxSpending"
-                  type="number"
-                  value={tierFormData.maxSpending || ''}
-                  onChange={(e) =>
-                    setTierFormData({
-                      ...tierFormData,
-                      maxSpending: e.target.value ? Number(e.target.value) : null,
-                    })
-                  }
-                  placeholder="Để trống nếu không giới hạn"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-discountPercent">% Giảm giá *</Label>
+                <Label htmlFor="edit-discountPercent">Discount (%) *</Label>
                 <Input
                   id="edit-discountPercent"
                   type="number"
                   min="0"
                   max="100"
-                  step="0.1"
+                  step="1"
                   value={tierFormData.discountPercent}
-                  onChange={(e) =>
-                    setTierFormData({ ...tierFormData, discountPercent: Number(e.target.value) })
-                  }
+                  onChange={(e) => {
+                    setTierFormData({ ...tierFormData, discountPercent: Number(e.target.value) });
+                    if (validationErrors.discountPercent) {
+                      setValidationErrors({ ...validationErrors, discountPercent: '' });
+                    }
+                  }}
+                  className={validationErrors.discountPercent ? 'border-red-500' : ''}
                 />
+                {validationErrors.discountPercent && (
+                  <p className="text-sm text-red-500">{validationErrors.discountPercent}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-warrantyMonths">Bảo hành (tháng) *</Label>
+                <Input
+                  id="edit-warrantyMonths"
+                  type="number"
+                  min="0"
+                  value={tierFormData.warrantyMonths}
+                  onChange={(e) => {
+                    setTierFormData({ ...tierFormData, warrantyMonths: Number(e.target.value) });
+                    if (validationErrors.warrantyMonths) {
+                      setValidationErrors({ ...validationErrors, warrantyMonths: '' });
+                    }
+                  }}
+                  className={validationErrors.warrantyMonths ? 'border-red-500' : ''}
+                />
+                {validationErrors.warrantyMonths && (
+                  <p className="text-sm text-red-500">{validationErrors.warrantyMonths}</p>
+                )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-color">Màu sắc</Label>
+                <Label htmlFor="edit-returnDays">Trả hàng (ngày) *</Label>
                 <Input
-                  id="edit-color"
-                  type="color"
-                  value={tierFormData.color}
-                  onChange={(e) => setTierFormData({ ...tierFormData, color: e.target.value })}
+                  id="edit-returnDays"
+                  type="number"
+                  min="0"
+                  value={tierFormData.returnDays}
+                  onChange={(e) => {
+                    setTierFormData({ ...tierFormData, returnDays: Number(e.target.value) });
+                    if (validationErrors.returnDays) {
+                      setValidationErrors({ ...validationErrors, returnDays: '' });
+                    }
+                  }}
+                  className={validationErrors.returnDays ? 'border-red-500' : ''}
                 />
+                {validationErrors.returnDays && (
+                  <p className="text-sm text-red-500">{validationErrors.returnDays}</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-exchangeDays">Đổi hàng (ngày) *</Label>
+                <Input
+                  id="edit-exchangeDays"
+                  type="number"
+                  min="0"
+                  value={tierFormData.exchangeDays}
+                  onChange={(e) => {
+                    setTierFormData({ ...tierFormData, exchangeDays: Number(e.target.value) });
+                    if (validationErrors.exchangeDays) {
+                      setValidationErrors({ ...validationErrors, exchangeDays: '' });
+                    }
+                  }}
+                  className={validationErrors.exchangeDays ? 'border-red-500' : ''}
+                />
+                {validationErrors.exchangeDays && (
+                  <p className="text-sm text-red-500">{validationErrors.exchangeDays}</p>
+                )}
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit-description">Mô tả</Label>
+              <Label htmlFor="edit-description">Mô tả *</Label>
               <Textarea
                 id="edit-description"
                 value={tierFormData.description}
-                onChange={(e) => setTierFormData({ ...tierFormData, description: e.target.value })}
-                rows={3}
+                onChange={(e) => {
+                  setTierFormData({ ...tierFormData, description: e.target.value });
+                  if (validationErrors.description) {
+                    setValidationErrors({ ...validationErrors, description: '' });
+                  }
+                }}
+                rows={2}
+                className={validationErrors.description ? 'border-red-500' : ''}
               />
+              {validationErrors.description && (
+                <p className="text-sm text-red-500">{validationErrors.description}</p>
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -799,7 +1271,9 @@ const AdminMembershipManagement: React.FC = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="text-xl font-bold">
-                    {userMembership.accumulatedSpending.toLocaleString('vi-VN')} ₫
+                    {userMembership.accumulatedSpending != null 
+                      ? userMembership.accumulatedSpending.toLocaleString('vi-VN') + ' ₫'
+                      : '0 ₫'}
                   </div>
                 </CardContent>
               </Card>
@@ -812,7 +1286,7 @@ const AdminMembershipManagement: React.FC = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="text-xl font-bold text-green-600">
-                    {userMembership.discountPercent}%
+                    {userMembership.discountPercent ?? 0}%
                   </div>
                 </CardContent>
               </Card>

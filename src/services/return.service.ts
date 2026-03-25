@@ -24,9 +24,14 @@ export interface ReturnItem {
 export interface ReturnImage {
   id: string;
   imageUrl: string;
-  imageType: 'CUSTOMER_PROOF' | 'STAFF_RECEIVED';
+  imageType: 'CUSTOMER_PRODUCT' | 'CUSTOMER_DEFECT' | 'STAFF_RECEIVED' | 'STAFF_INSPECTION' | 'OTHER';
   uploadedBy: string;
   createdAt: string;
+  uploader?: {
+    id: string;
+    fullName: string;
+    role: string;
+  };
 }
 
 export interface ReturnRequest {
@@ -274,6 +279,7 @@ class ReturnService {
   async completeReturn(
     returnId: string,
     data: {
+      finalAmount?: number;
       refundAmount?: number;
       refundMethod?: 'BANK_TRANSFER' | 'CASH';
       completionNote?: string;
@@ -282,6 +288,9 @@ class ReturnService {
   ): Promise<ReturnRequest> {
     const formData = new FormData();
     
+    if (data.finalAmount !== undefined) {
+      formData.append('finalAmount', data.finalAmount.toString());
+    }
     if (data.refundAmount !== undefined) {
       formData.append('refundAmount', data.refundAmount.toString());
     }

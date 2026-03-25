@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { productService, Product, CreateProductData, ProductImage } from '@/services/product.service';
+import { inventoryService, Inventory } from '@/services/inventory.service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -65,6 +66,10 @@ export const AdminProductManagement: React.FC = () => {
   // Form image files (for create/edit dialog)
   const [formImageFiles, setFormImageFiles] = useState<File[]>([]);
 
+  // Inventory/Stock state
+  const [inventoryMap, setInventoryMap] = useState<Record<string, number>>({});
+  const [loadingInventory, setLoadingInventory] = useState(false);
+
   // Debug: Log when formImageFiles changes
   useEffect(() => {
     console.log('🖼️ formImageFiles changed:', formImageFiles.length, 'images');
@@ -88,6 +93,51 @@ export const AdminProductManagement: React.FC = () => {
   useEffect(() => {
     loadProducts();
   }, [pagination.page, searchTerm]);
+
+  // Load inventory data when products change
+  useEffect(() => {
+    if (products.length > 0) {
+      loadInventoryData();
+    }
+  }, [products]);
+
+  const loadInventoryData = async () => {
+    setLoadingInventory(true);
+    try {
+      // Fetch inventory for all products
+      const inventoryPromises = products.map(product => 
+        inventoryService.getInventoryByProduct(product.id)
+          .then(inventories => {
+            // Calculate total quantity across all stores
+            const totalQuantity = inventories.reduce((sum, inv) => sum + (inv.quantity || 0), 0);
+            return { productId: product.id, totalQuantity };
+          })
+          .catch(error => {
+            console.warn(`Failed to load inventory for product ${product.id}:`, error);
+            return { productId: product.id, totalQuantity: 0 };
+          })
+      );
+
+      const inventoryResults = await Promise.all(inventoryPromises);
+      
+      // Create a map of productId -> total quantity
+      const invMap: Record<string, number> = {};
+      inventoryResults.forEach(result => {
+        invMap[result.productId] = result.totalQuantity;
+      });
+      
+      setInventoryMap(invMap);
+    } catch (error) {
+      console.error('Error loading inventory data:', error);
+      toast({
+        title: 'Cảnh Báo',
+        description: 'Không thể tải dữ liệu tồn kho',
+        variant: 'default',
+      });
+    } finally {
+      setLoadingInventory(false);
+    }
+  };
 
   const loadProducts = async () => {
     setLoading(true);
@@ -121,8 +171,8 @@ export const AdminProductManagement: React.FC = () => {
     } catch (error: any) {
       console.error('Load products error:', error);
       toast({
-        title: 'Error',
-        description: error.response?.data?.message || 'Failed to load products',
+        title: 'Lỗi',
+        description: error.response?.data?.message || 'Không thể tải danh sách sản phẩm',
         variant: 'destructive',
       });
     } finally {
@@ -142,8 +192,8 @@ export const AdminProductManagement: React.FC = () => {
     // Validate images for new products
     if (!editingProduct && formImageFiles.length === 0) {
       toast({
-        title: 'Validation Error',
-        description: 'Please upload at least 1 product image (maximum 5)',
+        title: 'Lỗi Xác Thực',
+        description: 'Vui lòng tải ít nhất 1 hình ảnh sản phẩm (tối đa 5)',
         variant: 'destructive',
       });
       setLoading(false);
@@ -161,23 +211,23 @@ export const AdminProductManagement: React.FC = () => {
         if (formImageFiles.length > 0) {
           try {
             await productService.uploadProductImages(productId, formImageFiles);
-            toast({ title: 'Success', description: `Product updated with ${formImageFiles.length} new image(s)` });
+            toast({ title: 'Thành Công', description: `Sản phẩm đã cập nhật với ${formImageFiles.length} hình ảnh mới` });
           } catch (imgError: any) {
             console.error('Image upload error:', imgError);
             toast({ 
-              title: 'Warning', 
-              description: 'Product updated but image upload failed: ' + (imgError.response?.data?.message || imgError.message),
+              title: 'Cảnh Báo', 
+              description: 'Sản phẩm đã cập nhật nhưng tải hình ảnh thất bại: ' + (imgError.response?.data?.message || imgError.message),
               variant: 'destructive'
             });
           }
         } else {
-          toast({ title: 'Success', description: 'Product updated successfully' });
+          toast({ title: 'Thành Công', description: 'Cập nhật sản phẩm thành công' });
         }
       } else {
         // Create product with images in the same request
         const newProduct = await productService.createProduct(formData, formImageFiles);
         productId = newProduct.id;
-        toast({ title: 'Success', description: `Product created with ${formImageFiles.length} image(s)` });
+        toast({ title: 'Thành Công', description: `Tạo sản phẩm thành công với ${formImageFiles.length} hình ảnh` });
       }
       
       setIsDialogOpen(false);
@@ -192,14 +242,14 @@ export const AdminProductManagement: React.FC = () => {
       console.error('Validation details:', error.response?.data?.error?.details);
       
       const details = error.response?.data?.error?.details;
-      let errorMsg = error.response?.data?.message || 'Operation failed';
+      let errorMsg = error.response?.data?.message || 'Thao tác thất bại';
       
       if (details && Array.isArray(details)) {
         errorMsg += '\n' + details.map((d: any) => `- ${d.field}: ${d.message}`).join('\n');
       }
       
-      toast({
-        title: 'Error',
+      toast({ 
+        title: 'Lỗi', 
         description: errorMsg,
         variant: 'destructive',
       });
@@ -229,16 +279,16 @@ export const AdminProductManagement: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this product?')) return;
+    if (!confirm('Bạn có chắc chắn muốn xóa sản phẩm này?')) return;
 
     try {
       await productService.deleteProduct(id);
-      toast({ title: 'Success', description: 'Product deleted successfully' });
+      toast({ title: 'Thành Công', description: 'Đã xóa sản phẩm thành công' });
       loadProducts();
     } catch (error: any) {
       toast({
-        title: 'Error',
-        description: error.response?.data?.message || 'Failed to delete product',
+        title: 'Lỗi',
+        description: error.response?.data?.message || 'Không thể xóa sản phẩm',
         variant: 'destructive',
       });
     }
@@ -257,7 +307,7 @@ export const AdminProductManagement: React.FC = () => {
       }
       setSelectedProductImages(imgs);
     } catch (error: any) {
-      toast({ title: 'Error', description: error.response?.data?.message || 'Failed to load images', variant: 'destructive' });
+      toast({ title: 'Lỗi', description: error.response?.data?.message || 'Không thể tải hình ảnh', variant: 'destructive' });
     } finally {
       setImagesLoading(false);
     }
@@ -279,7 +329,7 @@ export const AdminProductManagement: React.FC = () => {
     setImagesLoading(true);
     try {
       await productService.uploadProductImages(selectedProductForImages.id, imageFiles);
-      toast({ title: 'Success', description: 'Images uploaded successfully' });
+      toast({ title: 'Thành Công', description: 'Đã tải lên hình ảnh thành công' });
       setImageFiles([]);
       await loadImages(selectedProductForImages.id);
 
@@ -292,7 +342,7 @@ export const AdminProductManagement: React.FC = () => {
         console.warn('Failed to refresh product after upload', err);
       }
     } catch (error: any) {
-      toast({ title: 'Error', description: error.response?.data?.message || 'Upload failed', variant: 'destructive' });
+      toast({ title: 'Lỗi', description: error.response?.data?.message || 'Tải lên thất bại', variant: 'destructive' });
     } finally {
       setImagesLoading(false);
     }
@@ -302,7 +352,7 @@ export const AdminProductManagement: React.FC = () => {
     if (!selectedProductForImages) return;
     try {
       await productService.setPrimaryImage(selectedProductForImages.id, imageId);
-      toast({ title: 'Success', description: 'Primary image set' });
+      toast({ title: 'Thành Công', description: 'Đã đặt hình ảnh chính' });
       await loadImages(selectedProductForImages.id);
 
       // Refresh product to update thumbnail
@@ -314,16 +364,16 @@ export const AdminProductManagement: React.FC = () => {
         console.warn('Failed to refresh product after setting primary', err);
       }
     } catch (error: any) {
-      toast({ title: 'Error', description: error.response?.data?.message || 'Operation failed', variant: 'destructive' });
+      toast({ title: 'Lỗi', description: error.response?.data?.message || 'Thao tác thất bại', variant: 'destructive' });
     }
   };
 
   const handleDeleteImage = async (imageId: string) => {
     if (!selectedProductForImages) return;
-    if (!confirm('Delete this image?')) return;
+    if (!confirm('Xóa hình ảnh này?')) return;
     try {
       await productService.deleteProductImage(selectedProductForImages.id, imageId);
-      toast({ title: 'Success', description: 'Image deleted' });
+      toast({ title: 'Thành Công', description: 'Đã xóa hình ảnh' });
       await loadImages(selectedProductForImages.id);
 
       // Refresh product to update thumbnail
@@ -335,7 +385,7 @@ export const AdminProductManagement: React.FC = () => {
         console.warn('Failed to refresh product after delete image', err);
       }
     } catch (error: any) {
-      toast({ title: 'Error', description: error.response?.data?.message || 'Operation failed', variant: 'destructive' });
+      toast({ title: 'Lỗi', description: error.response?.data?.message || 'Thao tác thất bại', variant: 'destructive' });
     }
   };
 
@@ -361,7 +411,34 @@ export const AdminProductManagement: React.FC = () => {
       INACTIVE: 'secondary',
       OUT_OF_STOCK: 'destructive',
     };
-    return <Badge variant={variants[status] || 'default'}>{status}</Badge>;
+    const labels: Record<string, string> = {
+      ACTIVE: 'Đang bán',
+      INACTIVE: 'Ngừng bán',
+      OUT_OF_STOCK: 'Hết hàng',
+    };
+    return <Badge variant={variants[status] || 'default'}>{labels[status] || status}</Badge>;
+  };
+
+  // Get stock status based on inventory (similar to AdminInventoryManagement)
+  const getStockStatusBadge = (productId: string) => {
+    if (loadingInventory) {
+      return <Badge variant="secondary">Đang tải...</Badge>;
+    }
+    
+    const available = inventoryMap[productId] !== undefined ? inventoryMap[productId] : 0;
+    
+    if (available === 0) {
+      return <Badge variant="destructive" className="bg-red-500 text-white">Hết hàng</Badge>;
+    }
+    if (available <= 5) {
+      return <Badge variant="outline" className="border-orange-500 text-orange-600 bg-orange-50">Còn ít</Badge>;
+    }
+    return <Badge variant="default" className="bg-green-500 text-white">Bình thường</Badge>;
+  };
+
+  // Format price to Vietnamese Dong with comma separators
+  const formatPrice = (price: number): string => {
+    return new Intl.NumberFormat('vi-VN').format(price) + ' VNĐ';
   };
 
   return (
@@ -369,15 +446,15 @@ export const AdminProductManagement: React.FC = () => {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Package className="h-5 w-5" />
-          Product Management
+          Quản Lý Sản Phẩm
         </CardTitle>
-        <CardDescription>Manage your products inventory</CardDescription>
+        <CardDescription>Quản lý danh mục sản phẩm của cửa hàng</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center gap-2 flex-1 max-w-sm">
             <Input
-              placeholder="Search products..."
+              placeholder="Tìm kiếm sản phẩm..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="flex-1"
@@ -388,7 +465,7 @@ export const AdminProductManagement: React.FC = () => {
           </div>
           <Button onClick={() => setIsDialogOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
-            Add Product
+            Thêm Sản Phẩm
           </Button>
         </div>
 
@@ -396,22 +473,22 @@ export const AdminProductManagement: React.FC = () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Price</TableHead>
-                <TableHead>Stock</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead>Tên Sản Phẩm</TableHead>
+                <TableHead>Danh Mục</TableHead>
+                <TableHead>Giá</TableHead>
+                <TableHead>Tồn Kho</TableHead>
+                <TableHead>Trạng Thái</TableHead>
+                <TableHead className="text-right">Thao Tác</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center">Loading...</TableCell>
+                  <TableCell colSpan={6} className="text-center">Đang tải...</TableCell>
                 </TableRow>
               ) : !products || products.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center">No products found</TableCell>
+                  <TableCell colSpan={6} className="text-center">Không tìm thấy sản phẩm</TableCell>
                 </TableRow>
               ) : (
                 products.map((product) => (
@@ -429,9 +506,21 @@ export const AdminProductManagement: React.FC = () => {
                       <div>{product.name}</div>
                     </TableCell>
                     <TableCell>{typeof product.category === 'object' ? product.category?.name : product.category || '-'}</TableCell>
-                    <TableCell>${Number(product.price).toFixed(2)}</TableCell>
-                    <TableCell>{product.stockQuantity || '-'}</TableCell>
-                    <TableCell>{getStatusBadge(product.status)}</TableCell>
+                    <TableCell>{formatPrice(Number(product.price))}</TableCell>
+                    <TableCell>
+                      {loadingInventory ? (
+                        <span className="text-muted-foreground text-sm">Đang tải...</span>
+                      ) : (
+                        <Badge variant={
+                          inventoryMap[product.id] === undefined ? 'secondary' :
+                          inventoryMap[product.id] === 0 ? 'destructive' :
+                          inventoryMap[product.id] < 10 ? 'outline' : 'default'
+                        }>
+                          {inventoryMap[product.id] !== undefined ? inventoryMap[product.id] : product.stockQuantity || 0}
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>{getStockStatusBadge(product.id)}</TableCell>
                     <TableCell className="text-right">
                       <Button
                         variant="ghost"
@@ -465,7 +554,7 @@ export const AdminProductManagement: React.FC = () => {
         {/* Pagination */}
         <div className="flex justify-between items-center mt-4">
           <p className="text-sm text-muted-foreground">
-            Showing {products?.length || 0} of {pagination.total} products
+            Hiển thị {products?.length || 0} / {pagination.total} sản phẩm
           </p>
           <div className="flex gap-2">
             <Button
@@ -474,15 +563,15 @@ export const AdminProductManagement: React.FC = () => {
               disabled={pagination.page === 1}
               onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
             >
-              Previous
+              Trước
             </Button>
             <Button
               variant="outline"
               size="sm"
-              disabled={pagination.page * pagination.limit >= pagination.total}
+              disabled={pagination.page >= Math.ceil(pagination.total / pagination.limit)}
               onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
             >
-              Next
+              Sau
             </Button>
           </div>
         </div>
@@ -502,7 +591,7 @@ export const AdminProductManagement: React.FC = () => {
           <form onSubmit={handleSubmit}>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="name">Product Name *</Label>
+                <Label htmlFor="name">Tên Sản Phẩm *</Label>
                 <Input
                   id="name"
                   value={formData.name}
@@ -512,30 +601,30 @@ export const AdminProductManagement: React.FC = () => {
               </div>
               
               <div>
-                <Label htmlFor="sku">SKU *</Label>
+                <Label htmlFor="sku">Mã SKU *</Label>
                 <Input
                   id="sku"
                   value={formData.sku}
                   onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                  placeholder="Product SKU"
+                  placeholder="Mã sản phẩm"
                   required
                   disabled={!!editingProduct}
                 />
               </div>
 
               <div>
-                <Label htmlFor="brand">Brand</Label>
+                <Label htmlFor="brand">Thương Hiệu</Label>
                 <Input
                   id="brand"
                   value={formData.brand}
                   onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
-                  placeholder="Product brand"
+                  placeholder="Thương hiệu sản phẩm"
                   disabled={!!editingProduct}
                 />
               </div>
 
               <div>
-                <Label htmlFor="description">Description</Label>
+                <Label htmlFor="description">Mô Tả</Label>
                 <Textarea
                   id="description"
                   value={formData.description}
@@ -545,7 +634,7 @@ export const AdminProductManagement: React.FC = () => {
               </div>
 
               <div>
-                <Label htmlFor="type">Product Type *</Label>
+                <Label htmlFor="type">Loại Sản Phẩm *</Label>
                 <Select
                   value={formData.type}
                   onValueChange={(value: 'FRAME' | 'LENS' | 'ACCESSORY') => {
@@ -561,17 +650,17 @@ export const AdminProductManagement: React.FC = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="FRAME">Frame (Gọng kính)</SelectItem>
-                    <SelectItem value="LENS">Lens (Tròng kính)</SelectItem>
-                    <SelectItem value="ACCESSORY">Accessory (Phụ kiện)</SelectItem>
+                    <SelectItem value="FRAME">Gọng Kính</SelectItem>
+                    <SelectItem value="LENS">Tròng Kính</SelectItem>
+                    <SelectItem value="ACCESSORY">Phụ Kiện</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground mt-1">Category will be auto-assigned: {formData.categoryId}</p>
+                <p className="text-xs text-muted-foreground mt-1">Danh mục sẽ được gán tự động: {formData.categoryId}</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="price">Price *</Label>
+                  <Label htmlFor="price">Giá *</Label>
                   <Input
                     id="price"
                     type="number"
@@ -583,7 +672,7 @@ export const AdminProductManagement: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="leadTimeDays">Lead Time (Days) {formData.isPreorder && '*'}</Label>
+                  <Label htmlFor="leadTimeDays">Thời Gian Chờ (Ngày) {formData.isPreorder && '*'}</Label>
                   <Input
                     id="leadTimeDays"
                     type="number"
@@ -592,10 +681,10 @@ export const AdminProductManagement: React.FC = () => {
                     onChange={(e) => setFormData({ ...formData, leadTimeDays: parseInt(e.target.value) || undefined })}
                     disabled={!formData.isPreorder}
                     required={formData.isPreorder}
-                    placeholder={formData.isPreorder ? "Days" : "N/A"}
+                    placeholder={formData.isPreorder ? "Ngày" : "Không áp dụng"}
                   />
                   {formData.isPreorder && (
-                    <p className="text-xs text-muted-foreground mt-1">Must be at least 1 day</p>
+                    <p className="text-xs text-muted-foreground mt-1">Ít nhất 1 ngày</p>
                   )}
                 </div>
               </div>
@@ -616,24 +705,24 @@ export const AdminProductManagement: React.FC = () => {
                   className="h-4 w-4"
                 />
                 <Label htmlFor="isPreorder" className="cursor-pointer">
-                  This is a pre-order product
+                  Đây là sản phẩm đặt trước
                 </Label>
               </div>
 
               {/* Product Images */}
               <div className={!editingProduct ? 'p-3 border-2 border-dashed rounded-lg border-orange-200 bg-orange-50/30' : ''}>
                 <div className="flex items-center justify-between mb-2">
-                  <Label>Product Images (1-5 images) {!editingProduct && <span className="text-red-500">*</span>}</Label>
+                  <Label>Hình Ảnh Sản Phẩm (1-5 ảnh) {!editingProduct && <span className="text-red-500">*</span>}</Label>
                   {formImageFiles.length > 0 && (
                     <Badge variant="default" className="bg-green-500">
-                      {formImageFiles.length} image{formImageFiles.length > 1 ? 's' : ''} selected
+                      {formImageFiles.length} ảnh đã chọn
                     </Badge>
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground mb-2">
                   {!editingProduct 
-                    ? 'Required: Upload 1-5 images for new product. Maximum 5MB each.' 
-                    : 'Optional: Upload additional images. Maximum 5 images, 5MB each.'}
+                    ? 'Bắt buộc: Tải lên 1-5 ảnh cho sản phẩm mới. Tối đa 5MB mỗi ảnh.' 
+                    : 'Tùy chọn: Tải thêm ảnh. Tối đa 5 ảnh, 5MB mỗi ảnh.'}
                 </p>
                 <ImageUploader
                   images={formImageFiles}
@@ -649,10 +738,10 @@ export const AdminProductManagement: React.FC = () => {
             </div>
             <DialogFooter className="mt-6">
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Cancel
+                Hủy
               </Button>
               <Button type="submit" disabled={loading}>
-                {loading ? 'Saving...' : editingProduct ? 'Update' : 'Create'}
+                {loading ? 'Đang lưu...' : editingProduct ? 'Cập Nhật' : 'Tạo Mới'}
               </Button>
             </DialogFooter>
           </form>
@@ -670,23 +759,23 @@ export const AdminProductManagement: React.FC = () => {
       }}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Images for {selectedProductForImages?.name}</DialogTitle>
-            <DialogDescription>Upload and manage images for this product.</DialogDescription>
+            <DialogTitle>Hình ảnh - {selectedProductForImages?.name}</DialogTitle>
+            <DialogDescription>Tải lên và quản lý hình ảnh cho sản phẩm này.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 mt-4">
             <div className="flex items-center gap-2">
               <input type="file" multiple accept="image/*" onChange={handleFilesChange} />
               <Button onClick={handleUploadImages} disabled={imageFiles.length === 0 || imagesLoading}>
-                <UploadCloud className="h-4 w-4 mr-2" /> Upload
+                <UploadCloud className="h-4 w-4 mr-2" /> Tải Lên
               </Button>
-              {imageFiles.length > 0 && <span className="text-sm text-muted-foreground">{imageFiles.length} file(s) selected</span>}
+              {imageFiles.length > 0 && <span className="text-sm text-muted-foreground">{imageFiles.length} tệp đã chọn</span>}
             </div>
 
             {imagesLoading ? (
-              <div>Loading images...</div>
+              <div>Đang tải hình ảnh...</div>
             ) : selectedProductImages.length === 0 ? (
-              <div className="text-sm text-muted-foreground">No images uploaded yet.</div>
+              <div className="text-sm text-muted-foreground">Chưa có hình ảnh nào được tải lên.</div>
             ) : (
               <div className="grid grid-cols-4 gap-4">
                 {selectedProductImages.map(img => (
@@ -697,11 +786,11 @@ export const AdminProductManagement: React.FC = () => {
                       alt="product"
                       onError={(e) => {
                         console.error('❌ Image failed to load:', img.imageUrl);
-                        e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23ddd" width="100" height="100"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3ENo Image%3C/text%3E%3C/svg%3E';
+                        e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23ddd" width="100" height="100"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3EKhông có ảnh%3C/text%3E%3C/svg%3E';
                       }}
                     />
                     <div className="flex items-center gap-2 mt-2">
-                      {img.isPrimary && <Badge>Primary</Badge>}
+                      {img.isPrimary && <Badge>Ảnh Chính</Badge>}
                       {!img.isPrimary && <Button size="sm" onClick={() => handleSetPrimaryImage(img.id)}><Star className="h-4 w-4" /></Button>}
                       <Button variant="ghost" size="icon" onClick={() => handleDeleteImage(img.id)}><Trash2 className="h-4 w-4" /></Button>
                     </div>

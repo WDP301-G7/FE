@@ -12,6 +12,7 @@ import {
   RetweetOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  CrownOutlined,
 } from "@ant-design/icons";
 import type { MenuProps } from "antd";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -102,6 +103,11 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
           key: "/admin/users",
           icon: <TeamOutlined />,
           label: "Quản Lý Người Dùng",
+        },
+        {
+          key: "/admin/membership",
+          icon: <CrownOutlined />,
+          label: "Quản Lý Membership",
         },
         {
           key: "/admin/systems",

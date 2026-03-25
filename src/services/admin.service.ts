@@ -63,37 +63,55 @@ export interface PaginatedUsers {
 export interface MembershipTier {
   id: string;
   name: string;
-  minSpending: number;
-  maxSpending?: number | null;
+  minSpend: number;
+  maxSpend?: number | null;
   discountPercent: number;
+  warrantyMonths: number; // Thời hạn bảo hành (tháng)
+  returnDays: number; // Thời hạn trả hàng (ngày)
+  exchangeDays: number; // Thời hạn đổi hàng (ngày)
   description?: string;
   benefits?: string[];
   color?: string; // For UI display
-  icon?: string; // For UI display
+  icon?: string; // For UI display (🥉 🥈 🥇)
+  sortOrder?: number; // Thứ tự hiển thị
+  periodDays?: number; // Số ngày 1 kỳ đánh giá
   createdAt?: string;
   updatedAt?: string;
+  _count?: {
+    users: number;
+  };
 }
 
 export interface CreateMembershipTierPayload {
   name: string;
-  minSpending: number;
-  maxSpending?: number | null;
+  minSpend: number;
+  maxSpend?: number | null;
   discountPercent: number;
+  warrantyMonths: number;
+  returnDays: number;
+  exchangeDays: number;
   description?: string;
   benefits?: string[];
   color?: string;
   icon?: string;
+  sortOrder?: number;
+  periodDays?: number;
 }
 
 export interface UpdateMembershipTierPayload {
   name?: string;
-  minSpending?: number;
-  maxSpending?: number | null;
+  minSpend?: number;
+  maxSpend?: number | null;
   discountPercent?: number;
+  warrantyMonths?: number;
+  returnDays?: number;
+  exchangeDays?: number;
   description?: string;
   benefits?: string[];
   color?: string;
   icon?: string;
+  sortOrder?: number;
+  periodDays?: number;
 }
 
 export interface UserMembership {
@@ -226,7 +244,12 @@ class AdminService {
 
   /** Get user's points history */
   async getUserPointsHistory(userId: string, params?: { page?: number; limit?: number }): Promise<PaginatedPointsHistory> {
-    const response = await api.get<{ data: PaginatedPointsHistory }>(`/users/${userId}/membership/points-history`, { params });
+    const response = await api.get<{ data: PaginatedPointsHistory }>(`/membership/history`, { 
+      params: { 
+        ...params, 
+        userId 
+      } 
+    });
     return response.data.data;
   }
 }

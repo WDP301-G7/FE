@@ -18,6 +18,7 @@ import AdminUsersManagement from "@/pages/dashboards/admin-components/AdminUsers
 import AdminSystemsManagement from "@/pages/dashboards/admin-components/AdminSystemsManagement";
 import { AdminProductManagement } from "@/pages/dashboards/admin-components/AdminProductManagement";
 import { AdminReviews } from "@/pages/dashboards/admin-components/AdminReviews";
+import AdminMembershipManagement from "@/pages/dashboards/admin-components/AdminMembershipManagement";
 import UserProfilePage from "@/pages/UserProfilePage";
 
 
@@ -64,7 +65,8 @@ const App = () => (
                 <Route path="admin/products" element={<AdminProductManagement />} />
                 <Route path="admin/reviews" element={<AdminReviews />} />
                 <Route path="admin/stores" element={<AdminStores />} />
-                 <Route path="admin/inventory" element={<AdminInventoryManagement />} />
+                <Route path="admin/inventory" element={<AdminInventoryManagement />} />
+                <Route path="admin/membership" element={<AdminMembershipManagement />} />
                 
               
                 
