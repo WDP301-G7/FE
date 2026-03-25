@@ -419,6 +419,28 @@ export const AdminProductManagement: React.FC = () => {
     return <Badge variant={variants[status] || 'default'}>{labels[status] || status}</Badge>;
   };
 
+  // Get stock status based on inventory (similar to AdminInventoryManagement)
+  const getStockStatusBadge = (productId: string) => {
+    if (loadingInventory) {
+      return <Badge variant="secondary">Đang tải...</Badge>;
+    }
+    
+    const available = inventoryMap[productId] !== undefined ? inventoryMap[productId] : 0;
+    
+    if (available === 0) {
+      return <Badge variant="destructive" className="bg-red-500 text-white">Hết hàng</Badge>;
+    }
+    if (available <= 5) {
+      return <Badge variant="outline" className="border-orange-500 text-orange-600 bg-orange-50">Còn ít</Badge>;
+    }
+    return <Badge variant="default" className="bg-green-500 text-white">Bình thường</Badge>;
+  };
+
+  // Format price to Vietnamese Dong with comma separators
+  const formatPrice = (price: number): string => {
+    return new Intl.NumberFormat('vi-VN').format(price) + ' VNĐ';
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -484,7 +506,7 @@ export const AdminProductManagement: React.FC = () => {
                       <div>{product.name}</div>
                     </TableCell>
                     <TableCell>{typeof product.category === 'object' ? product.category?.name : product.category || '-'}</TableCell>
-                    <TableCell>${Number(product.price).toFixed(2)}</TableCell>
+                    <TableCell>{formatPrice(Number(product.price))}</TableCell>
                     <TableCell>
                       {loadingInventory ? (
                         <span className="text-muted-foreground text-sm">Đang tải...</span>
@@ -498,7 +520,7 @@ export const AdminProductManagement: React.FC = () => {
                         </Badge>
                       )}
                     </TableCell>
-                    <TableCell>{getStatusBadge(product.status)}</TableCell>
+                    <TableCell>{getStockStatusBadge(product.id)}</TableCell>
                     <TableCell className="text-right">
                       <Button
                         variant="ghost"

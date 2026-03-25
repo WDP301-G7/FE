@@ -244,7 +244,12 @@ class AdminService {
 
   /** Get user's points history */
   async getUserPointsHistory(userId: string, params?: { page?: number; limit?: number }): Promise<PaginatedPointsHistory> {
-    const response = await api.get<{ data: PaginatedPointsHistory }>(`/users/${userId}/membership/points-history`, { params });
+    const response = await api.get<{ data: PaginatedPointsHistory }>(`/membership/history`, { 
+      params: { 
+        ...params, 
+        userId 
+      } 
+    });
     return response.data.data;
   }
 }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { returnService, ReturnRequest } from '@/services/return.service';
+import { productService } from '@/services/product.service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +16,30 @@ import { ImageUploader, ImageGallery } from '@/components/ImageUploader';
 import { motion } from 'framer-motion';
 import { Separator } from '@/components/ui/separator';
 
+// Helper function to get full image URL
+const getFullImageUrl = (url: string | undefined | null): string => {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+  const baseUrl = apiUrl.replace('/api', '');
+  const path = url.startsWith('/') ? url : `/${url}`;
+  return `${baseUrl}${path}`;
+};
+
+// Helper function to format number with thousand separators
+const formatNumberInput = (value: string): string => {
+  // Remove all non-digit characters
+  const numbers = value.replace(/\D/g, '');
+  if (!numbers) return '';
+  // Add thousand separators
+  return numbers.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+};
+
+// Helper function to parse formatted number back to plain number
+const parseFormattedNumber = (value: string): string => {
+  return value.replace(/,/g, '');
+};
+
 export const ReturnManagement: React.FC = () => {
   const { toast } = useToast();
   const [returns, setReturns] = useState<ReturnRequest[]>([]);
@@ -26,9 +51,13 @@ export const ReturnManagement: React.FC = () => {
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0 });
 
+  // Product images cache
+  const [productImages, setProductImages] = useState<Record<string, string>>({});
+
   // Complete form state
   const [uploadImages, setUploadImages] = useState<File[]>([]);
-  const [refundAmount, setRefundAmount] = useState('');
+  const [refundAmount, setRefundAmount] = useState(''); // Suggested/calculated amount
+  const [finalAmount, setFinalAmount] = useState(''); // Actual transaction amount
   const [refundMethod, setRefundMethod] = useState<'BANK_TRANSFER' | 'CASH'>('CASH');
   const [completionNote, setCompletionNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -73,13 +102,19 @@ export const ReturnManagement: React.FC = () => {
     }
   };
 
-  const handleViewDetails = (returnRequest: ReturnRequest) => {
+  const handleViewDetails = async (returnRequest: ReturnRequest) => {
     setSelectedReturn(returnRequest);
     setIsDetailDialogOpen(true);
+    
+    // Load product images for return items
+    await loadReturnProductImages(returnRequest);
   };
 
-  const handleOpenComplete = (returnRequest: ReturnRequest) => {
+  const handleOpenComplete = async (returnRequest: ReturnRequest) => {
     setSelectedReturn(returnRequest);
+    
+    // Load product images for return items
+    await loadReturnProductImages(returnRequest);
     
     // Pre-fill refund amount for RETURN type
     if (returnRequest.type === 'RETURN' && returnRequest.refundAmount) {
@@ -112,34 +147,31 @@ export const ReturnManagement: React.FC = () => {
     setRefundMethod('CASH');
     setCompletionNote('');
     setUploadImages([]);
+    setFinalAmount(''); // Reset final amount
     setIsCompleteDialogOpen(true);
   };
 
   const handleCompleteReturn = async () => {
     if (!selectedReturn) return;
 
-    // Validate for RETURN type
-    if (selectedReturn.type === 'RETURN') {
-      if (!refundAmount || parseFloat(refundAmount) <= 0) {
-        toast({
-          title: 'Lỗi',
-          description: 'Vui lòng nhập số tiền hoàn',
-          variant: 'destructive',
-        });
-        return;
-      }
+    // Validate final amount is provided
+    if (!finalAmount || finalAmount.trim() === '') {
+      toast({
+        title: 'Lỗi',
+        description: 'Vui lòng nhập số tiền thực tế',
+        variant: 'destructive',
+      });
+      return;
     }
-    
-    // Validate for EXCHANGE type
-    if (selectedReturn.type === 'EXCHANGE') {
-      if (!refundAmount) {
-        toast({
-          title: 'Lỗi',
-          description: 'Không thể tính toán chênh lệch giá',
-          variant: 'destructive',
-        });
-        return;
-      }
+
+    const finalAmountValue = parseFloat(finalAmount);
+    if (isNaN(finalAmountValue) || finalAmountValue < 0) {
+      toast({
+        title: 'Lỗi',
+        description: 'Số tiền không hợp lệ',
+        variant: 'destructive',
+      });
+      return;
     }
 
     setSubmitting(true);
@@ -150,12 +182,15 @@ export const ReturnManagement: React.FC = () => {
       }
 
       // Complete the return
-      const amount = parseFloat(refundAmount);
+      const finalAmountValue = parseFloat(finalAmount);
+      const calculatedAmount = parseFloat(refundAmount || '0');
+      
       await returnService.completeReturn(selectedReturn.id, {
-        refundAmount: selectedReturn.type === 'RETURN' || (selectedReturn.type === 'EXCHANGE' && amount < 0) 
-          ? Math.abs(amount) 
+        finalAmount: finalAmountValue,
+        refundAmount: selectedReturn.type === 'RETURN' || (selectedReturn.type === 'EXCHANGE' && calculatedAmount < 0) 
+          ? finalAmountValue 
           : undefined,
-        refundMethod: selectedReturn.type === 'RETURN' || (selectedReturn.type === 'EXCHANGE' && amount < 0)
+        refundMethod: selectedReturn.type === 'RETURN' || (selectedReturn.type === 'EXCHANGE' && calculatedAmount < 0)
           ? refundMethod 
           : undefined,
         completionNote: completionNote || undefined,
@@ -181,6 +216,46 @@ export const ReturnManagement: React.FC = () => {
       });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Load product images for return request items
+  const loadReturnProductImages = async (returnRequest: ReturnRequest) => {
+    const items = getReturnItems(returnRequest);
+    const newImageCache: Record<string, string> = {};
+    
+    try {
+      const productIds = new Set<string>();
+      
+      // Collect all product IDs (original and exchange products)
+      items.forEach((item: any) => {
+        if (item.product?.id || item.productId) {
+          productIds.add(item.product?.id || item.productId);
+        }
+        if (item.exchangeProduct?.id) {
+          productIds.add(item.exchangeProduct.id);
+        }
+      });
+      
+      // Fetch product details for all products
+      const productPromises = Array.from(productIds).map(async (productId) => {
+        try {
+          const product = await productService.getProduct(productId);
+          if (product.images && product.images.length > 0) {
+            const firstImage = product.images[0];
+            const imageUrl = firstImage.imageUrl || (firstImage as any).url;
+            newImageCache[productId] = imageUrl;
+          }
+        } catch (err) {
+          console.log('Failed to fetch product images for:', productId);
+        }
+      });
+      
+      await Promise.all(productPromises);
+      setProductImages(prevCache => ({ ...prevCache, ...newImageCache }));
+      console.log('🖼️ Loaded product images:', newImageCache);
+    } catch (error) {
+      console.log('Error loading product images:', error);
     }
   };
 
@@ -523,48 +598,94 @@ export const ReturnManagement: React.FC = () => {
                     <div className="space-y-3">
                       {getReturnItems(selectedReturn)
                         .filter((item: any) => item && item.product)
-                        .map((item: any, index: number) => (
-                        <div key={item.id || index} className="flex items-center gap-4 p-4 border rounded-lg bg-card">
-                          {item.product?.images && item.product.images[0] && (
-                            <img
-                              src={item.product.images[0].imageUrl}
-                              alt={item.product.name}
-                              className="w-20 h-20 object-cover rounded border"
-                            />
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <p className="font-semibold">{item.product?.name || 'N/A'}</p>
-                            <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-                              <span>SL: {item.quantity}</span>
-                              <span>•</span>
-                              <span>Tình trạng: {item.condition || 'N/A'}</span>
-                            </div>
-                            <p className="text-sm font-medium mt-1">
-                              {item.product?.price ? formatCurrency(parseFloat(item.product.price)) : 'N/A'}
-                            </p>
-                          </div>
-                          {item.exchangeProduct && (
-                            <>
-                              <ArrowRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                              <div className="flex items-center gap-3">
-                                {item.exchangeProduct.images && item.exchangeProduct.images[0] && (
-                                  <img
-                                    src={item.exchangeProduct.images[0].imageUrl}
-                                    alt={item.exchangeProduct.name}
-                                    className="w-16 h-16 object-cover rounded border"
-                                  />
-                                )}
-                                <div>
-                                  <p className="font-medium text-sm">{item.exchangeProduct.name}</p>
-                                  <p className="text-sm text-primary font-semibold">
-                                    {formatCurrency(parseFloat(item.exchangeProduct.price))}
+                        .map((item: any, index: number) => {
+                          // Get image URLs from cache
+                          const productId = item.product?.id || item.productId;
+                          const exchangeProductId = item.exchangeProduct?.id;
+                          
+                          let productImageUrl = '';
+                          if (productId && productImages[productId]) {
+                            productImageUrl = getFullImageUrl(productImages[productId]);
+                          }
+                          
+                          let exchangeImageUrl = '';
+                          if (exchangeProductId && productImages[exchangeProductId]) {
+                            exchangeImageUrl = getFullImageUrl(productImages[exchangeProductId]);
+                          }
+                          
+                          return (
+                            <div key={item.id || index} className="flex items-center gap-4 p-4 border rounded-lg bg-card">
+                              {/* Original Product */}
+                              <div className="flex items-center gap-3 flex-1">
+                                {/* Product Image */}
+                                <div className="w-20 h-20 rounded border bg-gray-100 flex items-center justify-center flex-shrink-0">
+                                  {productImageUrl ? (
+                                    <img
+                                      src={productImageUrl}
+                                      alt={item.product.name}
+                                      className="w-full h-full object-cover rounded"
+                                      onError={(e) => {
+                                        (e.target as HTMLImageElement).style.display = 'none';
+                                        (e.target as HTMLImageElement).parentElement!.innerHTML = '<svg class="h-10 w-10 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>';
+                                      }}
+                                    />
+                                  ) : (
+                                    <Package2 className="h-10 w-10 text-muted-foreground" />
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-semibold">{item.product?.name || 'N/A'}</p>
+                                  <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+                                    <span>SL: {item.quantity || 1}</span>
+                                    <span>•</span>
+                                    <span>Tình trạng: {item.condition || 'N/A'}</span>
+                                  </div>
+                                  <p className="text-sm font-medium mt-1">
+                                    {item.product?.price ? formatCurrency(parseFloat(item.product.price)) : 'N/A'}
                                   </p>
                                 </div>
                               </div>
-                            </>
-                          )}
-                        </div>
-                      ))}
+                              
+                              {/* Arrow - Only show for EXCHANGE */}
+                              {item.exchangeProduct && (
+                                <div className="flex items-center justify-center px-2">
+                                  <ArrowRight className="h-6 w-6 text-primary flex-shrink-0" />
+                                </div>
+                              )}
+                              
+                              {/* Exchange Product - Only show for EXCHANGE */}
+                              {item.exchangeProduct && (
+                                <div className="flex items-center gap-3 flex-1">
+                                  {/* Exchange Product Image */}
+                                  <div className="w-20 h-20 rounded border bg-gray-100 flex items-center justify-center flex-shrink-0">
+                                    {exchangeImageUrl ? (
+                                      <img
+                                        src={exchangeImageUrl}
+                                        alt={item.exchangeProduct.name}
+                                        className="w-full h-full object-cover rounded"
+                                        onError={(e) => {
+                                          (e.target as HTMLImageElement).style.display = 'none';
+                                          (e.target as HTMLImageElement).parentElement!.innerHTML = '<svg class="h-10 w-10 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>';
+                                        }}
+                                      />
+                                    ) : (
+                                      <Package2 className="h-10 w-10 text-muted-foreground" />
+                                    )}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-semibold text-primary">{item.exchangeProduct.name}</p>
+                                    <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
+                                      <span>SL: {item.quantity || 1}</span>
+                                    </div>
+                                    <p className="text-sm text-primary font-semibold mt-1">
+                                      {formatCurrency(parseFloat(item.exchangeProduct.price))}
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                     </div>
                   </CardContent>
                 </Card>
@@ -601,7 +722,7 @@ export const ReturnManagement: React.FC = () => {
                             </p>
                             <p className="text-sm text-muted-foreground mt-1">
                               {selectedReturn.priceDifference > 0 
-                                ? '💰 Khách cần thanh toán thêm' 
+                                ? '💰 Giá dự kiến mà khách cần thanh toán thêm' 
                                 : '🔄 Khách dự kiến sẽ được hoàn lại'}
                             </p>
                           </div>
@@ -611,20 +732,32 @@ export const ReturnManagement: React.FC = () => {
                   </Card>
                 )}
 
-                {/* Customer Images Card */}
-                {selectedReturn.images && selectedReturn.images.length > 0 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <ImageIcon className="h-5 w-5" />
-                        Hình ảnh chứng minh từ khách hàng
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ImageGallery images={selectedReturn.images.filter(img => img.imageType === 'CUSTOMER_PROOF')} />
-                    </CardContent>
-                  </Card>
-                )}
+                {/* Customer Images Card */}                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <ImageIcon className="h-5 w-5" />
+                      Hình ảnh chứng minh từ khách hàng
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {(() => {
+                      const customerImages = selectedReturn.images?.filter(
+                        img => img.imageType === 'CUSTOMER_PRODUCT' || img.imageType === 'CUSTOMER_DEFECT'
+                      ) || [];
+                      
+                      if (customerImages.length === 0) {
+                        return (
+                          <div className="text-center py-8 text-muted-foreground">
+                            <ImageIcon className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                            <p className="text-sm">Khách hàng không cung cấp hình ảnh</p>
+                          </div>
+                        );
+                      }
+                      
+                      return <ImageGallery images={customerImages} />;
+                    })()}
+                  </CardContent>
+                </Card>
               </div>
             )}
           </div>
@@ -674,24 +807,40 @@ export const ReturnManagement: React.FC = () => {
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div>
-                        <Label htmlFor="refundAmount" className="flex items-center gap-2">
+                        <Label className="flex items-center gap-2">
                           <DollarSign className="h-4 w-4" />
-                          Số tiền hoàn *
+                          Số tiền hoàn dự kiến
+                        </Label>
+                        <div className="mt-1.5 p-3 border rounded-lg bg-muted/30">
+                          <p className="text-2xl font-bold text-foreground">
+                            {formatCurrency(parseFloat(refundAmount || '0'))}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            💡 Số tiền được tính tự động
+                          </p>
+                        </div>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="finalAmount" className="flex items-center gap-2">
+                          <DollarSign className="h-4 w-4 text-orange-500" />
+                          Số tiền thực tế hoàn lại cho khách *
                         </Label>
                         <Input
-                          id="refundAmount"
-                          type="number"
-                          placeholder="Nhập số tiền hoàn"
-                          value={refundAmount}
-                          onChange={(e) => setRefundAmount(e.target.value)}
+                          id="finalAmount"
+                          type="text"
+                          placeholder="Nhập số tiền thực tế đã hoàn lại"
+                          value={formatNumberInput(finalAmount)}
+                          onChange={(e) => {
+                            const parsed = parseFormattedNumber(e.target.value);
+                            setFinalAmount(parsed);
+                          }}
                           disabled={submitting}
-                          className="mt-1.5"
+                          className="mt-1.5 border-orange-500/50 focus:border-orange-500"
                         />
-                        {selectedReturn.refundAmount && (
-                          <p className="text-sm text-muted-foreground mt-1.5">
-                            💡 Đề xuất: <span className="font-medium text-foreground">{formatCurrency(selectedReturn.refundAmount)}</span>
-                          </p>
-                        )}
+                        <p className="text-xs text-muted-foreground mt-1.5">
+                          ⚠️ Nhập số tiền thực tế đã hoàn lại cho khách hàng (có thể khác với số tiền dự kiến)
+                        </p>
                       </div>
 
                       <div>
@@ -724,35 +873,69 @@ export const ReturnManagement: React.FC = () => {
                     <CardHeader>
                       <CardTitle className="text-lg flex items-center gap-2">
                         <DollarSign className="h-5 w-5" />
-                        Giá dự kiến chênh lệch khi đổi hàng
+                        Chênh lệch giá khi đổi hàng
                       </CardTitle>
                       <CardDescription>
-                        {parseFloat(refundAmount) < 0 && '✓ Không có chênh lệch'}
-                        {parseFloat(refundAmount) === 0 && '✓ Khách được hoàn lại'}
+                        {parseFloat(refundAmount) < 0 && 'Khách được hoàn lại'}
+                        {parseFloat(refundAmount) === 0 && '✓ Không có chênh lệch'}
                         {parseFloat(refundAmount) > 0 && 'Khách cần thanh toán thêm'}
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      <div className="flex items-center justify-between p-4 border rounded-lg bg-card">
-                        <div>
-                          <p className={`text-3xl font-bold ${
-                            parseFloat(refundAmount) < 0 
-                              ? 'text-green-700 dark:text-green-400' 
-                              : parseFloat(refundAmount) > 0 
-                              ? 'text-orange-700 dark:text-orange-400' 
-                              : 'text-muted-foreground'
-                          }`}>
-                            {parseFloat(refundAmount) < 0 ? '-' : parseFloat(refundAmount) > 0 ? '+' : ''}
-                            {formatCurrency(Math.abs(parseFloat(refundAmount) || 0))}
-                          </p>
-                          <p className="text-sm text-muted-foreground mt-2">
-                            {parseFloat(refundAmount) < 0 
-                              ? '🔄 Hoàn tiền cho khách hàng' 
-                              : parseFloat(refundAmount) > 0 
-                              ? '💰 Khách cần thanh toán thêm'
-                              : '✓ Không có chênh lệch'}
-                          </p>
+                      <div>
+                        <div className="flex items-center justify-between p-4 mt-1.5 border rounded-lg bg-card">
+                          <div>
+                            <p className={`text-3xl font-bold ${
+                              parseFloat(refundAmount) < 0 
+                                ? 'text-green-700 dark:text-green-400' 
+                                : parseFloat(refundAmount) > 0 
+                                ? 'text-orange-700 dark:text-orange-400' 
+                                : 'text-muted-foreground'
+                            }`}>
+                              {parseFloat(refundAmount) < 0 ? '-' : parseFloat(refundAmount) > 0 ? '+' : ''}
+                              {formatCurrency(Math.abs(parseFloat(refundAmount) || 0))}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-2">
+                              {parseFloat(refundAmount) < 0 
+                                ? '🔄 Hoàn tiền cho khách hàng' 
+                                : parseFloat(refundAmount) > 0 
+                                ? '💰 Giá dự kiến mà khách cần thanh toán thêm'
+                                : '✓ Không có chênh lệch'}
+                            </p>
+                          </div>
                         </div>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="finalAmount" className="flex items-center gap-2">
+                          <DollarSign className={`h-4 w-4 ${parseFloat(refundAmount) < 0 ? 'text-green-500' : 'text-orange-500'}`} />
+                          {parseFloat(refundAmount) < 0 
+                            ? 'Số tiền thực tế hoàn lại cho khách *' 
+                            : parseFloat(refundAmount) > 0
+                            ? 'Số tiền thực tế khách cần thanh toán thêm *'
+                            : 'Số tiền thực tế *'}
+                        </Label>
+                        <Input
+                          id="finalAmount"
+                          type="text"
+                          placeholder={
+                            parseFloat(refundAmount) < 0 
+                              ? 'Nhập số tiền thực tế đã hoàn lại' 
+                              : parseFloat(refundAmount) > 0
+                              ? 'Nhập số tiền thực tế khách đã thanh toán thêm'
+                              : 'Nhập số tiền thực tế'
+                          }
+                          value={formatNumberInput(finalAmount)}
+                          onChange={(e) => {
+                            const parsed = parseFormattedNumber(e.target.value);
+                            setFinalAmount(parsed);
+                          }}
+                          disabled={submitting}
+                          className={`mt-1.5 ${parseFloat(refundAmount) < 0 ? 'border-green-500/50 focus:border-green-500' : parseFloat(refundAmount) > 0 ? 'border-orange-500/50 focus:border-orange-500' : ''}`}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1.5">
+                          ⚠️ Nhập số tiền thực tế (có thể khác với số tiền dự kiến do làm tròn, thương lượng, v.v.)
+                        </p>
                       </div>
                   
                       {parseFloat(refundAmount) < 0 && (
@@ -770,17 +953,6 @@ export const ReturnManagement: React.FC = () => {
                             </SelectContent>
                           </Select>
                         </div>
-                      )}
-                  
-                      {parseFloat(refundAmount) > 0 && (
-                        <Card className="border-blue-500/50 bg-blue-50/50 dark:bg-blue-950/10">
-                          <CardContent className="pt-4">
-                            <p className="text-sm text-blue-800 dark:text-blue-200 flex items-center gap-2">
-                              <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                              <span>Xác nhận đã thu thêm {formatCurrency(parseFloat(refundAmount))} từ khách hàng</span>
-                            </p>
-                          </CardContent>
-                        </Card>
                       )}
                     </CardContent>
                   </Card>

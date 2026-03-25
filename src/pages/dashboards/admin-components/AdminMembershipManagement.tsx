@@ -126,6 +126,9 @@ const AdminMembershipManagement: React.FC = () => {
     note: '',
   });
 
+  // Validation errors
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+
   // ============ AUTH CHECK ============
   if (!hasRole(['ADMIN'])) {
     return <Navigate to="/unauthorized" replace />;
@@ -172,12 +175,17 @@ const AdminMembershipManagement: React.FC = () => {
     try {
       const data = await adminService.getUserMembership(userId);
       setUserMembership(data);
-    } catch (error) {
+    } catch (error: any) {
+      const is404 = error?.response?.status === 404;
       toast({
         title: 'Lỗi',
-        description: 'Không thể tải thông tin membership của khách hàng',
+        description: is404 
+          ? '⚠️ Backend chưa implement API GET /users/:userId/membership. Vui lòng liên hệ Backend team để implement endpoint này.'
+          : error?.response?.data?.message || 'Không thể tải thông tin membership của khách hàng',
         variant: 'destructive',
       });
+      // Set null membership để UI biết là chưa có data
+      setUserMembership(null);
     }
   };
 
@@ -185,12 +193,17 @@ const AdminMembershipManagement: React.FC = () => {
     try {
       const data = await adminService.getUserPointsHistory(userId, { page: 1, limit: 50 });
       setPointsHistory(data.items || []);
-    } catch (error) {
-      toast({
-        title: 'Lỗi',
-        description: 'Không thể tải lịch sử điểm',
-        variant: 'destructive',
-      });
+    } catch (error: any) {
+      const is404 = error?.response?.status === 404;
+      // Chỉ show toast nếu không phải 404 (404 có thể là user chưa có history)
+      if (!is404) {
+        toast({
+          title: 'Lỗi',
+          description: error?.response?.data?.message || 'Không thể tải lịch sử điểm',
+          variant: 'destructive',
+        });
+      }
+      setPointsHistory([]);
     }
   };
 
@@ -263,8 +276,56 @@ const AdminMembershipManagement: React.FC = () => {
     fetchUsers();
   }, []);
 
+  // ============ VALIDATION ============
+  const validateTierForm = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    if (!tierFormData.name || tierFormData.name.trim() === '') {
+      errors.name = 'Tên hạng là bắt buộc';
+    }
+
+    if (!tierFormData.icon || tierFormData.icon.trim() === '') {
+      errors.icon = 'Icon là bắt buộc';
+    }
+
+    if (tierFormData.minSpend < 0) {
+      errors.minSpend = 'minSpend phải >= 0';
+    }
+
+    if (tierFormData.discountPercent < 0 || tierFormData.discountPercent > 100) {
+      errors.discountPercent = 'Discount phải từ 0-100%';
+    }
+
+    if (tierFormData.warrantyMonths < 0) {
+      errors.warrantyMonths = 'Bảo hành phải >= 0';
+    }
+
+    if (tierFormData.returnDays < 0) {
+      errors.returnDays = 'Trả hàng phải >= 0';
+    }
+
+    if (tierFormData.exchangeDays < 0) {
+      errors.exchangeDays = 'Đổi hàng phải >= 0';
+    }
+
+    if (!tierFormData.description || tierFormData.description.trim() === '') {
+      errors.description = 'Mô tả là bắt buộc';
+    }
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   // ============ TIER MANAGEMENT ============
   const handleCreateTier = async () => {
+    if (!validateTierForm()) {
+      toast({
+        title: 'Lỗi Validation',
+        description: 'Vui lòng điền đầy đủ thông tin bắt buộc',
+        variant: 'destructive',
+      });
+      return;
+    }
     try {
       setLoading(true);
       await adminService.createMembershipTier(tierFormData);
@@ -288,6 +349,14 @@ const AdminMembershipManagement: React.FC = () => {
 
   const handleUpdateTier = async () => {
     if (!selectedTier) return;
+    if (!validateTierForm()) {
+      toast({
+        title: 'Lỗi Validation',
+        description: 'Vui lòng điền đầy đủ thông tin bắt buộc',
+        variant: 'destructive',
+      });
+      return;
+    }
     try {
       setLoading(true);
       await adminService.updateMembershipTier(selectedTier.id, tierFormData as UpdateMembershipTierPayload);
@@ -334,6 +403,7 @@ const AdminMembershipManagement: React.FC = () => {
 
   const openEditTierDialog = (tier: MembershipTier) => {
     setSelectedTier(tier);
+    setValidationErrors({});
     setTierFormData({
       name: tier.name,
       minSpend: tier.minSpend,
@@ -789,18 +859,36 @@ const AdminMembershipManagement: React.FC = () => {
                 <Input
                   id="name"
                   value={tierFormData.name}
-                  onChange={(e) => setTierFormData({ ...tierFormData, name: e.target.value })}
+                  onChange={(e) => {
+                    setTierFormData({ ...tierFormData, name: e.target.value });
+                    if (validationErrors.name) {
+                      setValidationErrors({ ...validationErrors, name: '' });
+                    }
+                  }}
                   placeholder="VD: Bronze, Silver, Gold..."
+                  className={validationErrors.name ? 'border-red-500' : ''}
                 />
+                {validationErrors.name && (
+                  <p className="text-sm text-red-500">{validationErrors.name}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="icon">Icon *</Label>
                 <Input
                   id="icon"
                   value={tierFormData.icon}
-                  onChange={(e) => setTierFormData({ ...tierFormData, icon: e.target.value })}
+                  onChange={(e) => {
+                    setTierFormData({ ...tierFormData, icon: e.target.value });
+                    if (validationErrors.icon) {
+                      setValidationErrors({ ...validationErrors, icon: '' });
+                    }
+                  }}
                   placeholder="🥉 (Bronze) 🥈 (Silver) 🥇 (Gold)"
+                  className={validationErrors.icon ? 'border-red-500' : ''}
                 />
+                {validationErrors.icon && (
+                  <p className="text-sm text-red-500">{validationErrors.icon}</p>
+                )}
               </div>
             </div>
 
@@ -809,13 +897,21 @@ const AdminMembershipManagement: React.FC = () => {
                 <Label htmlFor="minSpending">minSpend (₫) *</Label>
                 <Input
                   id="minSpending"
-                  type="number"
-                  value={tierFormData.minSpend}
-                  onChange={(e) =>
-                    setTierFormData({ ...tierFormData, minSpend: Number(e.target.value) })
-                  }
-                  placeholder="VD: 0, 2000000, 10000000"
+                  type="text"
+                  value={tierFormData.minSpend === 0 ? '' : tierFormData.minSpend.toLocaleString('vi-VN')}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/[^0-9]/g, '');
+                    setTierFormData({ ...tierFormData, minSpend: value === '' ? 0 : Number(value) });
+                    if (validationErrors.minSpend) {
+                      setValidationErrors({ ...validationErrors, minSpend: '' });
+                    }
+                  }}
+                  placeholder="VD: 500,000"
+                  className={validationErrors.minSpend ? 'border-red-500' : ''}
                 />
+                {validationErrors.minSpend && (
+                  <p className="text-sm text-red-500">{validationErrors.minSpend}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="discountPercent">Discount (%) *</Label>
@@ -826,11 +922,18 @@ const AdminMembershipManagement: React.FC = () => {
                   max="100"
                   step="1"
                   value={tierFormData.discountPercent}
-                  onChange={(e) =>
-                    setTierFormData({ ...tierFormData, discountPercent: Number(e.target.value) })
-                  }
+                  onChange={(e) => {
+                    setTierFormData({ ...tierFormData, discountPercent: Number(e.target.value) });
+                    if (validationErrors.discountPercent) {
+                      setValidationErrors({ ...validationErrors, discountPercent: '' });
+                    }
+                  }}
                   placeholder="VD: 0, 5, 10"
+                  className={validationErrors.discountPercent ? 'border-red-500' : ''}
                 />
+                {validationErrors.discountPercent && (
+                  <p className="text-sm text-red-500">{validationErrors.discountPercent}</p>
+                )}
               </div>
             </div>
 
@@ -842,11 +945,18 @@ const AdminMembershipManagement: React.FC = () => {
                   type="number"
                   min="0"
                   value={tierFormData.warrantyMonths}
-                  onChange={(e) =>
-                    setTierFormData({ ...tierFormData, warrantyMonths: Number(e.target.value) })
-                  }
+                  onChange={(e) => {
+                    setTierFormData({ ...tierFormData, warrantyMonths: Number(e.target.value) });
+                    if (validationErrors.warrantyMonths) {
+                      setValidationErrors({ ...validationErrors, warrantyMonths: '' });
+                    }
+                  }}
                   placeholder="VD: 6, 9, 12"
+                  className={validationErrors.warrantyMonths ? 'border-red-500' : ''}
                 />
+                {validationErrors.warrantyMonths && (
+                  <p className="text-sm text-red-500">{validationErrors.warrantyMonths}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="returnDays">Trả hàng (ngày) *</Label>
@@ -855,11 +965,18 @@ const AdminMembershipManagement: React.FC = () => {
                   type="number"
                   min="0"
                   value={tierFormData.returnDays}
-                  onChange={(e) =>
-                    setTierFormData({ ...tierFormData, returnDays: Number(e.target.value) })
-                  }
+                  onChange={(e) => {
+                    setTierFormData({ ...tierFormData, returnDays: Number(e.target.value) });
+                    if (validationErrors.returnDays) {
+                      setValidationErrors({ ...validationErrors, returnDays: '' });
+                    }
+                  }}
                   placeholder="VD: 7, 10, 14"
+                  className={validationErrors.returnDays ? 'border-red-500' : ''}
                 />
+                {validationErrors.returnDays && (
+                  <p className="text-sm text-red-500">{validationErrors.returnDays}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="exchangeDays">Đổi hàng (ngày) *</Label>
@@ -868,23 +985,39 @@ const AdminMembershipManagement: React.FC = () => {
                   type="number"
                   min="0"
                   value={tierFormData.exchangeDays}
-                  onChange={(e) =>
-                    setTierFormData({ ...tierFormData, exchangeDays: Number(e.target.value) })
-                  }
+                  onChange={(e) => {
+                    setTierFormData({ ...tierFormData, exchangeDays: Number(e.target.value) });
+                    if (validationErrors.exchangeDays) {
+                      setValidationErrors({ ...validationErrors, exchangeDays: '' });
+                    }
+                  }}
                   placeholder="VD: 15, 22, 30"
+                  className={validationErrors.exchangeDays ? 'border-red-500' : ''}
                 />
+                {validationErrors.exchangeDays && (
+                  <p className="text-sm text-red-500">{validationErrors.exchangeDays}</p>
+                )}
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">Mô tả</Label>
+              <Label htmlFor="description">Mô tả *</Label>
               <Textarea
                 id="description"
                 value={tierFormData.description}
-                onChange={(e) => setTierFormData({ ...tierFormData, description: e.target.value })}
+                onChange={(e) => {
+                  setTierFormData({ ...tierFormData, description: e.target.value });
+                  if (validationErrors.description) {
+                    setValidationErrors({ ...validationErrors, description: '' });
+                  }
+                }}
                 placeholder="Mô tả về hạng thành viên này..."
                 rows={2}
+                className={validationErrors.description ? 'border-red-500' : ''}
               />
+              {validationErrors.description && (
+                <p className="text-sm text-red-500">{validationErrors.description}</p>
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -916,16 +1049,34 @@ const AdminMembershipManagement: React.FC = () => {
                 <Input
                   id="edit-name"
                   value={tierFormData.name}
-                  onChange={(e) => setTierFormData({ ...tierFormData, name: e.target.value })}
+                  onChange={(e) => {
+                    setTierFormData({ ...tierFormData, name: e.target.value });
+                    if (validationErrors.name) {
+                      setValidationErrors({ ...validationErrors, name: '' });
+                    }
+                  }}
+                  className={validationErrors.name ? 'border-red-500' : ''}
                 />
+                {validationErrors.name && (
+                  <p className="text-sm text-red-500">{validationErrors.name}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-icon">Icon *</Label>
                 <Input
                   id="edit-icon"
                   value={tierFormData.icon}
-                  onChange={(e) => setTierFormData({ ...tierFormData, icon: e.target.value })}
+                  onChange={(e) => {
+                    setTierFormData({ ...tierFormData, icon: e.target.value });
+                    if (validationErrors.icon) {
+                      setValidationErrors({ ...validationErrors, icon: '' });
+                    }
+                  }}
+                  className={validationErrors.icon ? 'border-red-500' : ''}
                 />
+                {validationErrors.icon && (
+                  <p className="text-sm text-red-500">{validationErrors.icon}</p>
+                )}
               </div>
             </div>
 
@@ -934,12 +1085,21 @@ const AdminMembershipManagement: React.FC = () => {
                 <Label htmlFor="edit-minSpending">minSpend (₫) *</Label>
                 <Input
                   id="edit-minSpending"
-                  type="number"
-                  value={tierFormData.minSpend}
-                  onChange={(e) =>
-                    setTierFormData({ ...tierFormData, minSpend: Number(e.target.value) })
-                  }
+                  type="text"
+                  value={tierFormData.minSpend === 0 ? '' : tierFormData.minSpend.toLocaleString('vi-VN')}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/[^0-9]/g, '');
+                    setTierFormData({ ...tierFormData, minSpend: value === '' ? 0 : Number(value) });
+                    if (validationErrors.minSpend) {
+                      setValidationErrors({ ...validationErrors, minSpend: '' });
+                    }
+                  }}
+                  placeholder="VD: 500,000"
+                  className={validationErrors.minSpend ? 'border-red-500' : ''}
                 />
+                {validationErrors.minSpend && (
+                  <p className="text-sm text-red-500">{validationErrors.minSpend}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-discountPercent">Discount (%) *</Label>
@@ -950,10 +1110,17 @@ const AdminMembershipManagement: React.FC = () => {
                   max="100"
                   step="1"
                   value={tierFormData.discountPercent}
-                  onChange={(e) =>
-                    setTierFormData({ ...tierFormData, discountPercent: Number(e.target.value) })
-                  }
+                  onChange={(e) => {
+                    setTierFormData({ ...tierFormData, discountPercent: Number(e.target.value) });
+                    if (validationErrors.discountPercent) {
+                      setValidationErrors({ ...validationErrors, discountPercent: '' });
+                    }
+                  }}
+                  className={validationErrors.discountPercent ? 'border-red-500' : ''}
                 />
+                {validationErrors.discountPercent && (
+                  <p className="text-sm text-red-500">{validationErrors.discountPercent}</p>
+                )}
               </div>
             </div>
 
@@ -965,10 +1132,17 @@ const AdminMembershipManagement: React.FC = () => {
                   type="number"
                   min="0"
                   value={tierFormData.warrantyMonths}
-                  onChange={(e) =>
-                    setTierFormData({ ...tierFormData, warrantyMonths: Number(e.target.value) })
-                  }
+                  onChange={(e) => {
+                    setTierFormData({ ...tierFormData, warrantyMonths: Number(e.target.value) });
+                    if (validationErrors.warrantyMonths) {
+                      setValidationErrors({ ...validationErrors, warrantyMonths: '' });
+                    }
+                  }}
+                  className={validationErrors.warrantyMonths ? 'border-red-500' : ''}
                 />
+                {validationErrors.warrantyMonths && (
+                  <p className="text-sm text-red-500">{validationErrors.warrantyMonths}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-returnDays">Trả hàng (ngày) *</Label>
@@ -977,10 +1151,17 @@ const AdminMembershipManagement: React.FC = () => {
                   type="number"
                   min="0"
                   value={tierFormData.returnDays}
-                  onChange={(e) =>
-                    setTierFormData({ ...tierFormData, returnDays: Number(e.target.value) })
-                  }
+                  onChange={(e) => {
+                    setTierFormData({ ...tierFormData, returnDays: Number(e.target.value) });
+                    if (validationErrors.returnDays) {
+                      setValidationErrors({ ...validationErrors, returnDays: '' });
+                    }
+                  }}
+                  className={validationErrors.returnDays ? 'border-red-500' : ''}
                 />
+                {validationErrors.returnDays && (
+                  <p className="text-sm text-red-500">{validationErrors.returnDays}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-exchangeDays">Đổi hàng (ngày) *</Label>
@@ -989,21 +1170,37 @@ const AdminMembershipManagement: React.FC = () => {
                   type="number"
                   min="0"
                   value={tierFormData.exchangeDays}
-                  onChange={(e) =>
-                    setTierFormData({ ...tierFormData, exchangeDays: Number(e.target.value) })
-                  }
+                  onChange={(e) => {
+                    setTierFormData({ ...tierFormData, exchangeDays: Number(e.target.value) });
+                    if (validationErrors.exchangeDays) {
+                      setValidationErrors({ ...validationErrors, exchangeDays: '' });
+                    }
+                  }}
+                  className={validationErrors.exchangeDays ? 'border-red-500' : ''}
                 />
+                {validationErrors.exchangeDays && (
+                  <p className="text-sm text-red-500">{validationErrors.exchangeDays}</p>
+                )}
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit-description">Mô tả</Label>
+              <Label htmlFor="edit-description">Mô tả *</Label>
               <Textarea
                 id="edit-description"
                 value={tierFormData.description}
-                onChange={(e) => setTierFormData({ ...tierFormData, description: e.target.value })}
+                onChange={(e) => {
+                  setTierFormData({ ...tierFormData, description: e.target.value });
+                  if (validationErrors.description) {
+                    setValidationErrors({ ...validationErrors, description: '' });
+                  }
+                }}
                 rows={2}
+                className={validationErrors.description ? 'border-red-500' : ''}
               />
+              {validationErrors.description && (
+                <p className="text-sm text-red-500">{validationErrors.description}</p>
+              )}
             </div>
           </div>
           <DialogFooter>

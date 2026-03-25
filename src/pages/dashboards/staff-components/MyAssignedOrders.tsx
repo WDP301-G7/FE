@@ -245,10 +245,89 @@ export const MyAssignedOrders: React.FC = () => {
     setLoadingPrescription(true);
     try {
       const data = await orderService.getOrderPrescription(orderId);
-      setPrescriptionData(data.prescription);
+      console.log('📋 Raw prescription data from API:', data);
+      console.log('📋 Prescription object keys:', data.prescription ? Object.keys(data.prescription) : 'No prescription object');
+      console.log('📋 Full prescription object:', data.prescription);
+      
+      // Handle different response structures
+      let prescriptionData = null;
+      
+      if (data && typeof data === 'object') {
+        // Case 1: { prescription: {...} }
+        if (data.prescription) {
+          prescriptionData = data.prescription;
+        }
+        // Case 2: Direct prescription object with prescription fields
+        else if (data.rightEyeSphere !== undefined || data.leftEyeSphere !== undefined || data.pupillaryDistance !== undefined ||
+                 data.right_eye_sphere !== undefined || data.left_eye_sphere !== undefined || data.pupillary_distance !== undefined) {
+          prescriptionData = data;
+        }
+        // Case 3: Nested in data field
+        else if (data.data && typeof data.data === 'object') {
+          prescriptionData = data.data.prescription || data.data;
+        }
+      }
+      
+      // Convert to flat structure that PrescriptionDetails component expects
+      if (prescriptionData) {
+        console.log('📋 Before normalization:', prescriptionData);
+        const normalized: any = {};
+        
+        // Handle nested rightEye/leftEye objects (Backend format)
+        if (prescriptionData.rightEye && typeof prescriptionData.rightEye === 'object') {
+          const rightEye = prescriptionData.rightEye;
+          normalized.rightEyeSphere = rightEye.sphere || rightEye.sph || rightEye.spherical;
+          normalized.rightEyeCylinder = rightEye.cylinder || rightEye.cyl || rightEye.cylindrical;
+          normalized.rightEyeAxis = rightEye.axis || rightEye.ax;
+        } else {
+          // Fallback to flat structure
+          normalized.rightEyeSphere = prescriptionData.rightEyeSphere || prescriptionData.right_eye_sphere || 
+                                       prescriptionData.rightSph || prescriptionData.odSph || prescriptionData.od_sph ||
+                                       prescriptionData.sphereOd || prescriptionData.sphere_od;
+          normalized.rightEyeCylinder = prescriptionData.rightEyeCylinder || prescriptionData.right_eye_cylinder || 
+                                         prescriptionData.rightCyl || prescriptionData.odCyl || prescriptionData.od_cyl ||
+                                         prescriptionData.cylinderOd || prescriptionData.cylinder_od;
+          normalized.rightEyeAxis = prescriptionData.rightEyeAxis || prescriptionData.right_eye_axis || 
+                                     prescriptionData.rightAxis || prescriptionData.odAxis || prescriptionData.od_axis ||
+                                     prescriptionData.axisOd || prescriptionData.axis_od;
+        }
+        
+        // Handle nested leftEye object (Backend format)
+        if (prescriptionData.leftEye && typeof prescriptionData.leftEye === 'object') {
+          const leftEye = prescriptionData.leftEye;
+          normalized.leftEyeSphere = leftEye.sphere || leftEye.sph || leftEye.spherical;
+          normalized.leftEyeCylinder = leftEye.cylinder || leftEye.cyl || leftEye.cylindrical;
+          normalized.leftEyeAxis = leftEye.axis || leftEye.ax;
+        } else {
+          // Fallback to flat structure
+          normalized.leftEyeSphere = prescriptionData.leftEyeSphere || prescriptionData.left_eye_sphere || 
+                                      prescriptionData.leftSph || prescriptionData.osSph || prescriptionData.os_sph ||
+                                      prescriptionData.sphereOs || prescriptionData.sphere_os;
+          normalized.leftEyeCylinder = prescriptionData.leftEyeCylinder || prescriptionData.left_eye_cylinder || 
+                                        prescriptionData.leftCyl || prescriptionData.osCyl || prescriptionData.os_cyl ||
+                                        prescriptionData.cylinderOs || prescriptionData.cylinder_os;
+          normalized.leftEyeAxis = prescriptionData.leftEyeAxis || prescriptionData.left_eye_axis || 
+                                    prescriptionData.leftAxis || prescriptionData.osAxis || prescriptionData.os_axis ||
+                                    prescriptionData.axisOs || prescriptionData.axis_os;
+        }
+        
+        // Direct fields
+        normalized.pupillaryDistance = prescriptionData.pupillaryDistance || prescriptionData.pupillary_distance || prescriptionData.pd;
+        normalized.notes = prescriptionData.notes || prescriptionData.note;
+        normalized.prescriptionImageUrl = prescriptionData.prescriptionImageUrl || prescriptionData.prescription_image_url || 
+                                           prescriptionData.imageUrl || prescriptionData.image_url ||
+                                           prescriptionData.prescriptionImage || prescriptionData.prescription_image;
+        
+        console.log('📋 After normalization:', normalized);
+        prescriptionData = normalized;
+      }
+      
+      console.log('📋 Final processed prescription data:', prescriptionData);
+      setPrescriptionData(prescriptionData);
     } catch (error: any) {
       // Silently fail - not all orders have prescriptions
       console.log('ℹ️ No prescription found for order:', orderId);
+      console.error('❌ Prescription load error:', error);
       setPrescriptionData(null);
     } finally {
       setLoadingPrescription(false);
@@ -405,6 +484,11 @@ export const MyAssignedOrders: React.FC = () => {
     };
   };
 
+  // Helper to get order number with fallback to ID
+  const getOrderNumber = (order: any) => {
+    return order.orderNumber || order.id || 'N/A';
+  };
+
   const getStatusBadge = (status: string) => {
     const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; class: string; label: string }> = {
       NEW: { variant: 'outline', class: 'bg-gray-100 text-gray-800', label: 'Mới' },
@@ -435,9 +519,9 @@ export const MyAssignedOrders: React.FC = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ClipboardList className="h-5 w-5" />
-            My Assigned Orders
+            Đơn Hàng Được Giao
           </CardTitle>
-          <CardDescription>Orders assigned to you by operations team</CardDescription>
+          <CardDescription>Danh sách đơn hàng được giao cho bạn bởi nhóm vận hành</CardDescription>
         </CardHeader>
         <CardContent>
           <motion.div 
@@ -448,7 +532,7 @@ export const MyAssignedOrders: React.FC = () => {
           >
             <div className="flex items-center gap-2 flex-1 max-w-sm">
               <Input
-                placeholder="Search orders..."
+                placeholder="Tìm kiếm đơn hàng..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="flex-1"
@@ -463,13 +547,13 @@ export const MyAssignedOrders: React.FC = () => {
                   <SelectValue placeholder="Lọc theo trạng thái" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL">📋 Tất cả</SelectItem>
-                  <SelectItem value="CONFIRMED">✅ Đã xác nhận</SelectItem>
-                  <SelectItem value="WAITING_CUSTOMER">⏳ Chờ làm</SelectItem>
-                  <SelectItem value="PROCESSING">⚙️ Đang làm</SelectItem>
-                  <SelectItem value="READY">📦 Sẵn sàng</SelectItem>
-                  <SelectItem value="COMPLETED">🎉 Hoàn thành</SelectItem>
-                  <SelectItem value="CANCELLED">❌ Đã hủy</SelectItem>
+                  <SelectItem value="ALL">Tất cả</SelectItem>
+                  <SelectItem value="CONFIRMED"> Đã xác nhận</SelectItem>
+                  <SelectItem value="WAITING_CUSTOMER"> Chờ làm</SelectItem>
+                  <SelectItem value="PROCESSING"> Đang làm</SelectItem>
+                  <SelectItem value="READY"> Sẵn sàng</SelectItem>
+                  <SelectItem value="COMPLETED"> Hoàn thành</SelectItem>
+                  <SelectItem value="CANCELLED"> Đã hủy</SelectItem>
                 </SelectContent>
               </Select>
               <Button
@@ -494,27 +578,27 @@ export const MyAssignedOrders: React.FC = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Order #</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>Mã đơn</TableHead>
+                  <TableHead>Khách hàng</TableHead>
+                  <TableHead>Tổng tiền</TableHead>
+                  <TableHead>Trạng thái</TableHead>
+                  <TableHead>Ngày</TableHead>
+                  <TableHead className="text-right">Thao tác</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center">Loading...</TableCell>
+                    <TableCell colSpan={6} className="text-center">Đang tải...</TableCell>
                   </TableRow>
                 ) : !orders || orders.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center">No orders assigned to you</TableCell>
+                    <TableCell colSpan={6} className="text-center">Không có đơn hàng nào được giao cho bạn</TableCell>
                   </TableRow>
                 ) : (
                   orders.map((order) => (
                     <TableRow key={order.id}>
-                      <TableCell className="font-medium">{order.orderNumber}</TableCell>
+                      <TableCell className="font-medium">{getOrderNumber(order)}</TableCell>
                       <TableCell>
                         <div>
                           <div className="font-medium">
@@ -602,7 +686,7 @@ export const MyAssignedOrders: React.FC = () => {
           {/* Pagination */}
           <div className="flex justify-between items-center mt-4">
             <p className="text-sm text-muted-foreground">
-              Showing {orders?.length || 0} of {pagination.total} orders
+              Hiển thị {orders?.length || 0} trong tổng số {pagination.total} đơn hàng
             </p>
             <div className="flex gap-2">
               <Button
@@ -611,7 +695,7 @@ export const MyAssignedOrders: React.FC = () => {
                 disabled={pagination.page === 1}
                 onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
               >
-                Previous
+                Trước
               </Button>
               <Button
                 variant="outline"
@@ -619,7 +703,7 @@ export const MyAssignedOrders: React.FC = () => {
                 disabled={pagination.page * pagination.limit >= pagination.total}
                 onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
               >
-                Next
+                Tiếp
               </Button>
             </div>
           </div>
