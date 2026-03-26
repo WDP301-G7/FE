@@ -18,6 +18,8 @@ import AdminUsersManagement from "@/pages/dashboards/admin-components/AdminUsers
 import AdminSystemsManagement from "@/pages/dashboards/admin-components/AdminSystemsManagement";
 import { AdminProductManagement } from "@/pages/dashboards/admin-components/AdminProductManagement";
 import { AdminReviews } from "@/pages/dashboards/admin-components/AdminReviews";
+import AdminMembershipManagement from "@/pages/dashboards/admin-components/AdminMembershipManagement";
+import UserProfilePage from "@/pages/UserProfilePage";
 
 
 // operations role pages
@@ -54,6 +56,7 @@ const App = () => (
               <Route path="/" element={<MainLayout />}>
                 <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="dashboard" element={<Dashboard />} />
+                <Route path="users/:userId" element={<UserProfilePage />} />
                 <Route path="orders" element={<MyAssignedOrders />} />
                 <Route path="returns" element={<ReturnManagement />} />
                 <Route path="admin/orders" element={<AdminOrdersManagement />} />
@@ -62,7 +65,8 @@ const App = () => (
                 <Route path="admin/products" element={<AdminProductManagement />} />
                 <Route path="admin/reviews" element={<AdminReviews />} />
                 <Route path="admin/stores" element={<AdminStores />} />
-                 <Route path="admin/inventory" element={<AdminInventoryManagement />} />
+                <Route path="admin/inventory" element={<AdminInventoryManagement />} />
+                <Route path="admin/membership" element={<AdminMembershipManagement />} />
                 
               
                 

@@ -374,9 +374,15 @@ export const AdminReviews: React.FC = () => {
         });
       }
 
+      // ✅ Re-fetch the review WITH the new reply to update selectedReview state
+      const updatedReview = await reviewService.getReviewById(selectedReview.id);
+      setSelectedReview(updatedReview);
+      
+      // Close reply dialog but KEEP detail dialog open to show the new reply immediately
       setIsReplyDialogOpen(false);
       setReplyContent('');
-      setSelectedReview(null);
+      
+      // Also update the review in the list for consistency
       loadReviews();
     } catch (error: unknown) {
       console.error('Reply error:', error);
@@ -407,9 +413,14 @@ export const AdminReviews: React.FC = () => {
             description: 'Đã cập nhật phản hồi',
           });
           
+          // ✅ Re-fetch the review WITH the updated reply
+          const updatedReview = await reviewService.getReviewById(selectedReview.id);
+          setSelectedReview(updatedReview);
+          
           setIsReplyDialogOpen(false);
           setReplyContent('');
-          setSelectedReview(null);
+          
+          // Also update the review in the list for consistency
           loadReviews();
           setReplyLoading(false);
           return; // Exit successfully
