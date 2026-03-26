@@ -147,15 +147,29 @@ const PrescriptionRequestsPage: React.FC = () => {
     }
   };
 
-  const openOrder = (req: PrescriptionRequestSummary) => {
-    setSelected(req as any);
+  const openOrder = async (req: PrescriptionRequestSummary) => {
+    setLoading(true);
+    try {
+      const data = await operationsService.getPrescriptionRequestById(req.id);
+      setSelected(data);
+    } catch (err: any) {
+      toast({
+        title: 'Lỗi',
+        description: err.response?.data?.message || 'Không thể tải chi tiết đơn thuốc',
+        variant: 'destructive',
+      });
+      setLoading(false);
+      return;
+    }
+
     setOrderItems([]);
     setRightSphere(0); setRightCylinder(0); setRightAxis(0);
     setLeftSphere(0); setLeftCylinder(0); setLeftAxis(0);
     setPupillaryDistance(62); setPrescriptionNotes('');
     setExpiryDays(3); setExpectedReadyDate('');
-    loadProducts();
+    await loadProducts();
     setOrderOpen(true);
+    setLoading(false);
   };
 
   const loadProducts = async () => {
@@ -460,10 +474,17 @@ const PrescriptionRequestsPage: React.FC = () => {
         onCancel={() => setOrderOpen(false)}
         footer={null}
         destroyOnClose
-        width={700}
+        width={900}
         styles={{ body: { maxHeight: '75vh', overflowY: 'auto' } }}
       >
         <div className="space-y-4 py-2">
+          <div>
+            <Text strong>Ghi chú sau liên hệ khách hàng</Text>
+            <div className="mt-1 p-3 rounded border bg-gray-50">
+              <Text>{selected?.contactNotes?.trim() || 'Chưa có ghi chú liên hệ'}</Text>
+            </div>
+          </div>
+
           {/* Prescription images */}
           {selected?.images && selected.images.length > 0 && (
             <div>
@@ -533,7 +554,7 @@ const PrescriptionRequestsPage: React.FC = () => {
           )}
 
           <Divider orientation="left"><Text strong>Mắt phải (Right Eye)</Text></Divider>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
               { label: 'Độ cầu (SPH)', val: rightSphere, set: setRightSphere, step: 0.25 },
               { label: 'Độ loạn (CYL)', val: rightCylinder, set: setRightCylinder, step: 0.25 },
@@ -545,8 +566,8 @@ const PrescriptionRequestsPage: React.FC = () => {
             ))}
           </div>
 
-          <Divider orientation="left"><Text strong>Mắt trái (Left Eye)</Text></Divider>
-          <div className="grid grid-cols-3 gap-3">
+          <Divider orientation="left" ><Text strong>Mắt trái (Left Eye)</Text></Divider>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
               { label: 'Độ cầu (SPH)', val: leftSphere, set: setLeftSphere, step: 0.25 },
               { label: 'Độ loạn (CYL)', val: leftCylinder, set: setLeftCylinder, step: 0.25 },

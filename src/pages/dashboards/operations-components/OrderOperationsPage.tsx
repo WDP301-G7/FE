@@ -413,6 +413,33 @@ const OrderOperationsPage: React.FC = () => {
             </div>
           </div>
         )}
+
+        {selectedOrder?.orderItems?.length > 0 && (
+          <div className="mb-4">
+            <Text strong>Danh sách sản phẩm</Text>
+
+            <div className="mt-2 space-y-2 max-h-40 overflow-y-auto">
+              {selectedOrder.orderItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex justify-between items-center p-2 border rounded-md bg-white"
+                >
+                  <div>
+                    <Text strong>{item.product?.name}</Text>
+                    <div className="text-xs text-gray-500">
+                      {item.product?.brand}
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <div>Số lượng: {item.quantity}</div>
+                    <div>{formatCurrency(item.unitPrice)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Confirm Modal */}
@@ -423,6 +450,68 @@ const OrderOperationsPage: React.FC = () => {
         footer={null}
         destroyOnClose
       >
+        {selectedOrder && (
+          <div className="mb-4 p-4 border rounded-lg bg-gray-50 space-y-2">
+            <div className="flex justify-between">
+              <Text strong>Mã đơn:</Text>
+              <Text>{selectedOrder.id}</Text>
+            </div>
+
+            <div className="flex justify-between">
+              <Text strong>Khách hàng:</Text>
+              <Text>{selectedOrder.customer?.fullName}</Text>
+            </div>
+
+            <div className="flex justify-between">
+              <Text strong>Trạng thái thanh toán:</Text>
+              <Tag color={selectedOrder.paymentStatus === 'PAID' ? 'green' : 'orange'}>
+                {selectedOrder.paymentStatus}
+              </Tag>
+            </div>
+
+            <div className="flex justify-between">
+              <Text strong>Loại đơn:</Text>
+              <Text>{selectedOrder.orderType}</Text>
+            </div>
+
+            <div className="flex justify-between">
+              <Text strong>Tổng tiền:</Text>
+              <Text strong>{formatCurrency(selectedOrder.totalAmount)}</Text>
+            </div>
+
+            {/* Cảnh báo */}
+            {selectedOrder.paymentStatus === 'UNPAID' && (
+              <Tag color="red">⚠️ Đơn chưa thanh toán</Tag>
+            )}
+          </div>
+        )}
+
+        {selectedOrder?.orderItems?.length > 0 && (
+          <div className="mb-4">
+            <Text strong>Danh sách sản phẩm</Text>
+
+            <div className="mt-2 space-y-2 max-h-40 overflow-y-auto">
+              {selectedOrder.orderItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex justify-between items-center p-2 border rounded-md bg-white"
+                >
+                  <div>
+                    <Text strong>{item.product?.name}</Text>
+                    <div className="text-xs text-gray-500">
+                      {item.product?.brand}
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <div>Số lượng: {item.quantity}</div>
+                    <div>{formatCurrency(item.unitPrice)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <Form layout="vertical" className="pt-2">
           <Form.Item label="Ngày & Giờ Hẹn" required>
             <Input
@@ -491,4 +580,4 @@ const OrderOperationsPage: React.FC = () => {
   );
 };
 
-export default OrderOperationsPage;
+export default OrderOperationsPage; 

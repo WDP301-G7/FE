@@ -164,6 +164,10 @@ export default function ReturnPage() {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(num);
   };
 
+  const getOrderCode = (request: ReturnRequest | null | undefined) => {
+    return request?.order?.orderNumber || request?.order?.id || request?.orderId || 'N/A';
+  };
+
   const formatDate = (date: string) => new Date(date).toLocaleString('vi-VN');
 
   // Derived stats
@@ -173,10 +177,10 @@ export default function ReturnPage() {
 
   const columns = [
     {
-      title: 'Mã Order',
+      title: 'Mã Đơn',
       key: 'orderId',
       render: (_: unknown, record: ReturnRequest) => (
-        <Text strong style={{ fontSize: 12 }}>{record.order.id}</Text>
+        <Text strong style={{ fontSize: 12 }}>{getOrderCode(record)}</Text>
       ),
     },
     {
@@ -351,7 +355,7 @@ export default function ReturnPage() {
             {/* Basic info */}
             <div className="grid grid-cols-2 gap-4">
               {[
-                { label: 'Mã đơn', value: selectedReturn.order.orderNumber },
+                { label: 'Mã đơn', value: getOrderCode(selectedReturn) },
                 { label: 'Ngày tạo', value: formatDate(selectedReturn.createdAt) },
                 { label: 'Lý do', value: selectedReturn.reason },
               ].map(({ label, value }) => (
@@ -525,7 +529,7 @@ export default function ReturnPage() {
       >
         <Form layout="vertical" className="pt-2">
           <Form.Item label="Mã đơn">
-            <Input value={selectedReturn?.order.orderNumber} readOnly />
+            <Input value={getOrderCode(selectedReturn)} readOnly />
           </Form.Item>
           <Form.Item label="Ghi chú (tùy chọn)">
             <TextArea
@@ -554,7 +558,7 @@ export default function ReturnPage() {
       >
         <Form layout="vertical" className="pt-2">
           <Form.Item label="Mã đơn">
-            <Input value={selectedReturn?.order.orderNumber} readOnly />
+            <Input value={getOrderCode(selectedReturn)} readOnly />
           </Form.Item>
           <Form.Item label="Lý do từ chối" required>
             <TextArea
@@ -602,7 +606,7 @@ export default function ReturnPage() {
       >
         <Form layout="vertical" className="pt-2">
           <Form.Item label="Mã đơn">
-            <Input value={selectedReturn?.order.orderNumber} readOnly />
+            <Input value={getOrderCode(selectedReturn)} readOnly />
           </Form.Item>
           {selectedReturn?.type === 'RETURN' && (
             <>
