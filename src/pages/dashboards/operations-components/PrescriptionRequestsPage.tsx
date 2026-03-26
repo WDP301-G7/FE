@@ -147,15 +147,29 @@ const PrescriptionRequestsPage: React.FC = () => {
     }
   };
 
-  const openOrder = (req: PrescriptionRequestSummary) => {
-    setSelected(req as any);
+  const openOrder = async (req: PrescriptionRequestSummary) => {
+    setLoading(true);
+    try {
+      const data = await operationsService.getPrescriptionRequestById(req.id);
+      setSelected(data);
+    } catch (err: any) {
+      toast({
+        title: 'Lỗi',
+        description: err.response?.data?.message || 'Không thể tải chi tiết đơn thuốc',
+        variant: 'destructive',
+      });
+      setLoading(false);
+      return;
+    }
+
     setOrderItems([]);
     setRightSphere(0); setRightCylinder(0); setRightAxis(0);
     setLeftSphere(0); setLeftCylinder(0); setLeftAxis(0);
     setPupillaryDistance(62); setPrescriptionNotes('');
     setExpiryDays(3); setExpectedReadyDate('');
-    loadProducts();
+    await loadProducts();
     setOrderOpen(true);
+    setLoading(false);
   };
 
   const loadProducts = async () => {
@@ -460,17 +474,24 @@ const PrescriptionRequestsPage: React.FC = () => {
         onCancel={() => setOrderOpen(false)}
         footer={null}
         destroyOnClose
-        width={700}
+        width={900}
         styles={{ body: { maxHeight: '75vh', overflowY: 'auto' } }}
       >
-        <div className="space-y-4 py-2">
+        <Form layout="vertical" className="py-2" style={{ rowGap: 16 }}>
+          <div>
+            <Text strong>Ghi chú sau liên hệ khách hàng</Text>
+            <div className="mt-1 p-3 rounded border bg-gray-50">
+              <Text>{selected?.contactNotes?.trim() || 'Chưa có ghi chú liên hệ'}</Text>
+            </div>
+          </div>
+
           {/* Prescription images */}
           {selected?.images && selected.images.length > 0 && (
             <div>
               <Text strong>Ảnh đơn thuốc</Text>
-              <div className="grid grid-cols-2 gap-2 mt-1">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
                 {selected.images.map((img) => (
-                  <img key={img.id} src={img.imageUrl} alt="Đơn thuốc" className="w-full h-auto rounded border" />
+                  <img key={img.id} src={img.imageUrl} alt="Đơn thuốc" className="w-full h-auto rounded border object-cover" />
                 ))}
               </div>
             </div>
@@ -498,12 +519,12 @@ const PrescriptionRequestsPage: React.FC = () => {
           {orderItems.length > 0 && (
             <Card size="small" title="Sản phẩm đã chọn">
               {orderItems.map((item, index) => (
-                <div key={item.productId} className="flex items-center gap-2 mb-2">
-                  <Text style={{ flex: 2, fontSize: 13 }}>{item.name}</Text>
+                <div key={item.productId} className="grid grid-cols-1 md:grid-cols-[2fr_88px_132px_36px] gap-2 items-center mb-2">
+                  <Text style={{ fontSize: 13 }}>{item.name}</Text>
                   <InputNumber
                     min={1}
                     value={item.quantity}
-                    style={{ width: 80 }}
+                    style={{ width: '100%' }}
                     onChange={(val) =>
                       setOrderItems((prev) =>
                         prev.map((i, idx) => (idx === index ? { ...i, quantity: val as number } : i))
@@ -513,7 +534,7 @@ const PrescriptionRequestsPage: React.FC = () => {
                   <InputNumber
                     min={0}
                     value={item.unitPrice}
-                    style={{ width: 120 }}
+                    style={{ width: '100%' }}
                     formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
                     onChange={(val) =>
                       setOrderItems((prev) =>
@@ -532,8 +553,8 @@ const PrescriptionRequestsPage: React.FC = () => {
             </Card>
           )}
 
-          <Divider orientation="left"><Text strong>Mắt phải (Right Eye)</Text></Divider>
-          <div className="grid grid-cols-3 gap-3">
+          <Divider orientation="left" orientationMargin={0}><Text strong>Mắt phải (Right Eye)</Text></Divider>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
               { label: 'Độ cầu (SPH)', val: rightSphere, set: setRightSphere, step: 0.25 },
               { label: 'Độ loạn (CYL)', val: rightCylinder, set: setRightCylinder, step: 0.25 },
@@ -545,8 +566,8 @@ const PrescriptionRequestsPage: React.FC = () => {
             ))}
           </div>
 
-          <Divider orientation="left"><Text strong>Mắt trái (Left Eye)</Text></Divider>
-          <div className="grid grid-cols-3 gap-3">
+          <Divider orientation="left" orientationMargin={0}><Text strong>Mắt trái (Left Eye)</Text></Divider>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
               { label: 'Độ cầu (SPH)', val: leftSphere, set: setLeftSphere, step: 0.25 },
               { label: 'Độ loạn (CYL)', val: leftCylinder, set: setLeftCylinder, step: 0.25 },
@@ -559,7 +580,7 @@ const PrescriptionRequestsPage: React.FC = () => {
           </div>
 
           <Divider />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Form.Item label="Khoảng cách đồng tử (PD)" style={{ marginBottom: 0 }}>
               <InputNumber value={pupillaryDistance} onChange={(v) => setPupillaryDistance(v as number)} style={{ width: '100%' }} />
             </Form.Item>
@@ -568,11 +589,11 @@ const PrescriptionRequestsPage: React.FC = () => {
             </Form.Item>
           </div>
 
-          <Form.Item label="Ghi chú đơn thuốc">
+          <Form.Item label="Ghi chú đơn thuốc" style={{ marginBottom: 0 }}>
             <TextArea value={prescriptionNotes} onChange={(e) => setPrescriptionNotes(e.target.value)} rows={2} />
           </Form.Item>
 
-          <Form.Item label="Ngày dự kiến hoàn thành">
+          <Form.Item label="Ngày dự kiến hoàn thành" style={{ marginBottom: 0 }}>
             <Input type="datetime-local" value={expectedReadyDate} onChange={(e) => setExpectedReadyDate(e.target.value)} />
           </Form.Item>
 
@@ -580,7 +601,7 @@ const PrescriptionRequestsPage: React.FC = () => {
             <Button onClick={() => setOrderOpen(false)}>Hủy</Button>
             <Button type="primary" onClick={submitOrder} loading={loading}>Tạo đơn</Button>
           </div>
-        </div>
+        </Form>
       </Modal>
 
       {/* Close Request Modal */}

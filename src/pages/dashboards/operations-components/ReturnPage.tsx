@@ -15,9 +15,7 @@ import {
   Modal,
   Form,
   Input,
-  InputNumber,
   Divider,
-  Badge,
 } from 'antd';
 import { motion } from 'framer-motion';
 import {
@@ -45,13 +43,9 @@ export default function ReturnPage() {
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
-  const [showCompleteModal, setShowCompleteModal] = useState(false);
 
   const [approveNote, setApproveNote] = useState('');
   const [rejectReason, setRejectReason] = useState('');
-  const [refundAmount, setRefundAmount] = useState<number | ''>('');
-  const [refundMethod, setRefundMethod] = useState<'BANK_TRANSFER' | 'CASH'>('BANK_TRANSFER');
-  const [completionNote, setCompletionNote] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
   const fetchReturns = async () => {
@@ -122,32 +116,6 @@ export default function ReturnPage() {
     }
   };
 
-  const handleComplete = async () => {
-    if (!selectedReturn) return;
-    if (refundAmount === '' && selectedReturn.type === 'RETURN') {
-      toast({ title: 'Lỗi', description: 'Vui lòng nhập số tiền hoàn lại', variant: 'destructive' });
-      return;
-    }
-    setActionLoading(true);
-    try {
-      await returnService.completeReturn(selectedReturn.id, {
-        refundAmount: refundAmount === '' ? 0 : Number(refundAmount),
-        refundMethod,
-        completionNote: completionNote || undefined,
-      });
-      toast({ title: 'Thành công', description: 'Đơn trả hàng đã hoàn thành' });
-      setShowCompleteModal(false);
-      setShowDetailModal(false);
-      setRefundAmount('');
-      setCompletionNote('');
-      fetchReturns();
-    } catch (error: any) {
-      toast({ title: 'Lỗi', description: error.message || 'Không thể hoàn thành', variant: 'destructive' });
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
   const getTypeBadge = (type: string) => {
     const config: Record<string, { label: string; color: string }> = {
       RETURN: { label: 'Hoàn trả', color: 'default' },
@@ -164,6 +132,10 @@ export default function ReturnPage() {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(num);
   };
 
+  const getOrderCode = (request: ReturnRequest | null | undefined) => {
+    return request?.order?.orderNumber || request?.order?.id || request?.orderId || 'N/A';
+  };
+
   const formatDate = (date: string) => new Date(date).toLocaleString('vi-VN');
 
   // Derived stats
@@ -173,10 +145,10 @@ export default function ReturnPage() {
 
   const columns = [
     {
-      title: 'Mã Order',
+      title: 'Mã Đơn',
       key: 'orderId',
       render: (_: unknown, record: ReturnRequest) => (
-        <Text strong style={{ fontSize: 12 }}>{record.order.id}</Text>
+        <Text strong style={{ fontSize: 12 }}>{getOrderCode(record)}</Text>
       ),
     },
     {
@@ -349,9 +321,9 @@ export default function ReturnPage() {
         {selectedReturn && (
           <div className="space-y-4 py-2">
             {/* Basic info */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {[
-                { label: 'Mã đơn', value: selectedReturn.order.orderNumber },
+                { label: 'Mã đơn', value: getOrderCode(selectedReturn) },
                 { label: 'Ngày tạo', value: formatDate(selectedReturn.createdAt) },
                 { label: 'Lý do', value: selectedReturn.reason },
               ].map(({ label, value }) => (
@@ -373,8 +345,8 @@ export default function ReturnPage() {
             {/* Customer info */}
             {selectedReturn.customer && (
               <>
-                <Divider orientation="left"><Text strong>Thông tin khách hàng</Text></Divider>
-                <div className="grid grid-cols-2 gap-3">
+                <Divider orientation="left" orientationMargin={0}><Text strong>Thông tin khách hàng</Text></Divider>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {[
                     { label: 'Tên', value: selectedReturn.customer.fullName },
                     { label: 'Email', value: selectedReturn.customer.email },
@@ -392,12 +364,12 @@ export default function ReturnPage() {
             {/* Return items */}
             {(selectedReturn.returnItems ?? []).length > 0 && (
               <>
-                <Divider orientation="left"><Text strong>Sản phẩm yêu cầu</Text></Divider>
+                <Divider orientation="left" orientationMargin={0}><Text strong>Sản phẩm yêu cầu</Text></Divider>
                 <div className="space-y-2">
                   {(selectedReturn.returnItems ?? []).map((item) => (
                     <Card key={item.id} size="small" style={{ background: '#fafafa' }}>
                       <Text strong>{item.product.name}</Text>
-                      <div className="grid grid-cols-3 gap-2 mt-1">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-1">
                         {[
                           { label: 'Số lượng', value: item.quantity },
                           { label: 'Tình trạng', value: item.condition },
@@ -436,8 +408,8 @@ export default function ReturnPage() {
             {/* Images */}
             {selectedReturn.images && selectedReturn.images.length > 0 && (
               <>
-                <Divider orientation="left"><Text strong>Hình ảnh</Text></Divider>
-                <div className="grid grid-cols-3 gap-2">
+                <Divider orientation="left" orientationMargin={0}><Text strong>Hình ảnh</Text></Divider>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                   {selectedReturn.images.map((image) => (
                     <div key={image.id}>
                       <img src={image.imageUrl} alt={image.imageType} className="w-full h-32 object-cover rounded border" />
@@ -500,11 +472,6 @@ export default function ReturnPage() {
                   </Button>
                 </>
               )}
-              {selectedReturn.status === 'APPROVED' && (
-                <Button type="primary" icon={<CheckCircleOutlined />} onClick={() => { setRefundAmount(''); setShowCompleteModal(true); }}>
-                  Hoàn thành
-                </Button>
-              )}
               {['PENDING', 'APPROVED'].includes(selectedReturn.status) && (
                 <Button danger icon={<DeleteOutlined />} onClick={() => setShowCancelModal(true)}>
                   Hủy đơn
@@ -525,7 +492,7 @@ export default function ReturnPage() {
       >
         <Form layout="vertical" className="pt-2">
           <Form.Item label="Mã đơn">
-            <Input value={selectedReturn?.order.orderNumber} readOnly />
+            <Input value={getOrderCode(selectedReturn)} readOnly />
           </Form.Item>
           <Form.Item label="Ghi chú (tùy chọn)">
             <TextArea
@@ -554,7 +521,7 @@ export default function ReturnPage() {
       >
         <Form layout="vertical" className="pt-2">
           <Form.Item label="Mã đơn">
-            <Input value={selectedReturn?.order.orderNumber} readOnly />
+            <Input value={getOrderCode(selectedReturn)} readOnly />
           </Form.Item>
           <Form.Item label="Lý do từ chối" required>
             <TextArea
@@ -590,55 +557,6 @@ export default function ReturnPage() {
             </Button>
           </div>
         </div>
-      </Modal>
-
-      {/* Complete Modal */}
-      <Modal
-        title="Hoàn thành Đơn Trả Hàng"
-        open={showCompleteModal}
-        onCancel={() => setShowCompleteModal(false)}
-        footer={null}
-        destroyOnClose
-      >
-        <Form layout="vertical" className="pt-2">
-          <Form.Item label="Mã đơn">
-            <Input value={selectedReturn?.order.orderNumber} readOnly />
-          </Form.Item>
-          {selectedReturn?.type === 'RETURN' && (
-            <>
-              <Form.Item label="Số tiền hoàn lại" required>
-                <InputNumber
-                  style={{ width: '100%' }}
-                  min={0}
-                  value={refundAmount === '' ? undefined : refundAmount}
-                  formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                  onChange={(v) => setRefundAmount(v === null ? '' : v)}
-                  placeholder="Nhập số tiền..."
-                />
-              </Form.Item>
-              <Form.Item label="Phương thức hoàn lại" required>
-                <Select value={refundMethod} onChange={(v) => setRefundMethod(v)} style={{ width: '100%' }}>
-                  <Option value="BANK_TRANSFER">Chuyển khoản</Option>
-                  <Option value="CASH">Tiền mặt</Option>
-                </Select>
-              </Form.Item>
-            </>
-          )}
-          <Form.Item label="Ghi chú hoàn thành (tùy chọn)">
-            <TextArea
-              placeholder="Nhập ghi chú..."
-              value={completionNote}
-              onChange={(e) => setCompletionNote(e.target.value)}
-              rows={3}
-            />
-          </Form.Item>
-          <div className="flex justify-end gap-2">
-            <Button onClick={() => setShowCompleteModal(false)}>Hủy</Button>
-            <Button type="primary" onClick={handleComplete} loading={actionLoading}>
-              Hoàn thành
-            </Button>
-          </div>
-        </Form>
       </Modal>
     </motion.div>
   );
