@@ -111,7 +111,7 @@ const OrderOperationsPage: React.FC = () => {
   const loadOrders = async () => {
     setLoading(true);
     try {
-      const params: GetOrdersParams = { page: currentPage, size: pageSize };
+      const params: GetOrdersParams = { page: currentPage, limit: pageSize };
       if (statusFilter && statusFilter !== '__all') params.status = statusFilter;
       const response = await operationsService.getAllOrders(params);
       setOrders(response.orders || []);

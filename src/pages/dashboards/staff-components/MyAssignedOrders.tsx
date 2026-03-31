@@ -20,6 +20,7 @@ import { PrescriptionDetails } from './PrescriptionDetails';
 import { motion } from 'framer-motion';
 import { ModernImageUpload } from '@/components/dashboard/ModernImageUpload';
 import { Separator } from '@/components/ui/separator';
+import StatusBadge from '@/components/StatusBadge';
 
 // Helper function to get full image URL
 const getFullImageUrl = (url: string | undefined | null): string => {
@@ -504,20 +505,9 @@ export const MyAssignedOrders: React.FC = () => {
     return order.orderNumber || order.id || 'N/A';
   };
 
-  const getStatusBadge = (status: string) => {
-    const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; class: string; label: string }> = {
-      NEW: { variant: 'outline', class: 'bg-gray-100 text-gray-800', label: 'Mới' },
-      CONFIRMED: { variant: 'default', class: 'bg-blue-100 text-blue-800', label: 'Đã xác nhận' },
-      WAITING_CUSTOMER: { variant: 'outline', class: 'bg-cyan-100 text-cyan-800 border-cyan-300', label: 'Chờ làm' },
-      PROCESSING: { variant: 'secondary', class: 'bg-purple-100 text-purple-800', label: 'Đang làm' },
-      READY: { variant: 'default', class: 'bg-orange-100 text-orange-800', label: 'Sẵn sàng' },
-      READY_FOR_PICKUP: { variant: 'default', class: 'bg-orange-100 text-orange-800', label: 'Sẵn sàng' },
-      COMPLETED: { variant: 'default', class: 'bg-green-100 text-green-800', label: 'Hoàn thành' },
-      CANCELLED: { variant: 'destructive', class: 'bg-red-100 text-red-800', label: 'Đã hủy' },
-    };
-    const config = variants[status] || { variant: 'outline', class: '', label: status };
-    return <Badge variant={config.variant} className={config.class}>{config.label}</Badge>;
-  };
+  const getStatusBadge = (status: string) => (
+    <StatusBadge status={status} />
+  );
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);

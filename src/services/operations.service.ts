@@ -6,6 +6,7 @@ export interface GetOrdersParams {
   'from-date'?: string;
   'to-date'?: string;
   'staff-id'?: string;
+  limit?: number;
   size?: number;
   page?: number;
 }
@@ -13,10 +14,43 @@ export interface GetOrdersParams {
 export interface OrderDetails {
   id: string;
   createdDate: string;
+  createdAt?: string;
+  updatedAt?: string;
   totalPrice: number;
+  totalAmount?: string | number;
   status: string;
+  paymentStatus?: string;
+  orderType?: string;
   customerId?: string;
   staffId?: string;
+  handledBy?: string | null;
+  customer?: {
+    id?: string;
+    fullName?: string;
+    email?: string;
+    phone?: string;
+  };
+  handler?: {
+    id?: string;
+    fullName?: string;
+    role?: string;
+  } | null;
+  orderItems?: Array<{
+    id: string;
+    orderId?: string;
+    productId?: string;
+    quantity?: number;
+    unitPrice?: string | number;
+    itemStatus?: string;
+    note?: string | null;
+    product?: {
+      id?: string;
+      name?: string;
+      type?: string;
+      brand?: string;
+      price?: string | number;
+    };
+  }>;
 }
 
 export interface ConfirmOrderRequest {
@@ -41,9 +75,10 @@ export interface OrderResponse {
 }
 
 export interface OrdersListResponse {
-  code: number;
+  code?: number;
+  statusCode?: number;
   message: string;
-  data: OrderDetails[];
+  data: OrderDetails[] | { data?: OrderDetails[]; meta?: { total?: number; page?: number; limit?: number; totalPages?: number } };
   pageInfo?: {
     page: number;
     size: number;
@@ -154,19 +189,38 @@ class OperationsService {
   // Get all orders with filters
   async getAllOrders(params?: GetOrdersParams): Promise<GetOrdersResponse> {
     try {
+      const queryParams = {
+        ...params,
+        // Backend pagination contract uses `limit`; keep `size` as fallback compatibility.
+        limit: params?.limit ?? params?.size,
+      };
+
       const response = await api.get<OrdersListResponse>('/orders', {
-        params,
+        params: queryParams,
       });
       console.log('Raw API response:', response.data);
 
       // backend sometimes wraps the array again under another `data` key
       let payload: any = response.data.data;
+      let meta: any = null;
+
+      if (payload && typeof payload === 'object' && 'meta' in payload) {
+        meta = (payload as any).meta;
+      }
+
       if (payload && typeof payload === 'object' && 'data' in payload) {
         payload = payload.data;
       }
 
       const orders = Array.isArray(payload) ? payload : [];
-      const pageInfo = response.data.pageInfo;
+      const pageInfo = response.data.pageInfo || (meta
+        ? {
+            page: Number(meta.page || params?.page || 1),
+            size: Number(meta.limit || params?.limit || params?.size || 10),
+            totalElements: Number(meta.total || orders.length),
+            totalPages: Number(meta.totalPages || 1),
+          }
+        : undefined);
 
       console.log('Extracted orders count:', orders.length);
       console.log('PageInfo:', pageInfo);

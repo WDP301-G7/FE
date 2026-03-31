@@ -5,6 +5,7 @@ import { Card, Typography, Table, Tag, Button, Space, Input } from 'antd';
 import { motion } from 'framer-motion';
 import { SearchOutlined, PlusOutlined, FilterOutlined } from '@ant-design/icons';
 import { mockOrders, Order, OrderStatus } from '@/mock-data/orders';
+import StatusBadge from '@/components/StatusBadge';
 
 const { Title, Text } = Typography;
 
@@ -73,18 +74,7 @@ const AdminOrdersManagement: React.FC = () => {
       title: 'Trạng Thái',
       dataIndex: 'status',
       key: 'status',
-      render: (status: OrderStatus) => {
-        const statusMap: Record<OrderStatus, { text: string; color: string }> = {
-          pending: { text: 'Chờ Xử Lý', color: 'gold' },
-          processing: { text: 'Đang Xử Lý', color: 'blue' },
-          ready: { text: 'Sẵn Sàng', color: 'cyan' },
-          shipped: { text: 'Đã Gửi', color: 'purple' },
-          delivered: { text: 'Đã Giao', color: 'green' },
-          returned: { text: 'Trả Lại', color: 'orange' },
-          cancelled: { text: 'Đã Hủy', color: 'red' },
-        };
-        return <Tag color={statusMap[status]?.color}>{statusMap[status]?.text}</Tag>;
-      },
+      render: (status: OrderStatus) => <StatusBadge status={status} />,
     },
     {
       title: 'Tổng Tiền',
