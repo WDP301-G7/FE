@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { operationsService, OrderDetails, GetOrdersParams } from '@/services/operations.service';
 import { adminService } from '@/services/admin.service';
@@ -36,6 +36,7 @@ interface StaffMember {
 }
 
 const OrderOperationsPage: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { hasRole } = useAuth();
   if (!hasRole(['operations'])) {
     return <Navigate to="/dashboard" replace />;
@@ -93,6 +94,19 @@ const OrderOperationsPage: React.FC = () => {
   useEffect(() => {
     setCurrentPage(1);
   }, [statusFilter]);
+
+  useEffect(() => {
+    const orderId = searchParams.get('orderId');
+    if (orderId && orders.length > 0) {
+      const targetOrder = orders.find((o) => o.id === orderId);
+      if (targetOrder) {
+        setSelectedOrder(targetOrder);
+        setIsDetailOpen(true);
+        // Clear query param
+        setSearchParams({});
+      }
+    }
+  }, [searchParams, orders, setSearchParams]);
 
   const loadOrders = async () => {
     setLoading(true);

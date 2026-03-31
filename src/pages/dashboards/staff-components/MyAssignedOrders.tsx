@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
 import { orderService, Order } from '@/services/order.service';
@@ -31,6 +32,7 @@ const getFullImageUrl = (url: string | undefined | null): string => {
 };
 
 export const MyAssignedOrders: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -68,6 +70,19 @@ export const MyAssignedOrders: React.FC = () => {
   useEffect(() => {
     loadOrders();
   }, [pagination.page, searchTerm, statusFilter]);
+
+  useEffect(() => {
+    const orderId = searchParams.get('orderId');
+    if (orderId && orders.length > 0) {
+      const targetOrder = orders.find((o) => o.id === orderId);
+      if (targetOrder) {
+        setSelectedOrder(targetOrder);
+        setIsDetailDialogOpen(true);
+        // Clear query param so it doesn't re-open on refresh
+        setSearchParams({});
+      }
+    }
+  }, [searchParams, orders, setSearchParams]);
 
   const loadOrders = async () => {
     console.log('\ud83d\udd04 loadOrders() CALLED - Loading all orders from API');
