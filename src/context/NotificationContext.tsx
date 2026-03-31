@@ -25,6 +25,24 @@ const SOCKET_URL =
 
 const RELEVANT_ROLES = new Set(['admin', 'operations', 'operation', 'staff', 'sales']);
 
+// Aggressive polling for realtime feel - 2 seconds is much better than 5 seconds
+const POLLING_INTERVAL_MS = 2000;
+
+const NOTIFICATION_EVENT_KEYS = [
+  'notification',
+  'notifications',
+  'new_notification',
+  'new-notification',
+];
+
+// Debug flag: check logs to diagnose realtime issues
+const DEBUG_NOTIFICATIONS = true;
+
+const isNotificationEventName = (eventName: string) => {
+  const key = eventName.toLowerCase();
+  return NOTIFICATION_EVENT_KEYS.some((token) => key.includes(token));
+};
+
 const normalizeNotification = (payload: unknown): NotificationItem | null => {
   if (!payload || typeof payload !== 'object') {
     return null;
@@ -57,6 +75,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [loading, setLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const socketRef = useRef<Socket | null>(null);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const unreadRef = useRef(0);
 
   const isEligibleRole = useMemo(() => {
     const role = user?.role?.toLowerCase();
@@ -79,6 +99,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     try {
       const count = await notificationService.getUnreadCount();
       setUnreadCount(count);
+      unreadRef.current = count;
     } catch (error) {
       console.error('Failed to fetch unread notification count:', error);
     }
@@ -88,7 +109,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setNotifications((prev) =>
       prev.map((item) => (item.id === id ? { ...item, isRead: true, readAt: item.readAt || new Date().toISOString() } : item))
     );
-    setUnreadCount((prev) => Math.max(0, prev - 1));
+    setUnreadCount((prev) => {
+      const next = Math.max(0, prev - 1);
+      unreadRef.current = next;
+      return next;
+    });
 
     try {
       await notificationService.markAsRead(id);
@@ -102,6 +127,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const now = new Date().toISOString();
     setNotifications((prev) => prev.map((item) => ({ ...item, isRead: true, readAt: item.readAt || now })));
     setUnreadCount(0);
+    unreadRef.current = 0;
 
     try {
       await notificationService.markAllAsRead();
@@ -115,9 +141,14 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     if (!isAuthenticated || !isEligibleRole) {
       setNotifications([]);
       setUnreadCount(0);
+      unreadRef.current = 0;
       if (socketRef.current) {
         socketRef.current.disconnect();
         socketRef.current = null;
+      }
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
       }
       setIsConnected(false);
       return;
@@ -138,6 +169,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         token,
         authorization: `Bearer ${token}`,
       },
+      query: {
+        token,
+        userId: user?.id || '',
+        role: user?.role || '',
+      },
     });
 
     const upsertNotification = (notification: NotificationItem) => {
@@ -150,7 +186,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       });
 
       if (!notification.isRead) {
-        setUnreadCount((prev) => prev + 1);
+        setUnreadCount((prev) => {
+          const next = prev + 1;
+          unreadRef.current = next;
+          return next;
+        });
       }
     };
 
@@ -161,13 +201,20 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         normalizeNotification(payload);
 
       if (!candidate) {
+        if (DEBUG_NOTIFICATIONS) {
+          console.warn('⚠️ Failed to normalize notification payload:', payload);
+        }
         return;
+      }
+
+      if (DEBUG_NOTIFICATIONS) {
+        console.log('✅ Normalized notification:', candidate);
       }
 
       upsertNotification(candidate);
 
       toast({
-        title: candidate.title || 'Thong bao moi',
+        title: candidate.title || 'Thông báo mới',
         description: candidate.message,
       });
     };
@@ -184,22 +231,62 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setNotifications((prev) =>
         prev.map((item) => (item.id === id ? { ...item, isRead: true, readAt: item.readAt || new Date().toISOString() } : item))
       );
-      setUnreadCount((prev) => Math.max(0, prev - 1));
+      setUnreadCount((prev) => {
+        const next = Math.max(0, prev - 1);
+        unreadRef.current = next;
+        return next;
+      });
     };
 
     const handleReadAll = () => {
       const now = new Date().toISOString();
       setNotifications((prev) => prev.map((item) => ({ ...item, isRead: true, readAt: item.readAt || now })));
       setUnreadCount(0);
+      unreadRef.current = 0;
+    };
+
+    const handleAnySocketEvent = (eventName: string, payload: unknown) => {
+      if (!isNotificationEventName(eventName)) {
+        return;
+      }
+      if (DEBUG_NOTIFICATIONS) {
+        console.log('📨 Socket.IO event received:', { eventName, payload });
+      }
+      handleIncomingNotification(payload);
     };
 
     socket.on('connect', () => {
       setIsConnected(true);
-      socket.emit('notifications:join', { userId: user?.id, role: user?.role });
+      if (DEBUG_NOTIFICATIONS) {
+        console.log('✅ Socket.IO connected successfully', {
+          socketId: socket.id,
+          url: SOCKET_URL,
+          transports: socket.io.engine.transports,
+        });
+      }
+      
+      const joinPayload = { userId: user?.id, role: user?.role };
+      // Send multiple join contracts because each backend names these differently.
+      socket.emit('notifications:join', joinPayload);
+      socket.emit('notification:join', joinPayload);
+      socket.emit('join_notifications', joinPayload);
+      socket.emit('join:notifications', joinPayload);
+      socket.emit('join-room', `user:${user?.id}`);
+      socket.emit('joinRoom', `user:${user?.id}`);
+      
+      if (DEBUG_NOTIFICATIONS) {
+        console.log('📤 Sent join events to backend:', joinPayload);
+      }
+
+      // Fetch latest notifications immediately upon connection
+      void fetchNotifications();
     });
 
     socket.on('disconnect', () => {
       setIsConnected(false);
+      if (DEBUG_NOTIFICATIONS) {
+        console.log('❌ Socket.IO disconnected, fallback to polling');
+      }
     });
 
     socket.on('notification', handleIncomingNotification);
@@ -208,9 +295,54 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     socket.on('notifications:new', handleIncomingNotification);
     socket.on('notification:read', handleNotificationRead);
     socket.on('notifications:read-all', handleReadAll);
+    socket.onAny(handleAnySocketEvent);
 
     socket.connect();
     socketRef.current = socket;
+
+    const syncNotifications = async () => {
+      try {
+        const pollStartTime = performance.now();
+        
+        const [latestUnread, result] = await Promise.all([
+          notificationService.getUnreadCount(),
+          notificationService.getNotifications({ page: 1, limit: 20 }),
+        ]);
+
+        const pollEndTime = performance.now();
+        const pollDuration = pollEndTime - pollStartTime;
+
+        if (DEBUG_NOTIFICATIONS) {
+          console.log('🔄 Polling sync completed', {
+            unreadCount: latestUnread,
+            notificationCount: result.items?.length || 0,
+            durationMs: pollDuration.toFixed(2),
+          });
+        }
+
+        // Cập nhật unread count nếu khác
+        if (latestUnread !== unreadRef.current) {
+          setUnreadCount(latestUnread);
+          unreadRef.current = latestUnread;
+          if (DEBUG_NOTIFICATIONS) {
+            console.log('📈 Unread count changed:', { old: unreadRef.current, new: latestUnread });
+          }
+        }
+
+        // Luôn cập nhật notifications list từ polling
+        setNotifications(result.items || []);
+      } catch (error) {
+        console.error('❌ Polling sync failed:', error);
+      }
+    };
+
+    pollingRef.current = setInterval(() => {
+      void syncNotifications();
+    }, POLLING_INTERVAL_MS);
+
+    if (DEBUG_NOTIFICATIONS) {
+      console.log('⏱️ Polling started with interval:', POLLING_INTERVAL_MS, 'ms');
+    }
 
     return () => {
       socket.off('notification', handleIncomingNotification);
@@ -219,8 +351,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       socket.off('notifications:new', handleIncomingNotification);
       socket.off('notification:read', handleNotificationRead);
       socket.off('notifications:read-all', handleReadAll);
+      socket.offAny(handleAnySocketEvent);
       socket.disconnect();
       socketRef.current = null;
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
       setIsConnected(false);
     };
   }, [isAuthenticated, isEligibleRole, fetchNotifications, refreshUnreadCount, user?.id, user?.role]);
