@@ -40,7 +40,7 @@ const OperationsDashboard: React.FC = () => {
       const orders = response.orders || [];
 
       const waiting = orders.filter((order) =>
-        ['PENDING', 'CONFIRMED', 'WAITING_CUSTOMER', 'PROCESSING', 'READY'].includes(order.status)
+        ['PENDING', 'PENDING_PAYMENT', 'CONFIRMED', 'WAITING_CUSTOMER', 'PROCESSING', 'READY'].includes(order.status)
       ).length;
 
       const completed = orders.filter((order) => order.status === 'COMPLETED').length;

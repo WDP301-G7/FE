@@ -4,6 +4,7 @@ import { Navigate, useSearchParams } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { operationsService, OrderDetails, GetOrdersParams } from '@/services/operations.service';
 import { adminService } from '@/services/admin.service';
+import { productService } from '@/services/product.service';
 import StatusBadge from '@/components/StatusBadge';
 import {
   Card,
@@ -37,9 +38,19 @@ interface StaffMember {
   email: string;
 }
 
-interface OrderOperationsPageProps {
-  allowedRoles?: string[];
-}
+const getFullImageUrl = (url: string | undefined | null): string => {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+  const baseUrl = apiUrl.replace('/api', '');
+  const path = url.startsWith('/') ? url : `/${url}`;
+  return `${baseUrl}${path}`;
+};
+
+// const OrderOperationsPage: React.FC = () => {
+// interface OrderOperationsPageProps {
+//   allowedRoles?: string[];
+// }
 
 const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
   allowedRoles = ['operations'],
@@ -72,6 +83,7 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
   const [assignedStaffId, setAssignedStaffId] = useState('');
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
   const [cancelReason, setCancelReason] = useState('');
+  const [productImages, setProductImages] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const loadStaffs = async () => {
@@ -113,11 +125,19 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
       if (targetOrder) {
         setSelectedOrder(targetOrder);
         setIsDetailOpen(true);
+        loadProductImages(targetOrder);
         // Clear query param
         setSearchParams({});
       }
     }
   }, [searchParams, orders, setSearchParams]);
+
+  useEffect(() => {
+    if (isDetailOpen && selectedOrder) {
+      loadProductImages(selectedOrder);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDetailOpen, selectedOrder]);
 
   const loadOrders = async () => {
     setLoading(true);
@@ -144,6 +164,67 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
   const openDetails = (order: OrderDetails) => {
     setSelectedOrder(order);
     setIsDetailOpen(true);
+    loadProductImages(order);
+  };
+
+  const loadProductImages = async (order: OrderDetails) => {
+    const items = order.orderItems || [];
+    const missingProductIds = Array.from(
+      new Set(
+        items
+          .map((item) => item.productId || item.product?.id)
+          .filter((id): id is string => Boolean(id))
+          .filter((id) => !productImages[id])
+      )
+    );
+
+    if (missingProductIds.length === 0) return;
+
+    try {
+      const imageMap: Record<string, string> = {};
+
+      await Promise.all(
+        missingProductIds.map(async (productId) => {
+          try {
+            const product = await productService.getProduct(productId);
+            if (product.images?.length) {
+              const primary = product.images.find((img) => img.isPrimary) || product.images[0];
+              if (primary?.imageUrl) {
+                imageMap[productId] = primary.imageUrl;
+              }
+            } else if (product.primaryImage) {
+              imageMap[productId] = product.primaryImage;
+            }
+          } catch {
+            // Ignore per-product image loading errors.
+          }
+        })
+      );
+
+      if (Object.keys(imageMap).length > 0) {
+        setProductImages((prev) => ({ ...prev, ...imageMap }));
+      }
+    } catch {
+      // Ignore image preloading failures to keep modal usable.
+    }
+  };
+
+  const getOrderItemImageUrl = (item: any) => {
+    const productId = item?.productId || item?.product?.id;
+    const cached = productId ? productImages[productId] : '';
+
+    const directUrl =
+      cached ||
+      item?.product?.imageUrl ||
+      item?.product?.image ||
+      item?.product?.primaryImage ||
+      item?.productImage ||
+      item?.imageUrl ||
+      item?.image ||
+      item?.product?.images?.[0]?.imageUrl ||
+      item?.product?.images?.[0]?.url;
+
+    return getFullImageUrl(directUrl);
   };
 
   const openConfirm = (order: OrderDetails) => {
@@ -303,8 +384,9 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
     const labels: Record<string, string> = {
       NEW: 'Mới',
       PENDING: 'Chờ xác nhận',
+      PENDING_PAYMENT: 'Chờ thanh toán',
       CONFIRMED: 'Đã xác nhận',
-      WAITING_CUSTOMER: 'Chờ khách hàng',
+      WAITING_CUSTOMER: 'Đang chuẩn bị',
       PROCESSING: 'Đang xử lý',
       READY: 'Sẵn sàng giao',
       READY_FOR_PICKUP: 'Sẵn sàng giao',
@@ -517,8 +599,9 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
                 onChange={(v) => setStatusFilter(v === '__all' ? '' : v)}
               >
                 <Option value="__all">Tất cả trạng thái</Option>
+                <Option value="PENDING_PAYMENT">Chờ thanh toán</Option>
                 <Option value="CONFIRMED">Đã xác nhận</Option>
-                <Option value="WAITING_CUSTOMER">Chờ khách hàng</Option>
+                <Option value="WAITING_CUSTOMER">Đang chuẩn bị</Option>
                 <Option value="READY">Sẵn sàng giao</Option>
                 <Option value="CANCELLED">Đã hủy</Option>
               </Select>
@@ -679,9 +762,9 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
                           width: 70,
                           render: (_: unknown, item: any) => (
                             <div className="w-9 h-9 rounded-md bg-gray-100 flex items-center justify-center overflow-hidden">
-                              {item?.product?.imageUrl ? (
+                              {getOrderItemImageUrl(item) ? (
                                 <img
-                                  src={item.product.imageUrl}
+                                  src={getOrderItemImageUrl(item)}
                                   alt={item?.product?.name || 'product'}
                                   className="w-full h-full object-cover"
                                 />

@@ -11,6 +11,7 @@ interface StatusBadgeProps {
 const variantMap: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; class?: string }> = {
   // order/operations statuses
   PENDING: { variant: "outline", class: "bg-yellow-100 text-yellow-800" },
+  PENDING_PAYMENT: { variant: "outline", class: "bg-amber-100 text-amber-800" },
   WAITING_CUSTOMER: { variant: "outline", class: "bg-yellow-100 text-yellow-800" },
   CONFIRMED: { variant: "default", class: "bg-blue-100 text-blue-800" },
   PROCESSING: { variant: "secondary", class: "bg-purple-100 text-purple-800" },
@@ -44,7 +45,8 @@ const variantMap: Record<string, { variant: "default" | "secondary" | "destructi
 // optional mapping for more readable labels
 const labelMap: Record<string, string> = {
   PENDING: "Chờ xử lý",
-  WAITING_CUSTOMER: "Chờ khách xác nhận",
+  PENDING_PAYMENT: "Chờ thanh toán",
+  WAITING_CUSTOMER: "Đang chuẩn bị",
   CONFIRMED: "Đã xác nhận",
   PROCESSING: "Đang xử lý",
   READY: "Sẵn sàng giao",

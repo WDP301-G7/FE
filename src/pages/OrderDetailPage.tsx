@@ -48,6 +48,8 @@ const OrderDetailPage: React.FC = () => {
       case 'CONFIRMED':
       case 'PROCESSING':
         return 'bg-blue-100 text-blue-700';
+      case 'PENDING_PAYMENT':
+        return 'bg-amber-100 text-amber-700';
       case 'WAITING_CUSTOMER':
         return 'bg-amber-100 text-amber-700';
       case 'READY':

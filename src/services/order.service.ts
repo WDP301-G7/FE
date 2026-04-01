@@ -18,10 +18,10 @@ export interface Order {
   customerPhone?: string;
   items: OrderItem[];
   totalAmount: number;
-  status: 'NEW' | 'CONFIRMED' | 'WAITING_CUSTOMER' | 'PROCESSING' | 'READY' | 'COMPLETED' | 'CANCELLED';
+  status: 'NEW' | 'PENDING_PAYMENT' | 'CONFIRMED' | 'WAITING_CUSTOMER' | 'PROCESSING' | 'READY' | 'COMPLETED' | 'EXPIRED' | 'CANCELLED';
   shippingAddress: string;
   paymentMethod: 'COD' | 'BANK_TRANSFER' | 'CREDIT_CARD';
-  paymentStatus: 'PENDING' | 'PAID' | 'FAILED';
+  paymentStatus: 'PENDING' | 'UNPAID' | 'PAID' | 'FAILED';
   notes?: string;
   assignedStaffId?: string;
   assignedStaffName?: string;

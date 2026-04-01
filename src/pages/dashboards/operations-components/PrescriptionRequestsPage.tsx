@@ -33,6 +33,7 @@ import {
   ReloadOutlined,
   DeleteOutlined,
 } from '@ant-design/icons';
+import { User, Mail, Phone, Package, CalendarDays, FileText } from 'lucide-react';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -486,38 +487,116 @@ const PrescriptionRequestsPage: React.FC = () => {
 
       {/* Detail Modal */}
       <Modal
-        title="Chi tiết đơn thuốc"
+        title={null}
         open={detailOpen}
         onCancel={() => setDetailOpen(false)}
-        footer={<Button onClick={() => setDetailOpen(false)}>Đóng</Button>}
+        footer={null}
         destroyOnClose
+        width={920}
+        styles={{ body: { maxHeight: '75vh', overflowY: 'auto' } }}
       >
         {selected && (
-          <div className="space-y-3 py-2">
-            {[
-              { label: 'Mã đơn', value: selected.id },
-              { label: 'Khách hàng', value: selected.customer?.fullName || 'N/A' },
-              { label: 'Ghi chú', value: selected.contactNotes || '—' },
-            ].map(({ label, value }) => (
-              <div key={label}>
-                <Text type="secondary" style={{ fontSize: 12 }}>{label}</Text>
-                <div><Text strong>{value}</Text></div>
-              </div>
-            ))}
-            <div>
-              <Text type="secondary" style={{ fontSize: 12 }}>Trạng thái</Text>
-              <div><StatusBadge status={selected.status} /></div>
+          <div className="py-2">
+            <div className="mb-4">
+              <Title level={3} className="!mb-1">Chi tiết đơn thuốc</Title>
+              <Text type="secondary">Yêu cầu #{selected.id}</Text>
             </div>
-            {selected.images && selected.images.length > 0 && (
-              <div>
-                <Text type="secondary" style={{ fontSize: 12 }}>Ảnh đơn thuốc</Text>
-                <div className="grid grid-cols-2 gap-2 mt-1">
-                  {selected.images.map((img) => (
-                    <img key={img.id} src={img.imageUrl} alt="Đơn thuốc" className="w-full h-auto rounded border" />
-                  ))}
+
+            <div className="space-y-4">
+              <Card>
+                <div className="p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <User className="h-5 w-5 text-gray-600" />
+                    <Text strong style={{ fontSize: 20 }}>Thông tin khách hàng</Text>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-3">
+                        <User className="h-4 w-4 text-gray-500 mt-1" />
+                        <div>
+                          <div className="text-xs text-gray-500">Họ tên</div>
+                          <Text strong>{selected.customer?.fullName || 'N/A'}</Text>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-3">
+                        <Phone className="h-4 w-4 text-gray-500 mt-1" />
+                        <div>
+                          <div className="text-xs text-gray-500">Số điện thoại</div>
+                          <Text strong>{selected.customer?.phone || 'N/A'}</Text>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-3">
+                        <Mail className="h-4 w-4 text-gray-500 mt-1" />
+                        <div>
+                          <div className="text-xs text-gray-500">Email</div>
+                          <Text strong>{selected.customer?.email || 'N/A'}</Text>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-3">
+                        <Package className="h-4 w-4 text-gray-500 mt-1" />
+                        <div>
+                          <div className="text-xs text-gray-500">Trạng thái</div>
+                          <div className="mt-1"><StatusBadge status={selected.status} /></div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-3">
+                        <CalendarDays className="h-4 w-4 text-gray-500 mt-1" />
+                        <div>
+                          <div className="text-xs text-gray-500">Ngày tạo</div>
+                          <Text strong>
+                            {new Date(selected.createdAt || selected.createdDate || '').toLocaleString('vi-VN')}
+                          </Text>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
+              </Card>
+
+              <Card>
+                <div className="p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <FileText className="h-5 w-5 text-gray-600" />
+                    <Text strong style={{ fontSize: 20 }}>Ghi chú liên hệ</Text>
+                  </div>
+                  <div className="p-3 rounded-lg border bg-gray-50">
+                    <Text>{selected.contactNotes?.trim() || 'Chưa có ghi chú liên hệ'}</Text>
+                  </div>
+                </div>
+              </Card>
+
+              {selected.images && selected.images.length > 0 && (
+                <Card>
+                  <div className="p-5">
+                    <div className="flex items-center gap-2 mb-3">
+                      <FileText className="h-5 w-5 text-gray-600" />
+                      <Text strong style={{ fontSize: 20 }}>Ảnh đơn thuốc</Text>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {selected.images.map((img) => (
+                        <img
+                          key={img.id}
+                          src={img.imageUrl}
+                          alt="Đơn thuốc"
+                          className="w-full h-auto rounded-lg border object-cover"
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </Card>
+              )}
+
+              <div className="flex justify-end gap-2 pt-1">
+                <Button onClick={() => setDetailOpen(false)}>Đóng</Button>
               </div>
-            )}
+            </div>
           </div>
         )}
       </Modal>
@@ -560,139 +639,190 @@ const PrescriptionRequestsPage: React.FC = () => {
 
       {/* Create Order Modal */}
       <Modal
-        title="Tạo đơn kính từ đơn thuốc"
+        title={null}
         open={orderOpen}
         onCancel={() => setOrderOpen(false)}
         footer={null}
         destroyOnClose
-        width={900}
-        styles={{ body: { maxHeight: '75vh', overflowY: 'auto' } }}
+        width={980}
+        styles={{ body: { maxHeight: '78vh', overflowY: 'auto' } }}
       >
-        <Form layout="vertical" className="py-2" style={{ rowGap: 16 }}>
-          <div>
-            <Text strong>Ghi chú sau liên hệ khách hàng</Text>
-            <div className="mt-1 p-3 rounded border bg-gray-50">
-              <Text>{selected?.contactNotes?.trim() || 'Chưa có ghi chú liên hệ'}</Text>
-            </div>
+        <div className="py-2">
+          <div className="mb-4">
+            <Title level={3} className="!mb-1">Tạo đơn kính từ đơn thuốc</Title>
+            <Text type="secondary">Yêu cầu #{selected?.id}</Text>
           </div>
 
-          {/* Prescription images */}
-          {selected?.images && selected.images.length > 0 && (
-            <div>
-              <Text strong>Ảnh đơn thuốc</Text>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
-                {selected.images.map((img) => (
-                  <img key={img.id} src={img.imageUrl} alt="Đơn thuốc" className="w-full h-auto rounded border object-cover" />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Product selector */}
-          <div>
-            <Text strong>Thêm sản phẩm <span style={{ color: 'red' }}>*</span></Text>
-            <Select
-              placeholder="Chọn sản phẩm để thêm"
-              style={{ width: '100%', marginTop: 6 }}
-              onChange={handleAddProduct}
-              showSearch
-              optionFilterProp="children"
-            >
-              {products.map((p) => (
-                <Option key={p.id} value={p.id}>
-                  {p.name} ({p.type}) — {Number(p.price).toLocaleString('vi-VN')}₫
-                </Option>
-              ))}
-            </Select>
-          </div>
-
-          {/* Selected products */}
-          {orderItems.length > 0 && (
-            <Card size="small" title="Sản phẩm đã chọn">
-              {orderItems.map((item, index) => (
-                <div key={item.productId} className="grid grid-cols-1 md:grid-cols-[2fr_88px_132px_36px] gap-2 items-center mb-2">
-                  <Text style={{ fontSize: 13 }}>{item.name}</Text>
-                  <InputNumber
-                    min={1}
-                    value={item.quantity}
-                    style={{ width: '100%' }}
-                    onChange={(val) =>
-                      setOrderItems((prev) =>
-                        prev.map((i, idx) => (idx === index ? { ...i, quantity: val as number } : i))
-                      )
-                    }
-                  />
-                  <InputNumber
-                    min={0}
-                    value={item.unitPrice}
-                    style={{ width: '100%' }}
-                    formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                    onChange={(val) =>
-                      setOrderItems((prev) =>
-                        prev.map((i, idx) => (idx === index ? { ...i, unitPrice: val as number } : i))
-                      )
-                    }
-                  />
-                  <Button
-                    icon={<DeleteOutlined />}
-                    size="small"
-                    danger
-                    onClick={() => setOrderItems((prev) => prev.filter((_, idx) => idx !== index))}
-                  />
+          <Form layout="vertical" className="space-y-4">
+            <Card>
+              <div className="p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <User className="h-5 w-5 text-gray-600" />
+                  <Text strong style={{ fontSize: 20 }}>Thông tin khách hàng</Text>
                 </div>
-              ))}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-3">
+                    <div className="text-xs text-gray-500">Khách hàng</div>
+                    <Text strong>{selected?.customer?.fullName || 'N/A'}</Text>
+                    <div className="text-xs text-gray-500 mt-2">Số điện thoại</div>
+                    <Text strong>{selected?.customer?.phone || 'N/A'}</Text>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="text-xs text-gray-500">Email</div>
+                    <Text strong>{selected?.customer?.email || 'N/A'}</Text>
+                    <div className="text-xs text-gray-500 mt-2">Ghi chú sau liên hệ</div>
+                    <div className="p-2 rounded border bg-gray-50">
+                      <Text>{selected?.contactNotes?.trim() || 'Chưa có ghi chú liên hệ'}</Text>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </Card>
-          )}
 
-          <Divider><Text strong>Mắt phải (Right Eye)</Text></Divider>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {[
-              { label: 'Độ cầu (SPH)', val: rightSphere, set: setRightSphere, step: 0.25 },
-              { label: 'Độ loạn (CYL)', val: rightCylinder, set: setRightCylinder, step: 0.25 },
-              { label: 'Trục (Axis)', val: rightAxis, set: setRightAxis, step: 1 },
-            ].map(({ label, val, set, step }) => (
-              <Form.Item key={label} label={<Text style={{ fontSize: 12 }}>{label}</Text>} style={{ marginBottom: 0 }}>
-                <InputNumber step={step} value={val} onChange={(v) => set(v as number)} style={{ width: '100%' }} />
-              </Form.Item>
-            ))}
-          </div>
+            {selected?.images && selected.images.length > 0 && (
+              <Card>
+                <div className="p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <FileText className="h-5 w-5 text-gray-600" />
+                    <Text strong style={{ fontSize: 20 }}>Ảnh đơn thuốc</Text>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {selected.images.map((img) => (
+                      <img key={img.id} src={img.imageUrl} alt="Đơn thuốc" className="w-full h-auto rounded-lg border object-cover" />
+                    ))}
+                  </div>
+                </div>
+              </Card>
+            )}
 
-          <Divider><Text strong>Mắt trái (Left Eye)</Text></Divider>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {[
-              { label: 'Độ cầu (SPH)', val: leftSphere, set: setLeftSphere, step: 0.25 },
-              { label: 'Độ loạn (CYL)', val: leftCylinder, set: setLeftCylinder, step: 0.25 },
-              { label: 'Trục (Axis)', val: leftAxis, set: setLeftAxis, step: 1 },
-            ].map(({ label, val, set, step }) => (
-              <Form.Item key={label} label={<Text style={{ fontSize: 12 }}>{label}</Text>} style={{ marginBottom: 0 }}>
-                <InputNumber step={step} value={val} onChange={(v) => set(v as number)} style={{ width: '100%' }} />
-              </Form.Item>
-            ))}
-          </div>
+            <Card>
+              <div className="p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <Package className="h-5 w-5 text-gray-600" />
+                  <Text strong style={{ fontSize: 20 }}>Sản phẩm</Text>
+                </div>
 
-          <Divider />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Form.Item label="Khoảng cách đồng tử (PD)" style={{ marginBottom: 0 }}>
-              <InputNumber value={pupillaryDistance} onChange={(v) => setPupillaryDistance(v as number)} style={{ width: '100%' }} />
-            </Form.Item>
-            <Form.Item label="Ngày hết hạn (ngày)" style={{ marginBottom: 0 }}>
-              <InputNumber min={1} value={expiryDays} onChange={(v) => setExpiryDays(v as number)} style={{ width: '100%' }} />
-            </Form.Item>
-          </div>
+                <Form.Item label="Thêm sản phẩm" required>
+                  <Select
+                    placeholder="Chọn sản phẩm để thêm"
+                    style={{ width: '100%' }}
+                    onChange={handleAddProduct}
+                    showSearch
+                    optionFilterProp="children"
+                  >
+                    {products.map((p) => (
+                      <Option key={p.id} value={p.id}>
+                        {p.name} ({p.type}) — {Number(p.price).toLocaleString('vi-VN')}₫
+                      </Option>
+                    ))}
+                  </Select>
+                </Form.Item>
 
-          <Form.Item label="Ghi chú đơn thuốc" style={{ marginBottom: 0 }}>
-            <TextArea value={prescriptionNotes} onChange={(e) => setPrescriptionNotes(e.target.value)} rows={2} />
-          </Form.Item>
+                {orderItems.length > 0 && (
+                  <Card size="small" title="Sản phẩm đã chọn">
+                    {orderItems.map((item, index) => (
+                      <div key={item.productId} className="grid grid-cols-1 md:grid-cols-[2fr_88px_132px_36px] gap-2 items-center mb-2">
+                        <Text style={{ fontSize: 13 }}>{item.name}</Text>
+                        <InputNumber
+                          min={1}
+                          value={item.quantity}
+                          style={{ width: '100%' }}
+                          onChange={(val) =>
+                            setOrderItems((prev) =>
+                              prev.map((i, idx) => (idx === index ? { ...i, quantity: val as number } : i))
+                            )
+                          }
+                        />
+                        <InputNumber
+                          min={0}
+                          value={item.unitPrice}
+                          style={{ width: '100%' }}
+                          formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                          onChange={(val) =>
+                            setOrderItems((prev) =>
+                              prev.map((i, idx) => (idx === index ? { ...i, unitPrice: val as number } : i))
+                            )
+                          }
+                        />
+                        <Button
+                          icon={<DeleteOutlined />}
+                          size="small"
+                          danger
+                          onClick={() => setOrderItems((prev) => prev.filter((_, idx) => idx !== index))}
+                        />
+                      </div>
+                    ))}
+                  </Card>
+                )}
+              </div>
+            </Card>
 
-          <Form.Item label="Ngày dự kiến hoàn thành" style={{ marginBottom: 0 }}>
-            <Input type="datetime-local" value={expectedReadyDate} onChange={(e) => setExpectedReadyDate(e.target.value)} />
-          </Form.Item>
+            <Card>
+              <div className="p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <FileText className="h-5 w-5 text-gray-600" />
+                  <Text strong style={{ fontSize: 20 }}>Thông số đơn thuốc</Text>
+                </div>
 
-          <div className="flex justify-end gap-2">
-            <Button onClick={() => setOrderOpen(false)}>Hủy</Button>
-            <Button type="primary" onClick={submitOrder} loading={loading}>Tạo đơn</Button>
-          </div>
-        </Form>
+                <div className="mb-2">
+                  <Text strong>Mắt phải (Right Eye)</Text>
+                </div>
+                <Divider style={{ marginTop: 0 }} />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {[
+                    { label: 'Độ cầu (SPH)', val: rightSphere, set: setRightSphere, step: 0.25 },
+                    { label: 'Độ loạn (CYL)', val: rightCylinder, set: setRightCylinder, step: 0.25 },
+                    { label: 'Trục (Axis)', val: rightAxis, set: setRightAxis, step: 1 },
+                  ].map(({ label, val, set, step }) => (
+                    <Form.Item key={label} label={<Text style={{ fontSize: 12 }}>{label}</Text>} style={{ marginBottom: 0 }}>
+                      <InputNumber step={step} value={val} onChange={(v) => set(v as number)} style={{ width: '100%' }} />
+                    </Form.Item>
+                  ))}
+                </div>
+
+                <div className="mb-2 mt-4">
+                  <Text strong>Mắt trái (Left Eye)</Text>
+                </div>
+                <Divider style={{ marginTop: 0 }} />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {[
+                    { label: 'Độ cầu (SPH)', val: leftSphere, set: setLeftSphere, step: 0.25 },
+                    { label: 'Độ loạn (CYL)', val: leftCylinder, set: setLeftCylinder, step: 0.25 },
+                    { label: 'Trục (Axis)', val: leftAxis, set: setLeftAxis, step: 1 },
+                  ].map(({ label, val, set, step }) => (
+                    <Form.Item key={label} label={<Text style={{ fontSize: 12 }}>{label}</Text>} style={{ marginBottom: 0 }}>
+                      <InputNumber step={step} value={val} onChange={(v) => set(v as number)} style={{ width: '100%' }} />
+                    </Form.Item>
+                  ))}
+                </div>
+
+                <Divider />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Form.Item label="Khoảng cách đồng tử (PD)" style={{ marginBottom: 0 }}>
+                    <InputNumber value={pupillaryDistance} onChange={(v) => setPupillaryDistance(v as number)} style={{ width: '100%' }} />
+                  </Form.Item>
+                  <Form.Item label="Ngày hết hạn (ngày)" style={{ marginBottom: 0 }}>
+                    <InputNumber min={1} value={expiryDays} onChange={(v) => setExpiryDays(v as number)} style={{ width: '100%' }} />
+                  </Form.Item>
+                </div>
+
+                <Form.Item label="Ghi chú đơn thuốc" style={{ marginBottom: 0 }}>
+                  <TextArea value={prescriptionNotes} onChange={(e) => setPrescriptionNotes(e.target.value)} rows={2} />
+                </Form.Item>
+
+                <Form.Item label="Ngày dự kiến hoàn thành" style={{ marginBottom: 0 }}>
+                  <Input type="datetime-local" value={expectedReadyDate} onChange={(e) => setExpectedReadyDate(e.target.value)} />
+                </Form.Item>
+              </div>
+            </Card>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <Button onClick={() => setOrderOpen(false)}>Hủy</Button>
+              <Button type="primary" onClick={submitOrder} loading={loading}>Tạo đơn</Button>
+            </div>
+          </Form>
+        </div>
       </Modal>
 
       {/* Close Request Modal */}
