@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, Typography, Table, Tag, Switch, Space, Button, Row, Col } from 'antd';
+import { Card, Typography, Table, Tag, Switch, Space, Button, Row, Col, Input } from 'antd';
 import { motion } from 'framer-motion';
 import { 
   AppstoreOutlined, 
@@ -8,7 +8,12 @@ import {
   WarningOutlined,
   SyncOutlined,
 } from '@ant-design/icons';
-import { mockFeatureToggles } from '@/mock-data/policies';
+import { useToast } from '@/hooks/use-toast';
+import {
+  adminService,
+  SystemSetting,
+  SettingType,
+} from '@/services/admin.service';
 
 const { Title, Text } = Typography;
 
@@ -22,6 +27,138 @@ interface SystemModule {
 }
 
 const AdminSystemsManagement: React.FC = () => {
+  const { toast } = useToast();
+
+  const [settings, setSettings] = React.useState<SystemSetting[]>([]);
+  const [settingsLoading, setSettingsLoading] = React.useState(false);
+  const [savingKeys, setSavingKeys] = React.useState<Record<string, boolean>>({});
+  const [editedValues, setEditedValues] = React.useState<Record<string, string | number | boolean>>({});
+  const [editedDescriptions, setEditedDescriptions] = React.useState<Record<string, string>>({});
+
+  const parseSettingValue = (type: SettingType, value: string): string | number | boolean => {
+    switch (type) {
+      case 'BOOLEAN':
+        return value === 'true' || value === '1';
+      case 'NUMBER': {
+        const num = Number(value);
+        return Number.isNaN(num) ? value : num;
+      }
+      default:
+        return value;
+    }
+  };
+
+  const fetchSystemSettings = React.useCallback(async () => {
+    try {
+      setSettingsLoading(true);
+      const data = await adminService.getSystemSettings();
+      setSettings(data);
+
+      const initialValues: Record<string, string | number | boolean> = {};
+      const initialDescriptions: Record<string, string> = {};
+
+      data.forEach((setting) => {
+        initialValues[setting.key] = parseSettingValue(setting.type, setting.value);
+        initialDescriptions[setting.key] = setting.description || '';
+      });
+
+      setEditedValues(initialValues);
+      setEditedDescriptions(initialDescriptions);
+    } catch (error: any) {
+      toast({
+        title: 'Lỗi',
+        description: error?.response?.data?.message || 'Không thể tải cài đặt hệ thống',
+        variant: 'destructive',
+      });
+    } finally {
+      setSettingsLoading(false);
+    }
+  }, [toast]);
+
+  React.useEffect(() => {
+    fetchSystemSettings();
+  }, [fetchSystemSettings]);
+
+  const buildPayloadValue = (setting: SystemSetting, rawValue: string | number | boolean) => {
+    switch (setting.type) {
+      case 'BOOLEAN':
+        return Boolean(rawValue);
+      case 'NUMBER': {
+        const num = Number(rawValue);
+        if (Number.isNaN(num)) {
+          throw new Error(`Giá trị của ${setting.key} phải là số`);
+        }
+        return num;
+      }
+      case 'JSON': {
+        if (typeof rawValue === 'string') {
+          try {
+            return JSON.parse(rawValue);
+          } catch {
+            throw new Error(`Giá trị của ${setting.key} phải là JSON hợp lệ`);
+          }
+        }
+        return rawValue;
+      }
+      case 'STRING':
+      default:
+        return String(rawValue);
+    }
+  };
+
+  const saveSetting = async (setting: SystemSetting, overrideValue?: string | number | boolean) => {
+    const rawValue = overrideValue !== undefined ? overrideValue : editedValues[setting.key];
+
+    if (rawValue === undefined) {
+      toast({
+        title: 'Lỗi',
+        description: `Thiếu giá trị cho ${setting.key}`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    let payloadValue: string | number | boolean | Record<string, unknown> | unknown[];
+    try {
+      payloadValue = buildPayloadValue(setting, rawValue);
+    } catch (error: any) {
+      toast({
+        title: 'Lỗi dữ liệu',
+        description: error?.message || 'Giá trị không hợp lệ',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setSavingKeys((prev) => ({ ...prev, [setting.key]: true }));
+
+      const updated = await adminService.updateSystemSetting(setting.key, {
+        value: payloadValue,
+        description: editedDescriptions[setting.key] || setting.description || '',
+      });
+
+      setSettings((prev) => prev.map((item) => (item.key === updated.key ? updated : item)));
+      setEditedValues((prev) => ({
+        ...prev,
+        [updated.key]: parseSettingValue(updated.type, updated.value),
+      }));
+
+      toast({
+        title: 'Thành công',
+        description: `Đã cập nhật ${updated.key}`,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Lỗi',
+        description: error?.response?.data?.message || `Không thể cập nhật ${setting.key}`,
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingKeys((prev) => ({ ...prev, [setting.key]: false }));
+    }
+  };
+
   // System modules with more details
   const systemModules: SystemModule[] = [
     { 
@@ -82,39 +219,83 @@ const AdminSystemsManagement: React.FC = () => {
     errorModules: systemModules.filter(m => m.status === 'error').length,
   };
 
-  const featureColumns = [
+  const settingsColumns = [
     {
-      title: 'Tính Năng',
-      dataIndex: 'name',
-      key: 'name',
+      title: 'Key',
+      dataIndex: 'key',
+      key: 'key',
       render: (text: string) => <Text strong>{text}</Text>,
     },
     {
-      title: 'Danh Mục',
-      dataIndex: 'category',
-      key: 'category',
-      render: (text: string) => <Tag>{text}</Tag>,
-      filters: [
-        { text: 'Core', value: 'Core' },
-        { text: 'Integration', value: 'Integration' },
-        { text: 'Analytics', value: 'Analytics' },
-        { text: 'Notifications', value: 'Notifications' },
-      ],
-      onFilter: (value: any, record: any) => record.category === value,
+      title: 'Loại',
+      dataIndex: 'type',
+      key: 'type',
+      width: 120,
+      render: (text: SettingType) => <Tag>{text}</Tag>,
     },
     {
-      title: 'Mô Tả',
-      dataIndex: 'description',
+      title: 'Giá trị',
+      key: 'value',
+      render: (_: unknown, record: SystemSetting) => {
+        if (record.type === 'BOOLEAN') {
+          const checked = Boolean(editedValues[record.key]);
+          return (
+            <Switch
+              checked={checked}
+              loading={savingKeys[record.key]}
+              onChange={(nextValue) => {
+                setEditedValues((prev) => ({ ...prev, [record.key]: nextValue }));
+                saveSetting(record, nextValue);
+              }}
+            />
+          );
+        }
+
+        return (
+          <Input
+            value={String(editedValues[record.key] ?? '')}
+            onChange={(e) =>
+              setEditedValues((prev) => ({
+                ...prev,
+                [record.key]: e.target.value,
+              }))
+            }
+            placeholder={record.type === 'JSON' ? '{"example":true}' : 'Nhập giá trị'}
+          />
+        );
+      },
+    },
+    {
+      title: 'Mô tả',
       key: 'description',
-      render: (text: string) => (
-        <Text className="text-muted-foreground text-sm">{text}</Text>
+      render: (_: unknown, record: SystemSetting) => (
+        <Input
+          value={editedDescriptions[record.key] ?? ''}
+          onChange={(e) =>
+            setEditedDescriptions((prev) => ({
+              ...prev,
+              [record.key]: e.target.value,
+            }))
+          }
+          placeholder="Mô tả cài đặt"
+        />
       ),
     },
     {
-      title: 'Trạng Thái',
-      dataIndex: 'isEnabled',
-      key: 'isEnabled',
-      render: (isEnabled: boolean) => <Switch checked={isEnabled} />,
+      title: 'Thao tác',
+      key: 'actions',
+      width: 160,
+      render: (_: unknown, record: SystemSetting) => (
+        <Button
+          type="primary"
+          size="small"
+          loading={savingKeys[record.key]}
+          disabled={record.type === 'BOOLEAN'}
+          onClick={() => saveSetting(record)}
+        >
+          Lưu
+        </Button>
+      ),
     },
   ];
 
@@ -217,7 +398,7 @@ const AdminSystemsManagement: React.FC = () => {
             <Title level={4} className="!text-foreground !mb-0">
               Trạng Thái Các Module Hệ Thống
             </Title>
-            <Button type="primary" icon={<SyncOutlined />}>
+            <Button type="primary" icon={<SyncOutlined />} onClick={fetchSystemSettings} loading={settingsLoading}>
               Làm Mới
             </Button>
           </div>
@@ -266,18 +447,21 @@ const AdminSystemsManagement: React.FC = () => {
         <Card className="dashboard-section">
           <div className="flex items-center justify-between mb-4">
             <Title level={4} className="!text-foreground !mb-0">
-              Bật/Tắt Tính Năng
+              Cài Đặt Hệ Thống
             </Title>
-            <Button type="primary">Lưu Thay Đổi</Button>
+            <Button type="primary" icon={<SyncOutlined />} onClick={fetchSystemSettings} loading={settingsLoading}>
+              Tải Lại
+            </Button>
           </div>
           <Table
-            dataSource={mockFeatureToggles}
-            columns={featureColumns}
-            rowKey="id"
+            loading={settingsLoading}
+            dataSource={settings}
+            columns={settingsColumns}
+            rowKey="key"
             pagination={{
               pageSize: 10,
               showSizeChanger: true,
-              showTotal: (total) => `Tổng ${total} tính năng`,
+              showTotal: (total) => `Tổng ${total} cài đặt`,
             }}
           />
         </Card>

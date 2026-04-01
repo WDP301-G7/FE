@@ -50,7 +50,7 @@ const getFullImageUrl = (url: string | undefined | null): string => {
 const OrderOperationsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { hasRole } = useAuth();
-  if (!hasRole(['operations'])) {
+  if (!hasRole(allowedRoles)) {
     return <Navigate to="/dashboard" replace />;
   }
   const { toast } = useToast();
