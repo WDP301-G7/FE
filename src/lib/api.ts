@@ -12,12 +12,6 @@ export const api = axios.create({
 // Request interceptor to add token
 api.interceptors.request.use(
   (config) => {
-    console.log('📤 API Request:', {
-      method: config.method?.toUpperCase(),
-      url: config.baseURL + config.url,
-      params: config.params,
-      data: config.data,
-    });
     const token = localStorage.getItem('accessToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -25,7 +19,6 @@ api.interceptors.request.use(
     return config;
   },
   (error) => {
-    console.error('❌ API Request Error:', error);
     return Promise.reject(error);
   }
 );
@@ -33,20 +26,9 @@ api.interceptors.request.use(
 // Response interceptor to handle errors and token refresh
 api.interceptors.response.use(
   (response) => {
-    console.log('📥 API Response:', {
-      url: response.config.url,
-      status: response.status,
-      data: response.data,
-    });
     return response;
   },
   async (error) => {
-    console.error('❌ API Response Error:', {
-      url: error.config?.url,
-      status: error.response?.status,
-      data: error.response?.data,
-      message: error.message,
-    });
     const originalRequest = error.config;
 
     // If error is 401 and we haven't tried to refresh token yet

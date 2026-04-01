@@ -19,6 +19,8 @@ export interface Order {
   items: OrderItem[];
   totalAmount: number;
   status: 'NEW' | 'PENDING_PAYMENT' | 'CONFIRMED' | 'WAITING_CUSTOMER' | 'PROCESSING' | 'READY' | 'COMPLETED' | 'EXPIRED' | 'CANCELLED';
+  deliveryMethod?: 'STORE_PICKUP' | 'HOME_DELIVERY' | 'PRESCRIPTION';
+  shippingStatus?: 'READY_TO_SHIP' | 'PICKING' | 'DELIVERING' | 'DELIVERED' | null;
   shippingAddress: string;
   paymentMethod: 'COD' | 'BANK_TRANSFER' | 'CREDIT_CARD';
   paymentStatus: 'PENDING' | 'UNPAID' | 'PAID' | 'FAILED';
@@ -179,6 +181,13 @@ class OrderService {
   // Get staff statistics
   async getStaffStats() {
     const response = await api.get('/orders/stats/staff');
+    return response.data?.data ?? response.data;
+  }
+
+  // Simulate delivery step (for demo mode)
+  async simulateDelivery(orderId: string, step?: 'picking' | 'delivering' | 'delivered') {
+    const body = step ? { step } : {};
+    const response = await api.post(`/logistics/simulate/${orderId}`, body);
     return response.data?.data ?? response.data;
   }
 }

@@ -95,7 +95,6 @@ export const AdminReviews: React.FC = () => {
   const [selectedReview, setSelectedReview] = useState<Review | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [isReplyDialogOpen, setIsReplyDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   // Reply state
   const [replyContent, setReplyContent] = useState('');
@@ -264,63 +263,15 @@ export const AdminReviews: React.FC = () => {
     }
   };
 
-  // Hide/Show review
-  const handleToggleVisibility = async (review: Review) => {
-    try {
-      if (review.status === 'PUBLISHED') {
-        await reviewService.hideReview(review.id);
-        toast({
-          title: 'Thành công',
-          description: 'Đã ẩn đánh giá',
-        });
-      } else {
-        await reviewService.showReview(review.id);
-        toast({
-          title: 'Thành công',
-          description: 'Đã hiển thị đánh giá',
-        });
-      }
-      loadReviews();
-    } catch (error) {
-      toast({
-        title: 'Lỗi',
-        description: 'Không thể thay đổi trạng thái đánh giá',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  // Delete review
-  const handleDeleteReview = async () => {
-    if (!selectedReview) return;
-
-    try {
-      await reviewService.deleteReview(selectedReview.id);
-      toast({
-        title: 'Thành công',
-        description: 'Đã xóa đánh giá',
-      });
-      setIsDeleteDialogOpen(false);
-      setSelectedReview(null);
-      loadReviews();
-    } catch (error) {
-      toast({
-        title: 'Lỗi',
-        description: 'Không thể xóa đánh giá',
-        variant: 'destructive',
-      });
-    }
-  };
-
   // Open reply dialog
   const handleReply = async (review: Review) => {
     try {
       // Fetch latest review data to ensure we have up-to-date reply info
       const freshReview = await reviewService.getReviewById(review.id);
       console.log('🔍 Fresh review data:', freshReview);
-      console.log('🔍 Reply exists?', freshReview.reply ? 'YES' : 'NO', freshReview.reply);
+      console.log('🔍 Reply exists?', freshReview.replyContent ? 'YES' : 'NO', freshReview.replyContent);
       setSelectedReview(freshReview);
-      setReplyContent(freshReview.reply?.replyContent || '');
+      setReplyContent(freshReview.replyContent || '');
       setIsReplyDialogOpen(true);
       
       // Load product image if not cached
@@ -358,7 +309,7 @@ export const AdminReviews: React.FC = () => {
     try {
       const data = { replyContent: replyContent.trim() };
 
-      if (selectedReview.reply) {
+      if (selectedReview.replyContent) {
         // Update existing reply
         await reviewService.updateReviewReply(selectedReview.id, data);
         toast({
@@ -690,7 +641,7 @@ export const AdminReviews: React.FC = () => {
                         >
                           {review.status === 'PUBLISHED' ? 'Hiển thị' : 'Đã ẩn'}
                         </Badge>
-                        {review.reply && (
+                        {review.replyContent && (
                           <Badge variant="outline" className="ml-1">
                             <MessageSquare className="h-3 w-3 mr-1" />
                             Đã phản hồi
@@ -718,39 +669,10 @@ export const AdminReviews: React.FC = () => {
                             variant="ghost"
                             size="icon"
                             onClick={() => handleReply(review)}
-                            title={review.reply ? "Cập nhật phản hồi" : "Thêm phản hồi"}
+                            title={review.replyContent ? "Cập nhật phản hồi" : "Thêm phản hồi"}
                             className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 cursor-pointer h-8 w-8"
                           >
                             <MessageSquare className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleToggleVisibility(review)}
-                            title={review.status === 'PUBLISHED' ? "Ẩn đánh giá" : "Hiển thị đánh giá"}
-                            className={`cursor-pointer h-8 w-8 ${
-                              review.status === 'PUBLISHED' 
-                                ? 'text-orange-600 hover:text-orange-700 hover:bg-orange-50' 
-                                : 'text-green-600 hover:text-green-700 hover:bg-green-50'
-                            }`}
-                          >
-                            {review.status === 'PUBLISHED' ? (
-                              <EyeOff className="h-4 w-4" />
-                            ) : (
-                              <Eye className="h-4 w-4" />
-                            )}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                              setSelectedReview(review);
-                              setIsDeleteDialogOpen(true);
-                            }}
-                            title="Xóa đánh giá"
-                            className="text-destructive hover:text-destructive/80 hover:bg-destructive/10 cursor-pointer h-8 w-8"
-                          >
-                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
                       </TableCell>
@@ -946,7 +868,7 @@ export const AdminReviews: React.FC = () => {
                 </Card>
 
                 {/* Reply Card */}
-                {selectedReview.reply && (
+                {selectedReview.replyContent && (
                   <Card className="border-blue-200 bg-blue-50/50 dark:bg-blue-950/10">
                     <CardHeader>
                       <div className="flex items-center justify-between">
@@ -971,15 +893,15 @@ export const AdminReviews: React.FC = () => {
                     <CardContent>
                       <div className="bg-white dark:bg-slate-900 p-4 rounded-lg border">
                         <p className="text-sm whitespace-pre-wrap mb-3">
-                          {selectedReview.reply.replyContent}
+                          {selectedReview.replyContent}
                         </p>
                         <Separator className="my-3" />
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <User className="h-3 w-3" />
-                          <span className="font-medium">Bởi: {selectedReview.reply.staff?.fullName || 'N/A'}</span>
+                          <span className="font-medium">Bởi: {selectedReview.replier?.fullName || 'N/A'}</span>
                           <span>•</span>
                           <Clock className="h-3 w-3" />
-                          <span>{formatDate(selectedReview.reply.createdAt)}</span>
+                          <span>{formatDate(selectedReview.repliedAt || selectedReview.updatedAt)}</span>
                         </div>
                       </div>
                     </CardContent>
@@ -987,7 +909,7 @@ export const AdminReviews: React.FC = () => {
                 )}
 
                 {/* No Reply Yet Card */}
-                {!selectedReview.reply && (
+                {!selectedReview.replyContent && (
                   <Card className="border-dashed border-2 border-muted-foreground/30">
                     <CardContent className="pt-6">
                       <div className="text-center space-y-4">
@@ -1087,7 +1009,7 @@ export const AdminReviews: React.FC = () => {
             )}
 
             {/* Show existing reply info when editing */}
-            {selectedReview?.reply && (
+            {selectedReview?.replyContent && (
               <Card className="border-yellow-200 bg-yellow-50/50 dark:bg-yellow-950/10">
                 <CardContent className="pt-4">
                   <div className="flex items-start gap-3">
@@ -1099,10 +1021,10 @@ export const AdminReviews: React.FC = () => {
                         Phản hồi hiện tại
                       </p>
                       <p className="text-xs text-yellow-700 dark:text-yellow-300 mb-2">
-                        Bởi {selectedReview.reply.staff?.fullName || 'N/A'} • {formatDate(selectedReview.reply.createdAt)}
+                        Bởi {selectedReview.replier?.fullName || 'N/A'} • {formatDate(selectedReview.repliedAt || selectedReview.updatedAt)}
                       </p>
                       <div className="bg-white dark:bg-slate-900 p-2 rounded border text-xs">
-                        {selectedReview.reply.replyContent}
+                        {selectedReview.replyContent}
                       </div>
                     </div>
                   </div>
@@ -1166,37 +1088,6 @@ export const AdminReviews: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Delete Confirmation Dialog - Modernized */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
-              <Trash2 className="h-5 w-5" />
-              Xác nhận xóa đánh giá
-            </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
-              <p>Bạn có chắc chắn muốn xóa vĩnh viễn đánh giá này?</p>
-              <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 mt-2">
-                <p className="text-sm font-medium text-destructive">⚠️ Hành động này không thể hoàn tác!</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Đánh giá và tất cả dữ liệu liên quan sẽ bị xóa vĩnh viễn khỏi hệ thống.
-                </p>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Hủy</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleDeleteReview} 
-              className="bg-destructive hover:bg-destructive/90"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Xóa vĩnh viễn
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </motion.div>
   );
 };

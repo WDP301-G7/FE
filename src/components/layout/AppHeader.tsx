@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { useTheme } from '@/context/ThemeContext';
 import { useNotifications } from '@/context/NotificationContext';
 import { useNavigate } from 'react-router-dom';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -24,12 +23,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { NotificationItem } from '@/services/notification.service';
-import { Bell, CheckCheck, Circle, LogOut, Moon, Settings, Sun, User } from 'lucide-react';
+import { Bell, CheckCheck, Circle, LogOut, Settings, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const AppHeader: React.FC = () => {
   const { user, logout } = useAuth();
-  const { theme, setTheme } = useTheme();
   const {
     notifications,
     unreadCount,
@@ -45,10 +43,6 @@ const AppHeader: React.FC = () => {
   const handleLogout = () => {
     logout();
     navigate('/login');
-  };
-
-  const toggleDarkMode = () => {
-    setTheme(theme === 'dark' ? 'light' : 'dark');
   };
 
   const getRoleBadgeColor = (role: string) => {
@@ -173,20 +167,6 @@ const AppHeader: React.FC = () => {
 
         {/* Right section - Actions */}
         <div className="flex items-center gap-3">
-          {/* Dark Mode Toggle */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleDarkMode}
-            className="relative rounded-full"
-          >
-            {theme === 'dark' ? (
-              <Sun className="h-5 w-5" />
-            ) : (
-              <Moon className="h-5 w-5" />
-            )}
-          </Button>
-
           {/* Notifications */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

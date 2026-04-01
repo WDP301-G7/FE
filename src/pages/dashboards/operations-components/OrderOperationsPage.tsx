@@ -26,7 +26,7 @@ import {
   ReloadOutlined,
   SearchOutlined,
 } from '@ant-design/icons';
-import { User, Phone, Mail, Package, DollarSign, CalendarDays } from 'lucide-react';
+import { User, Phone, Mail, Package, DollarSign, CalendarDays, MapPin } from 'lucide-react';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -48,9 +48,9 @@ const getFullImageUrl = (url: string | undefined | null): string => {
 };
 
 // const OrderOperationsPage: React.FC = () => {
-// interface OrderOperationsPageProps {
-//   allowedRoles?: string[];
-// }
+interface OrderOperationsPageProps {
+  allowedRoles?: string[];
+}
 
 const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
   allowedRoles = ['operations'],
@@ -318,6 +318,12 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(num);
   };
 
+  const toNumber = (value?: string | number | null) => {
+    if (value === null || typeof value === 'undefined') return 0;
+    const num = typeof value === 'string' ? Number(value) : value;
+    return Number.isFinite(num) ? num : 0;
+  };
+
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('vi-VN');
@@ -344,7 +350,13 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
     phone: order.customer?.phone || 'N/A',
   });
 
-  const getOrderTypeTag = (orderType?: string) => {
+  const hasShippingAddress = (order: OrderDetails) => {
+    const address = (order as any)?.shippingAddress;
+    return Boolean(String(address || '').trim());
+  };
+
+  const getOrderTypeTag = (order?: OrderDetails | null) => {
+    const orderType = order?.orderType;
     if (!orderType) return <Tag>Không xác định</Tag>;
 
     const normalized = String(orderType).toUpperCase().replace(/[-\s]/g, '_');
@@ -356,7 +368,10 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
       return <Tag color="gold">Đặt trước</Tag>;
     }
     if (normalized.includes('IN_STOCK') || normalized.includes('INSTOCK')) {
-      return <Tag color="green">Có sẵn</Tag>;
+      if (order && hasShippingAddress(order)) {
+        return <Tag color="cyan">Có sẵn - Giao ship</Tag>;
+      }
+      return <Tag color="green">Có sẵn - Tại quầy</Tag>;
     }
 
     return <Tag color="blue">{String(orderType)}</Tag>;
@@ -389,7 +404,6 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
       WAITING_CUSTOMER: 'Đang chuẩn bị',
       PROCESSING: 'Đang xử lý',
       READY: 'Sẵn sàng giao',
-      READY_FOR_PICKUP: 'Sẵn sàng giao',
       COMPLETED: 'Hoàn thành',
       CANCELLED: 'Đã hủy',
     };
@@ -418,8 +432,22 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
     const kw = keyword.trim().toLowerCase();
 
     return orders.filter((order) => {
-      if (orderTypeLocalFilter && String(order.orderType || '') !== orderTypeLocalFilter) {
-        return false;
+      // Handle combined order type filters
+      if (orderTypeLocalFilter) {
+        if (orderTypeLocalFilter === 'IN_STOCK_SHIP') {
+          // Có sẵn - Giao ship: must be in-stock AND have shipping address
+          const inStock = isInStockOrder(order.orderType);
+          if (!inStock || !hasShippingAddress(order)) return false;
+        } else if (orderTypeLocalFilter === 'IN_STOCK_STORE') {
+          // Có sẵn - Tại quầy: must be in-stock AND no shipping address
+          const inStock = isInStockOrder(order.orderType);
+          if (!inStock || hasShippingAddress(order)) return false;
+        } else {
+          // Regular order type filter
+          if (String(order.orderType || '') !== orderTypeLocalFilter) {
+            return false;
+          }
+        }
       }
 
       if (staffLocalFilter) {
@@ -473,7 +501,7 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
       title: 'Loại đơn',
       dataIndex: 'orderType',
       key: 'orderType',
-      render: (val: string) => getOrderTypeTag(val),
+      render: (_: string, record: OrderDetails) => getOrderTypeTag(record),
     },
     {
       title: 'Tổng tiền',
@@ -599,11 +627,15 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
                 onChange={(v) => setStatusFilter(v === '__all' ? '' : v)}
               >
                 <Option value="__all">Tất cả trạng thái</Option>
+                <Option value="NEW">Mới</Option>
                 <Option value="PENDING_PAYMENT">Chờ thanh toán</Option>
                 <Option value="CONFIRMED">Đã xác nhận</Option>
                 <Option value="WAITING_CUSTOMER">Đang chuẩn bị</Option>
+                <Option value="PROCESSING">Đang xử lý</Option>
                 <Option value="READY">Sẵn sàng giao</Option>
+                <Option value="COMPLETED">Hoàn thành</Option>
                 <Option value="CANCELLED">Đã hủy</Option>
+                <Option value="EXPIRED">Hết hạn</Option>
               </Select>
               <Input
                 style={{ width: 220 }}
@@ -614,14 +646,18 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
                 allowClear
               />
               <Select
-                style={{ width: 180 }}
+                style={{ width: 200 }}
                 value={orderTypeLocalFilter || '__all'}
                 onChange={(v) => setOrderTypeLocalFilter(v === '__all' ? '' : v)}
               >
                 <Option value="__all">Tất cả loại đơn</Option>
-                {orderTypeOptions.map((type) => (
-                  <Option key={type} value={type}>{getOrderTypeLabel(type)}</Option>
-                ))}
+                {orderTypeOptions
+                  .filter((type) => !isInStockOrder(type))
+                  .map((type) => (
+                    <Option key={type} value={type}>{getOrderTypeLabel(type)}</Option>
+                  ))}
+                <Option value="IN_STOCK_SHIP">Có sẵn - Giao ship</Option>
+                <Option value="IN_STOCK_STORE">Có sẵn - Tại quầy</Option>
               </Select>
               <Select
                 style={{ width: 220 }}
@@ -686,6 +722,18 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
       >
         {selectedOrder && (
           <div className="py-2">
+            {(() => {
+              const subtotal = (selectedOrder.orderItems || []).reduce(
+                (sum, item) => sum + (toNumber(item.unitPrice) * toNumber(item.quantity)),
+                0
+              );
+              const discount = toNumber(selectedOrder.discountAmount);
+              const shippingFee = toNumber(selectedOrder.shippingFee);
+              const finalTotal = toNumber(selectedOrder.totalAmount);
+              const isHomeDelivery = String(selectedOrder.deliveryMethod || '').toUpperCase() === 'HOME_DELIVERY';
+
+              return (
+                <>
             <div className="mb-4">
               <Title level={3} className="!mb-1">Chi tiết đơn hàng</Title>
               <Text type="secondary">Đơn hàng #{selectedOrder.id}</Text>
@@ -723,6 +771,18 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
                           <Text strong>{getCustomerInfo(selectedOrder).email}</Text>
                         </div>
                       </div>
+                      
+                      {/* Shipping Address - Only show for HOME_DELIVERY orders */}
+                      {(selectedOrder.deliveryMethod === 'HOME_DELIVERY' || selectedOrder.shippingAddress) && (
+                        <div className="flex items-start gap-3">
+                          <MapPin className="h-4 w-4 text-gray-500 mt-1" />
+                          <div>
+                            <div className="text-xs text-gray-500">Địa chỉ giao hàng</div>
+                            <Text strong>{selectedOrder.shippingAddress || 'Chưa có thông tin'}</Text>
+                          </div>
+                        </div>
+                      )}
+                      
                       <div className="flex items-start gap-3">
                         <Package className="h-4 w-4 text-gray-500 mt-1" />
                         <div>
@@ -734,9 +794,38 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
                         <Package className="h-4 w-4 text-gray-500 mt-1" />
                         <div>
                           <div className="text-xs text-gray-500">Loại đơn</div>
-                          <div className="mt-1">{getOrderTypeTag(selectedOrder.orderType)}</div>
+                          <div className="mt-1">{getOrderTypeTag(selectedOrder)}</div>
                         </div>
                       </div>
+                      <div className="flex items-start gap-3">
+                        <Package className="h-4 w-4 text-gray-500 mt-1" />
+                        <div>
+                          <div className="text-xs text-gray-500">Phương thức giao</div>
+                          <Text strong>
+                            {isHomeDelivery ? 'Giao tận nơi' : 'Nhận tại cửa hàng'}
+                          </Text>
+                        </div>
+                      </div>
+                      {isHomeDelivery && (
+                        <div className="flex items-start gap-3">
+                          <Package className="h-4 w-4 text-gray-500 mt-1" />
+                          <div>
+                            <div className="text-xs text-gray-500">Địa chỉ giao hàng</div>
+                            <Text strong>{selectedOrder.shippingAddress || 'N/A'}</Text>
+                          </div>
+                        </div>
+                      )}
+                      {(selectedOrder.shippingProvider || selectedOrder.trackingNumber || selectedOrder.shippingStatus) && (
+                        <div className="flex items-start gap-3">
+                          <Package className="h-4 w-4 text-gray-500 mt-1" />
+                          <div className="space-y-0.5">
+                            <div className="text-xs text-gray-500">Thông tin vận chuyển</div>
+                            {selectedOrder.shippingProvider && <Text strong>Đơn vị: {selectedOrder.shippingProvider}</Text>}
+                            {selectedOrder.trackingNumber && <div><Text strong>Mã vận đơn: {selectedOrder.trackingNumber}</Text></div>}
+                            {selectedOrder.shippingStatus && <div><Text strong>Trạng thái ship: {selectedOrder.shippingStatus}</Text></div>}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -800,12 +889,29 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
                   </div>
 
                   <div className="flex items-center justify-between mt-5 pt-4 border-t">
-                    <div className="flex items-center gap-2 text-gray-500">
+                    <div className="w-full space-y-2 text-sm">
+                      <div className="flex items-center justify-between text-gray-600">
+                        <span>Tạm tính sản phẩm</span>
+                        <Text>{formatCurrency(subtotal)}</Text>
+                      </div>
+                      <div className="flex items-center justify-between text-gray-600">
+                        <span>Giảm giá</span>
+                        <Text>{discount > 0 ? `- ${formatCurrency(discount)}` : formatCurrency(0)}</Text>
+                      </div>
+                      <div className="flex items-center justify-between text-gray-600">
+                        <span>Phí vận chuyển</span>
+                        <Text>{formatCurrency(shippingFee)}</Text>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                    <div className="flex items-center gap-2 text-gray-500 font-medium">
                       <DollarSign className="h-4 w-4" />
-                      <span>Tổng cộng</span>
+                      <span>Thành tiền</span>
                     </div>
                     <div className="text-3xl font-semibold text-cyan-700">
-                      {formatCurrency(selectedOrder.totalAmount)}
+                      {formatCurrency(finalTotal)}
                     </div>
                   </div>
                 </div>
@@ -830,6 +936,9 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
                 </div>
               </Card>
             </div>
+                </>
+              );
+            })()}
           </div>
         )}
       </Modal>
@@ -863,13 +972,21 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
 
             <div className="flex justify-between">
               <Text strong>Loại đơn:</Text>
-              {getOrderTypeTag(selectedOrder.orderType)}
+              {getOrderTypeTag(selectedOrder)}
             </div>
 
             <div className="flex justify-between">
               <Text strong>Tổng tiền:</Text>
               <Text strong>{formatCurrency(selectedOrder.totalAmount)}</Text>
             </div>
+
+            {/* Shipping Address - For HOME_DELIVERY orders */}
+            {(selectedOrder.deliveryMethod === 'HOME_DELIVERY' || selectedOrder.shippingAddress) && (
+              <div className="flex flex-col pt-2 border-t">
+                <Text strong>Địa chỉ giao hàng:</Text>
+                <Text className="text-gray-600">{selectedOrder.shippingAddress || 'Chưa có thông tin'}</Text>
+              </div>
+            )}
 
             {/* Cảnh báo */}
             {selectedOrder.paymentStatus === 'UNPAID' && (

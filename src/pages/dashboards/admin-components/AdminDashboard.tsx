@@ -1,47 +1,85 @@
 import React from 'react';
-import { Row, Col, Card, Typography, Tag, Space, Button, Tabs } from 'antd';
+import { Row, Col, Card, Typography, Space, Button, Tabs } from 'antd';
 import { motion } from 'framer-motion';
 import {
   SettingOutlined,
-  AppstoreOutlined,
-  CloudServerOutlined,
   ShoppingOutlined,
   TeamOutlined,
-  DatabaseOutlined,
   FileTextOutlined,
+  ShopOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import AdminOrdersManagement from './AdminOrdersManagement';
 import AdminUsersManagement from './AdminUsersManagement';
-import AdminSystemsManagement from './AdminSystemsManagement';
+import AdminStores from './AdminStoresManagement';
 import { PrescriptionApprovalManagement } from './PrescriptionApprovalManagement';
-import { adminService, MembershipTier, UsersStats } from '@/services/admin.service';
+import {
+  adminService,
+  DashboardInventorySummary,
+  DashboardOrderSummary,
+  MembershipTier,
+} from '@/services/admin.service';
 import { useToast } from '@/hooks/use-toast';
 
 const { Title, Text } = Typography;
+
+type PieStat = {
+  key: string;
+  title: string;
+  value: number;
+  color: string;
+};
+
+const getPieTotal = (stats: PieStat[]) => stats.reduce((sum, stat) => sum + Math.max(0, stat.value), 0);
+const getPieGradient = (stats: PieStat[]) => {
+  const total = getPieTotal(stats);
+  if (total <= 0) {
+    return 'conic-gradient(#e5e7eb 0% 100%)';
+  }
+
+  let current = 0;
+  const stops = stats.map((stat) => {
+    const start = current;
+    const end = current + (Math.max(0, stat.value) / total) * 100;
+    current = end;
+    return `${stat.color} ${start}% ${end}%`;
+  });
+
+  return `conic-gradient(${stops.join(', ')})`;
+};
 
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
   const [dashboardLoading, setDashboardLoading] = React.useState(false);
-  const [usersStats, setUsersStats] = React.useState<UsersStats | null>(null);
   const [membershipTiers, setMembershipTiers] = React.useState<MembershipTier[]>([]);
-  const [lowStockCount, setLowStockCount] = React.useState(0);
+  const [orderSummary, setOrderSummary] = React.useState<DashboardOrderSummary>({
+    totalOrders: 0,
+    completed: 0,
+    confirmed: 0,
+    cancelled: 0,
+  });
+  const [inventorySummary, setInventorySummary] = React.useState<DashboardInventorySummary>({
+    totalProducts: 0,
+    lowStock: 0,
+    totalReserved: 0,
+    totalAvailable: 0,
+  });
 
   const fetchDashboardData = React.useCallback(async () => {
     try {
       setDashboardLoading(true);
 
-      const [usersStatsData, tiersData, lowStockData] = await Promise.all([
-        adminService.getUsersStats(),
+      const [tiersData, orderSummaryData, inventorySummaryData] = await Promise.all([
         adminService.getMembershipTiers(),
-        adminService.getLowStockCount(),
+        adminService.getDashboardOrderSummary(),
+        adminService.getDashboardInventorySummary(),
       ]);
 
-      setUsersStats(usersStatsData);
       setMembershipTiers(tiersData.sort((a, b) => Number(a.minSpend) - Number(b.minSpend)));
-      setLowStockCount(lowStockData);
+      setOrderSummary(orderSummaryData);
+      setInventorySummary(inventorySummaryData);
     } catch (error: any) {
       toast({
         title: 'Lỗi',
@@ -57,16 +95,6 @@ const AdminDashboard: React.FC = () => {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
-  // System modules
-  const systemModules = [
-    { key: 'orders', name: 'Quản Lý Đơn Hàng', status: 'active', icon: <AppstoreOutlined /> },
-    { key: 'products', name: 'Danh Mục Sản Phẩm', status: 'active', icon: <AppstoreOutlined /> },
-    { key: 'prescriptions', name: 'Xử Lý Đơn Thuốc', status: 'active', icon: <CloudServerOutlined /> },
-    { key: 'shipping', name: 'Tích Hợp Vận Chuyển', status: 'active', icon: <CloudServerOutlined /> },
-    { key: 'analytics', name: 'Bảng Phân Tích', status: 'active', icon: <CloudServerOutlined /> },
-    { key: 'notifications', name: 'Thông Báo Email', status: 'maintenance', icon: <CloudServerOutlined /> },
-  ];
-
   const quickSettings = [
     {
       title: 'Quản Lý Người Dùng',
@@ -81,27 +109,69 @@ const AdminDashboard: React.FC = () => {
       path: '/admin/orders',
     },
     {
-      title: 'Cấu Hình Hệ Thống',
-      description: 'Quản lý cài đặt hệ thống toàn cục',
-      icon: <SettingOutlined className="text-2xl text-primary" />,
-      path: '/admin/systems',
+      title: 'Quản Lý Cửa Hàng',
+      description: 'Quản lý thông tin chi nhánh và cửa hàng',
+      icon: <ShopOutlined className="text-2xl text-green-600" />,
+      path: '/admin/stores',
     },
   ];
 
-  const quickStats = [
+  const orderCircleStats = [
     {
-      key: 'customers',
-      title: 'Số khách hàng đã đăng ký',
-      value: usersStats?.byRole?.CUSTOMER ?? 0,
-      valueClassName: '!text-foreground',
+      key: 'orders-total',
+      title: 'Tổng đơn hàng',
+      value: orderSummary.totalOrders,
+      color: '#2563eb',
     },
     {
-      key: 'low-stock',
-      title: 'Sản phẩm sắp hết hàng',
-      value: lowStockCount,
-      valueClassName: '!text-orange-600',
+      key: 'orders-completed',
+      title: 'Hoàn thành',
+      value: orderSummary.completed,
+      color: '#16a34a',
     },
-  ];
+    {
+      key: 'orders-confirmed',
+      title: 'Đã xác nhận',
+      value: orderSummary.confirmed,
+      color: '#0891b2',
+    },
+    {
+      key: 'orders-cancelled',
+      title: 'Bị hủy',
+      value: orderSummary.cancelled,
+      color: '#dc2626',
+    },
+  ] satisfies PieStat[];
+
+  const inventoryCircleStats = [
+    {
+      key: 'inventory-total',
+      title: 'Tổng sản phẩm',
+      value: inventorySummary.totalProducts,
+      color: '#334155',
+    },
+    {
+      key: 'inventory-low-stock',
+      title: 'Hàng Sắp hết',
+      value: inventorySummary.lowStock,
+      color: '#ea580c',
+    },
+    {
+      key: 'inventory-reserved',
+      title: 'Tổng Đặt trước',
+      value: inventorySummary.totalReserved,
+      color: '#2563eb',
+    },
+    {
+      key: 'inventory-available',
+      title: 'Tổng khả dụng',
+      value: inventorySummary.totalAvailable,
+      color: '#059669',
+    },
+  ] satisfies PieStat[];
+
+  const orderTotal = getPieTotal(orderCircleStats);
+  const inventoryTotal = getPieTotal(inventoryCircleStats);
 
   const tabItems = [
     {
@@ -154,18 +224,89 @@ const AdminDashboard: React.FC = () => {
                 Tổng Quan Nhanh
               </Title>
               <Row gutter={[16, 16]}>
-                {quickStats.map((stat) => (
-                  <Col xs={24} md={12} key={stat.key}>
-                    <Card hoverable className="stat-card h-full">
-                      <div className="text-center py-2">
-                        <Text className="text-muted-foreground">{stat.title}</Text>
-                        <Title level={3} className={`!mb-0 !mt-2 ${stat.valueClassName}`}>
-                          {stat.value}
-                        </Title>
+                <Col xs={24} xl={12}>
+                  <Card hoverable className="stat-card h-full overflow-hidden">
+                    <Title level={5} className="!text-foreground !mb-4 text-center">
+                      Chỉ số Đơn hàng
+                    </Title>
+                    <div className="flex flex-col items-center gap-6">
+                      {/* Numbers + Percentages Above Circle */}
+                      <div className="grid grid-cols-2 gap-3 w-full max-w-md">
+                        {orderCircleStats.map((stat) => (
+                          <div key={stat.key} className="text-center">
+                            <Text className="text-muted-foreground text-xs block mb-1">
+                              {stat.title}
+                            </Text>
+                            <Text strong className="text-lg">
+                              {stat.value.toLocaleString('vi-VN')}
+                            </Text>
+                            <Text className="text-muted-foreground text-xs ml-1">
+                              ({orderTotal > 0 ? ((stat.value / orderTotal) * 100).toFixed(1) : '0.0'}%)
+                            </Text>
+                          </div>
+                        ))}
                       </div>
-                    </Card>
-                  </Col>
-                ))}
+
+                      {/* Pie Circle */}
+                      <div
+                        className="w-[240px] h-[240px] rounded-full border border-border shrink-0"
+                        style={{ background: getPieGradient(orderCircleStats) }}
+                      />
+
+                      {/* Legend Tags Below Circle */}
+                      <div className="flex flex-wrap justify-center gap-3">
+                        {orderCircleStats.map((stat) => (
+                          <div key={stat.key} className="flex items-center gap-2">
+                            <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: stat.color }} />
+                            <Text className="text-sm">{stat.title}</Text>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </Card>
+                </Col>
+
+                <Col xs={24} xl={12}>
+                  <Card hoverable className="stat-card h-full overflow-hidden">
+                    <Title level={5} className="!text-foreground !mb-4 text-center">
+                      Chỉ số Tồn kho
+                    </Title>
+                    <div className="flex flex-col items-center gap-6">
+                      {/* Numbers + Percentages Above Circle */}
+                      <div className="grid grid-cols-2 gap-3 w-full max-w-md">
+                        {inventoryCircleStats.map((stat) => (
+                          <div key={stat.key} className="text-center">
+                            <Text className="text-muted-foreground text-xs block mb-1">
+                              {stat.title}
+                            </Text>
+                            <Text strong className="text-lg">
+                              {stat.value.toLocaleString('vi-VN')}
+                            </Text>
+                            <Text className="text-muted-foreground text-xs ml-1">
+                              ({inventoryTotal > 0 ? ((stat.value / inventoryTotal) * 100).toFixed(1) : '0.0'}%)
+                            </Text>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Pie Circle */}
+                      <div
+                        className="w-[240px] h-[240px] rounded-full border border-border shrink-0"
+                        style={{ background: getPieGradient(inventoryCircleStats) }}
+                      />
+
+                      {/* Legend Tags Below Circle */}
+                      <div className="flex flex-wrap justify-center gap-3">
+                        {inventoryCircleStats.map((stat) => (
+                          <div key={stat.key} className="flex items-center gap-2">
+                            <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: stat.color }} />
+                            <Text className="text-sm">{stat.title}</Text>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </Card>
+                </Col>
               </Row>
             </Card>
           </motion.div>
@@ -207,34 +348,6 @@ const AdminDashboard: React.FC = () => {
             </Card>
           </motion.div>
 
-          {/* System Modules Status */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.7, duration: 0.5 }}
-          >
-            <Card className="dashboard-section mb-6">
-              <Title level={4} className="!text-foreground !mb-4">
-                Trạng Thái Các Module Hệ Thống
-              </Title>
-              <Row gutter={[16, 16]}>
-                {systemModules.map((module) => (
-                  <Col xs={24} sm={12} md={8} key={module.key}>
-                    <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-                      <Space>
-                        {module.icon}
-                        <Text strong>{module.name}</Text>
-                      </Space>
-                      <Tag color={module.status === 'active' ? 'green' : 'orange'}>
-                        {module.status.toUpperCase()}
-                      </Tag>
-                    </div>
-                  </Col>
-                ))}
-              </Row>
-            </Card>
-          </motion.div>
-
         </>
       ),
     },
@@ -266,13 +379,13 @@ const AdminDashboard: React.FC = () => {
       children: <AdminUsersManagement />,
     },
     {
-      key: 'systems',
+      key: 'stores',
       label: (
         <span>
-          <DatabaseOutlined /> Hệ Thống
+          <ShopOutlined /> Cửa Hàng
         </span>
       ),
-      children: <AdminSystemsManagement />,
+      children: <AdminStores />,
     },
   ];
 

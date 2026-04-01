@@ -110,7 +110,7 @@ const ReviewManagementPage: React.FC = () => {
 
   const openDetailReview = (review: Review) => {
     setSelectedReview(review);
-    setReplyText(review.reply || "");
+    setReplyText(review.replyContent || "");
     setEditingReply(false);
     setOpenDetail(true);
   };
@@ -124,7 +124,7 @@ const ReviewManagementPage: React.FC = () => {
     setReplyLoading(true);
     try {
       let updated: Review;
-      if (selectedReview.reply && editingReply) {
+      if (selectedReview.replyContent && editingReply) {
         updated = await updateReviewReply(selectedReview.id, replyText.trim());
       } else {
         updated = await addReviewReply(selectedReview.id, replyText.trim());
@@ -133,7 +133,7 @@ const ReviewManagementPage: React.FC = () => {
       setEditingReply(false);
       toast({
         title: "Thành công",
-        description: selectedReview.reply && editingReply ? "Phản hồi đã được cập nhật" : "Đã gửi phản hồi",
+        description: selectedReview.replyContent && editingReply ? "Phản hồi đã được cập nhật" : "Đã gửi phản hồi",
       });
       loadReviews();
     } catch (err: any) {
@@ -153,7 +153,7 @@ const ReviewManagementPage: React.FC = () => {
       ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
       : "0";
   const pendingCount = reviews.filter((r) => r.status === "pending").length;
-  const repliedCount = reviews.filter((r) => r.reply).length;
+  const repliedCount = reviews.filter((r) => r.replyContent).length;
 
   const columns = [
     {
@@ -412,9 +412,9 @@ const ReviewManagementPage: React.FC = () => {
               <Text strong>Phản hồi của nhân viên</Text>
             </Divider>
 
-            {!editingReply && selectedReview.reply ? (
+            {!editingReply && selectedReview.replyContent ? (
               <div className="space-y-2">
-                <Text>{selectedReview.reply}</Text>
+                <Text>{selectedReview.replyContent}</Text>
                 <div>
                   <Button size="small" onClick={() => setEditingReply(true)}>
                     Sửa phản hồi
@@ -438,7 +438,7 @@ const ReviewManagementPage: React.FC = () => {
                     onClick={handleSubmitReply}
                     loading={replyLoading}
                   >
-                    {selectedReview.reply && editingReply ? "Cập nhật phản hồi" : "Gửi phản hồi"}
+                    {selectedReview.replyContent && editingReply ? "Cập nhật phản hồi" : "Gửi phản hồi"}
                   </Button>
                 </div>
               </div>
