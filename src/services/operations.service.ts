@@ -109,21 +109,54 @@ export interface GetPrescriptionRequestsParams {
 
 export interface PrescriptionRequestSummary {
   id: string;
-  createdDate: string;
+  createdDate?: string;
+  createdAt?: string;
   status: string;
+  phone?: string;
+  orderId?: string;
+  consultationType?: string;
+  contactNotes?: string | null;
   customerId?: string;
   storeId?: string;
   handledBy?: string;
+  customer?: {
+    id?: string;
+    fullName?: string;
+    email?: string;
+    phone?: string;
+  };
+  store?: {
+    id?: string;
+    name?: string;
+    address?: string;
+  };
+  handler?: {
+    id?: string;
+    fullName?: string;
+    email?: string;
+  };
+  order?: {
+    id?: string;
+    status?: string;
+    totalAmount?: string | number;
+  };
 }
 
 export interface PrescriptionRequestDetails {
   id: string;
   createdDate: string;
+  createdAt?: string;
   status: string;
   customerId?: string;
   storeId?: string;
   handledBy?: string;
   contactNotes?: string;
+  customer?: {
+    id?: string;
+    fullName?: string;
+    email?: string;
+    phone?: string;
+  };
   // images uploaded by customer (prescription photos, etc.)
   images?: Array<{ id: string; imageUrl: string }>;
   // additional fields returned by API can be added here as needed
@@ -136,14 +169,25 @@ export interface PrescriptionRequestResponse {
 }
 
 export interface PrescriptionRequestsListResponse {
-  code: number;
+  code?: number;
+  statusCode?: number;
   message: string;
-  data: PrescriptionRequestSummary[];
+  data:
+    | PrescriptionRequestSummary[]
+    | {
+        data?: PrescriptionRequestSummary[];
+        pagination?: {
+          page?: number;
+          limit?: number;
+          total?: number;
+          totalPages?: number;
+        };
+      };
   pageInfo?: {
-    page: number;
-    size: number;
-    totalElements: number;
-    totalPages: number;
+    page?: number;
+    size?: number;
+    totalElements?: number;
+    totalPages?: number;
   };
 }
 
@@ -301,12 +345,21 @@ class OperationsService {
       const response = await api.get<PrescriptionRequestsListResponse>('/prescription-requests', {
         params,
       });
-      let payload: any = response.data.data;
-      if (payload && typeof payload === 'object' && 'data' in payload) {
-        payload = payload.data;
-      }
-      const requests = Array.isArray(payload) ? payload : [];
-      const pageInfo = response.data.pageInfo;
+      const rootData: any = response.data.data;
+      const nestedData = rootData && typeof rootData === 'object' && 'data' in rootData
+        ? (rootData as any).data
+        : rootData;
+      const requests = Array.isArray(nestedData) ? nestedData : [];
+
+      const pagination = rootData && typeof rootData === 'object' ? (rootData as any).pagination : undefined;
+      const pageInfo = response.data.pageInfo || (pagination
+        ? {
+            page: Number(pagination.page || params?.page || 1),
+            size: Number(pagination.limit || params?.limit || 20),
+            totalElements: Number(pagination.total || requests.length),
+            totalPages: Number(pagination.totalPages || 1),
+          }
+        : undefined);
       return { requests, pageInfo };
     } catch (error) {
       console.error('Error fetching prescription requests:', error);

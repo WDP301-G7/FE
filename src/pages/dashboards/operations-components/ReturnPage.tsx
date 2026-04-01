@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { returnService, ReturnRequest, ReturnFilters } from '@/services/return.service';
 import StatusBadge from '@/components/StatusBadge';
@@ -24,6 +24,7 @@ import {
   CloseCircleOutlined,
   DeleteOutlined,
   ReloadOutlined,
+  SearchOutlined,
 } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
@@ -37,6 +38,7 @@ export default function ReturnPage() {
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 0 });
 
   const [filters, setFilters] = useState<ReturnFilters>({ page: 1, limit: 10, status: '', type: '' });
+  const [keyword, setKeyword] = useState('');
 
   const [selectedReturn, setSelectedReturn] = useState<ReturnRequest | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -138,10 +140,41 @@ export default function ReturnPage() {
 
   const formatDate = (date: string) => new Date(date).toLocaleString('vi-VN');
 
+  const getConditionLabel = (condition?: string) => {
+    const conditionMap: Record<string, string> = {
+      NEW: 'Mới',
+      LIKE_NEW: 'Như mới',
+      GOOD: 'Tốt',
+      DEFECTIVE: 'Lỗi',
+    };
+    return condition ? (conditionMap[condition] || condition) : 'Không xác định';
+  };
+
   // Derived stats
   const pendingCount = returns.filter((r) => r.status === 'PENDING').length;
   const approvedCount = returns.filter((r) => r.status === 'APPROVED').length;
   const completedCount = returns.filter((r) => r.status === 'COMPLETED').length;
+
+  const filteredReturns = useMemo(() => {
+    const kw = keyword.trim().toLowerCase();
+    if (!kw) return returns;
+
+    return returns.filter((item) => {
+      const searchText = [
+        getOrderCode(item),
+        item.customer?.fullName,
+        item.customer?.email,
+        item.customer?.phone,
+        item.status,
+        item.type,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return searchText.includes(kw);
+    });
+  }, [returns, keyword]);
 
   const columns = [
     {
@@ -275,8 +308,19 @@ export default function ReturnPage() {
                 <Option value="EXCHANGE">Đổi hàng</Option>
                 <Option value="WARRANTY">Bảo hành</Option>
               </Select>
+              <Input
+                style={{ width: 220 }}
+                prefix={<SearchOutlined />}
+                placeholder="Tìm mã đơn/tên khách hàng..."
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                allowClear
+              />
               <Button
-                onClick={() => setFilters({ page: 1, limit: 10, status: '', type: '' })}
+                onClick={() => {
+                  setKeyword('');
+                  setFilters({ page: 1, limit: 10, status: '', type: '' });
+                }}
               >
                 Đặt lại
               </Button>
@@ -291,16 +335,16 @@ export default function ReturnPage() {
           </div>
 
           <Table
-            dataSource={returns}
+            dataSource={filteredReturns}
             columns={columns}
             rowKey="id"
             loading={loading}
             pagination={{
               current: filters.page,
               pageSize: filters.limit,
-              total: pagination.total,
+              total: keyword.trim() ? filteredReturns.length : pagination.total,
               showSizeChanger: true,
-              showTotal: (total) => `Tổng ${total} đơn trả hàng`,
+              showTotal: (total) => keyword.trim() ? `Tìm thấy ${total} đơn trả hàng` : `Tổng ${total} đơn trả hàng`,
               onChange: (page, pageSize) => setFilters({ ...filters, page, limit: pageSize }),
             }}
             scroll={{ x: 'max-content' }}
@@ -345,7 +389,7 @@ export default function ReturnPage() {
             {/* Customer info */}
             {selectedReturn.customer && (
               <>
-                <Divider orientation="left" orientationMargin={0}><Text strong>Thông tin khách hàng</Text></Divider>
+                <Divider><Text strong>Thông tin khách hàng</Text></Divider>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {[
                     { label: 'Tên', value: selectedReturn.customer.fullName },
@@ -364,7 +408,7 @@ export default function ReturnPage() {
             {/* Return items */}
             {(selectedReturn.returnItems ?? []).length > 0 && (
               <>
-                <Divider orientation="left" orientationMargin={0}><Text strong>Sản phẩm yêu cầu</Text></Divider>
+                <Divider><Text strong>Sản phẩm yêu cầu</Text></Divider>
                 <div className="space-y-2">
                   {(selectedReturn.returnItems ?? []).map((item) => (
                     <Card key={item.id} size="small" style={{ background: '#fafafa' }}>
@@ -372,7 +416,7 @@ export default function ReturnPage() {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-1">
                         {[
                           { label: 'Số lượng', value: item.quantity },
-                          { label: 'Tình trạng', value: item.condition },
+                          { label: 'Tình trạng', value: getConditionLabel(item.condition) },
                           { label: 'Giá', value: formatCurrency(item.product.price) },
                         ].map(({ label, value }) => (
                           <div key={label}>
@@ -408,13 +452,13 @@ export default function ReturnPage() {
             {/* Images */}
             {selectedReturn.images && selectedReturn.images.length > 0 && (
               <>
-                <Divider orientation="left" orientationMargin={0}><Text strong>Hình ảnh</Text></Divider>
+                <Divider><Text strong>Hình ảnh</Text></Divider>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                   {selectedReturn.images.map((image) => (
                     <div key={image.id}>
                       <img src={image.imageUrl} alt={image.imageType} className="w-full h-32 object-cover rounded border" />
                       <Text type="secondary" style={{ fontSize: 11, display: 'block', textAlign: 'center', marginTop: 4 }}>
-                        {image.imageType === 'CUSTOMER_PROOF' ? 'Ảnh khách hàng' : 'Ảnh nhân viên'}
+                        {image.imageType === 'CUSTOMER_PRODUCT' || image.imageType === 'CUSTOMER_DEFECT' ? 'Ảnh khách hàng' : 'Ảnh nhân viên'}
                       </Text>
                     </div>
                   ))}

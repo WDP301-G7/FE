@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -23,7 +23,9 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   ReloadOutlined,
+  SearchOutlined,
 } from '@ant-design/icons';
+import { User, Phone, Mail, Package, DollarSign, CalendarDays } from 'lucide-react';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -46,6 +48,9 @@ const OrderOperationsPage: React.FC = () => {
   const [orders, setOrders] = useState<OrderDetails[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('');
+  const [keyword, setKeyword] = useState('');
+  const [orderTypeLocalFilter, setOrderTypeLocalFilter] = useState<string>('');
+  const [staffLocalFilter, setStaffLocalFilter] = useState<string>('');
   const [selectedOrder, setSelectedOrder] = useState<OrderDetails | null>(null);
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -114,6 +119,7 @@ const OrderOperationsPage: React.FC = () => {
       const params: GetOrdersParams = { page: currentPage, limit: pageSize };
       if (statusFilter && statusFilter !== '__all') params.status = statusFilter;
       const response = await operationsService.getAllOrders(params);
+
       setOrders(response.orders || []);
       setTotalItems(response.pageInfo?.totalElements || response.orders.length);
     } catch (err: any) {
@@ -145,7 +151,7 @@ const OrderOperationsPage: React.FC = () => {
   };
 
   const submitConfirm = async () => {
-    if (!selectedOrder || !appointmentDate || !assignedStaffId) {
+    if (!selectedOrder || !assignedStaffId) {
       toast({
         title: 'Lỗi',
         description: 'Vui lòng điền đầy đủ thông tin bắt buộc',
@@ -153,9 +159,22 @@ const OrderOperationsPage: React.FC = () => {
       });
       return;
     }
+
+    const inStock = isInStockOrder(selectedOrder.orderType);
+    if (!inStock && !appointmentDate) {
+      toast({
+        title: 'Lỗi',
+        description: 'Vui lòng chọn ngày & giờ hẹn',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setLoading(true);
     try {
-      const isoDate = new Date(appointmentDate + ':00.000Z').toISOString();
+      const isoDate = inStock
+        ? new Date().toISOString()
+        : new Date(appointmentDate + ':00.000Z').toISOString();
       await operationsService.confirmOrder(selectedOrder.id, {
         appointmentDate: isoDate,
         appointmentNotes,
@@ -217,6 +236,133 @@ const OrderOperationsPage: React.FC = () => {
     return new Date(dateString).toLocaleDateString('vi-VN');
   };
 
+  const getAssignedStaffName = (order: OrderDetails) => {
+    const directName =
+      order.handler?.fullName ||
+      (order.handler as any)?.fullname ||
+      (order.handler as any)?.name;
+
+    if (directName) return directName;
+
+    const staffId = order.handler?.id || order.handledBy || order.staffId;
+    if (!staffId) return 'Chưa phân công';
+
+    const staff = staffList.find((item) => item.id === staffId);
+    return staff?.fullName || String(staffId);
+  };
+
+  const getCustomerInfo = (order: OrderDetails) => ({
+    name: order.customer?.fullName || 'N/A',
+    email: order.customer?.email || 'N/A',
+    phone: order.customer?.phone || 'N/A',
+  });
+
+  const getOrderTypeTag = (orderType?: string) => {
+    if (!orderType) return <Tag>Không xác định</Tag>;
+
+    const normalized = String(orderType).toUpperCase().replace(/[-\s]/g, '_');
+
+    if (normalized.includes('PRESCRIPTION')) {
+      return <Tag color="purple">Đơn thuốc</Tag>;
+    }
+    if (normalized.includes('PRE_ORDER') || normalized.includes('PREORDER')) {
+      return <Tag color="gold">Đặt trước</Tag>;
+    }
+    if (normalized.includes('IN_STOCK') || normalized.includes('INSTOCK')) {
+      return <Tag color="green">Có sẵn</Tag>;
+    }
+
+    return <Tag color="blue">{String(orderType)}</Tag>;
+  };
+
+  const getOrderTypeLabel = (orderType?: string) => {
+    if (!orderType) return 'Không xác định';
+    const normalized = String(orderType).toUpperCase().replace(/[-\s]/g, '_');
+
+    if (normalized.includes('PRESCRIPTION')) return 'Đơn thuốc';
+    if (normalized.includes('PRE_ORDER') || normalized.includes('PREORDER')) return 'Đặt trước';
+    if (normalized.includes('IN_STOCK') || normalized.includes('INSTOCK')) return 'Có sẵn';
+
+    return String(orderType);
+  };
+
+  const isInStockOrder = (orderType?: string) => {
+    if (!orderType) return false;
+    const normalized = String(orderType).toUpperCase().replace(/[-\s]/g, '_');
+    return normalized.includes('IN_STOCK') || normalized.includes('INSTOCK');
+  };
+
+  const getStatusLabel = (status?: string) => {
+    const key = String(status || '').toUpperCase();
+    const labels: Record<string, string> = {
+      NEW: 'Mới',
+      PENDING: 'Chờ xác nhận',
+      CONFIRMED: 'Đã xác nhận',
+      WAITING_CUSTOMER: 'Chờ khách hàng',
+      PROCESSING: 'Đang xử lý',
+      READY: 'Sẵn sàng giao',
+      READY_FOR_PICKUP: 'Sẵn sàng giao',
+      COMPLETED: 'Hoàn thành',
+      CANCELLED: 'Đã hủy',
+    };
+    return labels[key] || status || 'Không xác định';
+  };
+
+  const orderTypeOptions = useMemo(() => {
+    const set = new Set<string>();
+    orders.forEach((item) => {
+      if (item.orderType) set.add(String(item.orderType));
+    });
+    return Array.from(set);
+  }, [orders]);
+
+  const staffOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    orders.forEach((item) => {
+      const id = item.handler?.id || item.handledBy || item.staffId;
+      const name = getAssignedStaffName(item);
+      if (id) map.set(String(id), name);
+    });
+    return Array.from(map.entries());
+  }, [orders]);
+
+  const filteredOrders = useMemo(() => {
+    const kw = keyword.trim().toLowerCase();
+
+    return orders.filter((order) => {
+      if (orderTypeLocalFilter && String(order.orderType || '') !== orderTypeLocalFilter) {
+        return false;
+      }
+
+      if (staffLocalFilter) {
+        const currentStaffId = order.handler?.id || order.handledBy || order.staffId;
+        if (String(currentStaffId || '') !== staffLocalFilter) {
+          return false;
+        }
+      }
+
+      if (!kw) return true;
+
+      const customer = getCustomerInfo(order);
+      const text = [
+        order.id,
+        customer.name,
+        customer.email,
+        customer.phone,
+        getAssignedStaffName(order),
+        order.orderType,
+        order.status,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return text.includes(kw);
+    });
+  }, [orders, keyword, orderTypeLocalFilter, staffLocalFilter]);
+
+  const hasLocalFilters = Boolean(keyword.trim() || orderTypeLocalFilter || staffLocalFilter);
+
   // Derived stats
   const completedCount = orders.filter((o) => o.status === 'COMPLETED').length;
   const confirmedCount = orders.filter((o) => o.status === 'CONFIRMED').length;
@@ -233,7 +379,13 @@ const OrderOperationsPage: React.FC = () => {
       title: 'Trạng thái',
       dataIndex: 'status',
       key: 'status',
-      render: (val: string) => <StatusBadge status={val} />,
+      render: (val: string) => <StatusBadge status={val} label={getStatusLabel(val)} />,
+    },
+    {
+      title: 'Loại đơn',
+      dataIndex: 'orderType',
+      key: 'orderType',
+      render: (val: string) => getOrderTypeTag(val),
     },
     {
       title: 'Tổng tiền',
@@ -256,9 +408,8 @@ const OrderOperationsPage: React.FC = () => {
     },
     {
       title: 'Nhân viên',
-      dataIndex: 'staffId',
-      key: 'staffId',
-      render: (val: string) => <Text>{val || 'Chưa phân công'}</Text>,
+      key: 'staff',
+      render: (_: unknown, record: OrderDetails) => <Text>{getAssignedStaffName(record)}</Text>,
     },
     {
       title: 'Hành động',
@@ -360,11 +511,38 @@ const OrderOperationsPage: React.FC = () => {
                 onChange={(v) => setStatusFilter(v === '__all' ? '' : v)}
               >
                 <Option value="__all">Tất cả trạng thái</Option>
-                <Option value="PENDING">Pending</Option>
-                <Option value="CONFIRMED">Confirmed</Option>
-                <Option value="WAITING_CUSTOMER">Waiting</Option>
-                <Option value="READY">Ready</Option>
-                <Option value="CANCELLED">Cancelled</Option>
+                <Option value="CONFIRMED">Đã xác nhận</Option>
+                <Option value="WAITING_CUSTOMER">Chờ khách hàng</Option>
+                <Option value="READY">Sẵn sàng giao</Option>
+                <Option value="CANCELLED">Đã hủy</Option>
+              </Select>
+              <Input
+                style={{ width: 220 }}
+                prefix={<SearchOutlined />}
+                placeholder="Tìm theo mã đơn/khách hàng..."
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                allowClear
+              />
+              <Select
+                style={{ width: 180 }}
+                value={orderTypeLocalFilter || '__all'}
+                onChange={(v) => setOrderTypeLocalFilter(v === '__all' ? '' : v)}
+              >
+                <Option value="__all">Tất cả loại đơn</Option>
+                {orderTypeOptions.map((type) => (
+                  <Option key={type} value={type}>{getOrderTypeLabel(type)}</Option>
+                ))}
+              </Select>
+              <Select
+                style={{ width: 220 }}
+                value={staffLocalFilter || '__all'}
+                onChange={(v) => setStaffLocalFilter(v === '__all' ? '' : v)}
+              >
+                <Option value="__all">Tất cả nhân viên</Option>
+                {staffOptions.map(([id, name]) => (
+                  <Option key={id} value={id}>{name}</Option>
+                ))}
               </Select>
               <Button
                 icon={<ReloadOutlined />}
@@ -373,20 +551,31 @@ const OrderOperationsPage: React.FC = () => {
               >
                 Làm mới
               </Button>
+              <Button
+                onClick={() => {
+                  setKeyword('');
+                  setOrderTypeLocalFilter('');
+                  setStaffLocalFilter('');
+                }}
+              >
+                Xóa lọc cục bộ
+              </Button>
             </Space>
           </div>
 
           <Table
-            dataSource={orders}
+            dataSource={filteredOrders}
             columns={columns}
             rowKey="id"
             loading={loading}
             pagination={{
               current: currentPage,
               pageSize: pageSize,
-              total: totalItems,
+              total: hasLocalFilters ? filteredOrders.length : totalItems,
               showSizeChanger: true,
-              showTotal: (total) => `Tổng ${total} đơn hàng`,
+              showTotal: (total) => hasLocalFilters
+                ? `Hiển thị ${total} đơn (lọc trong trang hiện tại)`
+                : `Tổng ${total} đơn hàng`,
               onChange: (page, size) => {
                 setCurrentPage(page);
                 setPageSize(size);
@@ -399,58 +588,158 @@ const OrderOperationsPage: React.FC = () => {
 
       {/* Detail Modal */}
       <Modal
-        title="Chi tiết đơn hàng"
+        title={null}
         open={isDetailOpen}
         onCancel={() => setIsDetailOpen(false)}
-        footer={
-          <Button onClick={() => setIsDetailOpen(false)}>Đóng</Button>
-        }
+        footer={null}
+        width={960}
         destroyOnClose
       >
         {selectedOrder && (
-          <div className="space-y-3 py-2">
-            {[
-              { label: 'Mã đơn hàng', value: selectedOrder.id },
-              { label: 'Tổng giá', value: formatCurrency(selectedOrder.totalAmount) },
-              { label: 'Ngày tạo', value: formatDate(selectedOrder.createdAt) },
-              { label: 'Khách hàng', value: selectedOrder.customer?.fullName || 'N/A' },
-              { label: 'Nhân viên', value: selectedOrder.staffId || 'Chưa phân công' },
-            ].map(({ label, value }) => (
-              <div key={label}>
-                <Text type="secondary" style={{ fontSize: 12 }}>{label}</Text>
-                <div><Text strong>{value}</Text></div>
-              </div>
-            ))}
-            <div>
-              <Text type="secondary" style={{ fontSize: 12 }}>Trạng thái</Text>
-              <div><StatusBadge status={selectedOrder.status} /></div>
+          <div className="py-2">
+            <div className="mb-4">
+              <Title level={3} className="!mb-1">Chi tiết đơn hàng</Title>
+              <Text type="secondary">Đơn hàng #{selectedOrder.id}</Text>
             </div>
-          </div>
-        )}
 
-        {selectedOrder?.orderItems?.length > 0 && (
-          <div className="mb-4">
-            <Text strong>Danh sách sản phẩm</Text>
-
-            <div className="mt-2 space-y-2 max-h-40 overflow-y-auto">
-              {selectedOrder.orderItems.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex justify-between items-center p-2 border rounded-md bg-white"
-                >
-                  <div>
-                    <Text strong>{item.product?.name}</Text>
-                    <div className="text-xs text-gray-500">
-                      {item.product?.brand}
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+              <Card>
+                <div className="p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <User className="h-5 w-5 text-gray-600" />
+                    <Text strong style={{ fontSize: 20 }}>Thông tin khách hàng</Text>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-3">
+                        <User className="h-4 w-4 text-gray-500 mt-1" />
+                        <div>
+                          <div className="text-xs text-gray-500">Họ tên</div>
+                          <Text strong>{getCustomerInfo(selectedOrder).name}</Text>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <Phone className="h-4 w-4 text-gray-500 mt-1" />
+                        <div>
+                          <div className="text-xs text-gray-500">Số điện thoại</div>
+                          <Text strong>{getCustomerInfo(selectedOrder).phone}</Text>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-3">
+                        <Mail className="h-4 w-4 text-gray-500 mt-1" />
+                        <div>
+                          <div className="text-xs text-gray-500">Email</div>
+                          <Text strong>{getCustomerInfo(selectedOrder).email}</Text>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <Package className="h-4 w-4 text-gray-500 mt-1" />
+                        <div>
+                          <div className="text-xs text-gray-500">Trạng thái</div>
+                          <div className="mt-1"><StatusBadge status={selectedOrder.status} label={getStatusLabel(selectedOrder.status)} /></div>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <Package className="h-4 w-4 text-gray-500 mt-1" />
+                        <div>
+                          <div className="text-xs text-gray-500">Loại đơn</div>
+                          <div className="mt-1">{getOrderTypeTag(selectedOrder.orderType)}</div>
+                        </div>
+                      </div>
                     </div>
                   </div>
+                </div>
+              </Card>
 
-                  <div className="text-right">
-                    <div>Số lượng: {item.quantity}</div>
-                    <div>{formatCurrency(item.unitPrice)}</div>
+              <Card>
+                <div className="p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Package className="h-5 w-5 text-gray-600" />
+                    <Text strong style={{ fontSize: 20 }}>Sản phẩm</Text>
+                  </div>
+
+                  <div className="border rounded-lg overflow-hidden">
+                    <Table
+                      dataSource={selectedOrder.orderItems || []}
+                      rowKey="id"
+                      pagination={false}
+                      size="small"
+                      columns={[
+                        {
+                          title: 'Hình',
+                          key: 'image',
+                          width: 70,
+                          render: (_: unknown, item: any) => (
+                            <div className="w-9 h-9 rounded-md bg-gray-100 flex items-center justify-center overflow-hidden">
+                              {item?.product?.imageUrl ? (
+                                <img
+                                  src={item.product.imageUrl}
+                                  alt={item?.product?.name || 'product'}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <Package className="h-4 w-4 text-gray-400" />
+                              )}
+                            </div>
+                          ),
+                        },
+                        {
+                          title: 'Sản phẩm',
+                          key: 'product',
+                          render: (_: unknown, item: any) => (
+                            <Text strong>{item?.product?.name || 'N/A'}</Text>
+                          ),
+                        },
+                        { title: 'SL', dataIndex: 'quantity', width: 70, align: 'center' as const },
+                        {
+                          title: 'Giá',
+                          key: 'unitPrice',
+                          align: 'right' as const,
+                          render: (_: unknown, item: any) => formatCurrency(item?.unitPrice),
+                        },
+                        {
+                          title: 'Tổng',
+                          key: 'lineTotal',
+                          align: 'right' as const,
+                          render: (_: unknown, item: any) =>
+                            formatCurrency((item?.quantity || 0) * Number(item?.unitPrice || 0)),
+                        },
+                      ]}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between mt-5 pt-4 border-t">
+                    <div className="flex items-center gap-2 text-gray-500">
+                      <DollarSign className="h-4 w-4" />
+                      <span>Tổng cộng</span>
+                    </div>
+                    <div className="text-3xl font-semibold text-cyan-700">
+                      {formatCurrency(selectedOrder.totalAmount)}
+                    </div>
                   </div>
                 </div>
-              ))}
+              </Card>
+
+              <Card>
+                <div className="p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <CalendarDays className="h-5 w-5 text-gray-600" />
+                    <Text strong style={{ fontSize: 20 }}>Thời gian</Text>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <CalendarDays className="h-4 w-4" />
+                    <span>Ngày tạo:</span>
+                    <Text strong>{new Date(selectedOrder.createdAt || '').toLocaleString('vi-VN')}</Text>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-gray-600 mt-2">
+                    <User className="h-4 w-4" />
+                    <span>Nhân viên:</span>
+                    <Text strong>{getAssignedStaffName(selectedOrder)}</Text>
+                  </div>
+                </div>
+              </Card>
             </div>
           </div>
         )}
@@ -458,7 +747,7 @@ const OrderOperationsPage: React.FC = () => {
 
       {/* Confirm Modal */}
       <Modal
-        title="Đặt lịch hẹn"
+        title={selectedOrder && isInStockOrder(selectedOrder.orderType) ? 'Xác nhận đơn hàng' : 'Đặt lịch hẹn'}
         open={isConfirmOpen}
         onCancel={() => setIsConfirmOpen(false)}
         footer={null}
@@ -485,7 +774,7 @@ const OrderOperationsPage: React.FC = () => {
 
             <div className="flex justify-between">
               <Text strong>Loại đơn:</Text>
-              <Text>{selectedOrder.orderType}</Text>
+              {getOrderTypeTag(selectedOrder.orderType)}
             </div>
 
             <div className="flex justify-between">
@@ -527,21 +816,25 @@ const OrderOperationsPage: React.FC = () => {
           </div>
         )}
         <Form layout="vertical" className="pt-2">
-          <Form.Item label="Ngày & Giờ Hẹn" required>
-            <Input
-              type="datetime-local"
-              value={appointmentDate}
-              onChange={(e) => setAppointmentDate(e.target.value)}
-            />
-          </Form.Item>
-          <Form.Item label="Ghi chú về cuộc hẹn">
-            <TextArea
-              placeholder="Nhập ghi chú cho cuộc hẹn"
-              value={appointmentNotes}
-              onChange={(e) => setAppointmentNotes(e.target.value)}
-              rows={3}
-            />
-          </Form.Item>
+          {selectedOrder && !isInStockOrder(selectedOrder.orderType) && (
+            <>
+              <Form.Item label="Ngày & Giờ Hẹn" required>
+                <Input
+                  type="datetime-local"
+                  value={appointmentDate}
+                  onChange={(e) => setAppointmentDate(e.target.value)}
+                />
+              </Form.Item>
+              <Form.Item label="Ghi chú về cuộc hẹn">
+                <TextArea
+                  placeholder="Nhập ghi chú cho cuộc hẹn"
+                  value={appointmentNotes}
+                  onChange={(e) => setAppointmentNotes(e.target.value)}
+                  rows={3}
+                />
+              </Form.Item>
+            </>
+          )}
           <Form.Item label="Chọn nhân viên" required>
             <Select
               placeholder="Chọn nhân viên"

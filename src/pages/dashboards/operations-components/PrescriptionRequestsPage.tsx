@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -49,6 +49,9 @@ const PrescriptionRequestsPage: React.FC = () => {
   const [requests, setRequests] = useState<PrescriptionRequestSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('');
+  const [storeIdFilter, setStoreIdFilter] = useState<string>('');
+  const [customerIdFilter, setCustomerIdFilter] = useState<string>('');
+  const [handledByFilter, setHandledByFilter] = useState<string>('');
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -83,15 +86,52 @@ const PrescriptionRequestsPage: React.FC = () => {
   const [closeStatus, setCloseStatus] = useState<string>('');
   const [closeNotes, setCloseNotes] = useState<string>('');
 
+  const storeOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    requests.forEach((item) => {
+      const id = item.storeId;
+      if (!id || map.has(id)) return;
+      const name = item.store?.name || 'Cửa hàng';
+      map.set(id, `${name} (${id.slice(0, 8)}...)`);
+    });
+    return Array.from(map.entries());
+  }, [requests]);
+
+  const customerOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    requests.forEach((item) => {
+      const id = item.customerId;
+      if (!id || map.has(id)) return;
+      const name = item.customer?.fullName || 'Khách hàng';
+      const phone = item.customer?.phone ? ` - ${item.customer.phone}` : '';
+      map.set(id, `${name}${phone} (${id.slice(0, 8)}...)`);
+    });
+    return Array.from(map.entries());
+  }, [requests]);
+
+  const handlerOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    requests.forEach((item) => {
+      const id = item.handledBy || item.handler?.id;
+      if (!id || map.has(id)) return;
+      const name = item.handler?.fullName || 'Nhân viên xử lý';
+      map.set(id, `${name} (${id.slice(0, 8)}...)`);
+    });
+    return Array.from(map.entries());
+  }, [requests]);
+
   useEffect(() => {
     loadRequests();
-  }, [statusFilter, currentPage, pageSize]);
+  }, [statusFilter, storeIdFilter, customerIdFilter, handledByFilter, currentPage, pageSize]);
 
   const loadRequests = async () => {
     setLoading(true);
     try {
       const params: GetPrescriptionRequestsParams = { page: currentPage, limit: pageSize };
       if (statusFilter && statusFilter !== '__all') params.status = statusFilter;
+      if (storeIdFilter.trim()) params.storeId = storeIdFilter.trim();
+      if (customerIdFilter.trim()) params.customerId = customerIdFilter.trim();
+      if (handledByFilter.trim()) params.handledBy = handledByFilter.trim();
       const resp = await operationsService.getPrescriptionRequests(params);
       setRequests(resp.requests || []);
       setTotalItems(resp.pageInfo?.totalElements || resp.requests.length);
@@ -174,7 +214,7 @@ const PrescriptionRequestsPage: React.FC = () => {
 
   const loadProducts = async () => {
     try {
-      const data = await productService.getProducts({ limit: 100 });
+      const data: any = await productService.getProducts({ limit: 100 });
       let list: any[] = Array.isArray(data)
         ? data
         : data.data
@@ -363,14 +403,65 @@ const PrescriptionRequestsPage: React.FC = () => {
                 onChange={(v) => { setStatusFilter(v === '__all' ? '' : v); setCurrentPage(1); }}
               >
                 <Option value="__all">Tất cả trạng thái</Option>
-                <Option value="pending">Chờ duyệt</Option>
-                <Option value="verified">Đã xác minh</Option>
-                <Option value="processing">Đang xử lý</Option>
-                <Option value="completed">Hoàn thành</Option>
-                <Option value="update-required">Cần cập nhật</Option>
+                <Option value="PENDING">PENDING</Option>
+                <Option value="QUOTED">QUOTED</Option>
+                <Option value="ACCEPTED">ACCEPTED</Option>
+                <Option value="SCHEDULED">SCHEDULED</Option>
+                <Option value="EXPIRED">EXPIRED</Option>
+                <Option value="LOST">LOST</Option>
+              </Select>
+              <Select
+                style={{ width: 250 }}
+                value={storeIdFilter || undefined}
+                onChange={(v) => { setStoreIdFilter(v || ''); setCurrentPage(1); }}
+                placeholder="Lọc theo cửa hàng"
+                allowClear
+                showSearch
+                optionFilterProp="children"
+              >
+                {storeOptions.map(([id, label]) => (
+                  <Option key={id} value={id}>{label}</Option>
+                ))}
+              </Select>
+              <Select
+                style={{ width: 280 }}
+                value={customerIdFilter || undefined}
+                onChange={(v) => { setCustomerIdFilter(v || ''); setCurrentPage(1); }}
+                placeholder="Lọc theo khách hàng"
+                allowClear
+                showSearch
+                optionFilterProp="children"
+              >
+                {customerOptions.map(([id, label]) => (
+                  <Option key={id} value={id}>{label}</Option>
+                ))}
+              </Select>
+              <Select
+                style={{ width: 260 }}
+                value={handledByFilter || undefined}
+                onChange={(v) => { setHandledByFilter(v || ''); setCurrentPage(1); }}
+                placeholder="Lọc theo nhân viên xử lý"
+                allowClear
+                showSearch
+                optionFilterProp="children"
+              >
+                {handlerOptions.map(([id, label]) => (
+                  <Option key={id} value={id}>{label}</Option>
+                ))}
               </Select>
               <Button icon={<ReloadOutlined />} onClick={() => { setCurrentPage(1); loadRequests(); }} loading={loading}>
                 Làm mới
+              </Button>
+              <Button
+                onClick={() => {
+                  setStatusFilter('');
+                  setStoreIdFilter('');
+                  setCustomerIdFilter('');
+                  setHandledByFilter('');
+                  setCurrentPage(1);
+                }}
+              >
+                Xóa lọc
               </Button>
             </Space>
           </div>
@@ -553,7 +644,7 @@ const PrescriptionRequestsPage: React.FC = () => {
             </Card>
           )}
 
-          <Divider orientation="left" orientationMargin={0}><Text strong>Mắt phải (Right Eye)</Text></Divider>
+          <Divider><Text strong>Mắt phải (Right Eye)</Text></Divider>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
               { label: 'Độ cầu (SPH)', val: rightSphere, set: setRightSphere, step: 0.25 },
@@ -566,7 +657,7 @@ const PrescriptionRequestsPage: React.FC = () => {
             ))}
           </div>
 
-          <Divider orientation="left" orientationMargin={0}><Text strong>Mắt trái (Left Eye)</Text></Divider>
+          <Divider><Text strong>Mắt trái (Left Eye)</Text></Divider>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
               { label: 'Độ cầu (SPH)', val: leftSphere, set: setLeftSphere, step: 0.25 },
