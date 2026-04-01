@@ -161,8 +161,11 @@ const AdminUsersManagement: React.FC = () => {
         manager,
         customer,
       });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Không thể tải danh sách người dùng';
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || 
+                          error?.response?.data?.error || 
+                          error?.message || 
+                          'Không thể tải danh sách người dùng';
       console.error('Error loading users:', error);
       toast({
         title: 'Lỗi',
@@ -226,8 +229,11 @@ const AdminUsersManagement: React.FC = () => {
       
       // Reload users
       await loadUsers();
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Không thể tạo người dùng';
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || 
+                          error?.response?.data?.error || 
+                          error?.message || 
+                          'Không thể tạo người dùng';
       toast({
         title: 'Lỗi',
         description: errorMessage,
@@ -280,8 +286,11 @@ const AdminUsersManagement: React.FC = () => {
       
       // Reload users
       await loadUsers();
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Không thể cập nhật người dùng';
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || 
+                          error?.response?.data?.error || 
+                          error?.message || 
+                          'Không thể cập nhật người dùng';
       toast({
         title: 'Lỗi',
         description: errorMessage,
@@ -310,8 +319,19 @@ const AdminUsersManagement: React.FC = () => {
       
       // Reload users
       await loadUsers();
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Không thể xóa người dùng';
+    } catch (error: any) {
+      // Get detailed error message from backend response
+      let errorMessage = error?.response?.data?.message || 
+                        error?.response?.data?.error || 
+                        error?.message || 
+                        'Không thể xóa người dùng';
+      
+      // Translate technical error messages to user-friendly Vietnamese
+      if (errorMessage.includes('Foreign key constraint violation') || 
+          errorMessage.includes('DATABASE_ERROR')) {
+        errorMessage = 'Không thể xóa người dùng này vì đang có dữ liệu liên quan (đơn hàng, đánh giá, v.v.). Vui lòng vô hiệu hóa tài khoản thay vì xóa.';
+      }
+      
       toast({
         title: 'Lỗi',
         description: errorMessage,
@@ -523,7 +543,6 @@ const AdminUsersManagement: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Quản Lý Người Dùng</CardTitle>
-                <CardDescription>Quản lý thông tin người dùng hệ thống (không hiển thị Admin)</CardDescription>
               </div>
               <Button
                 onClick={() => {
@@ -1089,8 +1108,14 @@ const AdminUsersManagement: React.FC = () => {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Xác Nhận Xóa</AlertDialogTitle>
-            <AlertDialogDescription>
-              Bạn có chắc chắn muốn xóa người dùng <strong>{selectedUser?.fullName}</strong>? Hành động này không thể hoàn tác.
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                Bạn có chắc chắn muốn xóa người dùng <strong>{selectedUser?.fullName}</strong>?
+              </p>
+              <p className="text-orange-600 dark:text-orange-400">
+                ⚠️ <strong>Lưu ý:</strong> Nếu người dùng này đang có đơn hàng, đánh giá hoặc dữ liệu liên quan, 
+                bạn không thể xóa. Trong trường hợp đó, hãy vô hiệu hóa tài khoản bằng cách đổi trạng thái thành "Inactive".
+              </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
