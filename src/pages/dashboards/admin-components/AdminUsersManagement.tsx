@@ -89,6 +89,8 @@ const AdminUsersManagement: React.FC = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isBanDialogOpen, setIsBanDialogOpen] = useState(false);
+  const [banAction, setBanAction] = useState<'ban' | 'unban'>('ban');
 
   // Form state
   const [formData, setFormData] = useState({
@@ -301,7 +303,44 @@ const AdminUsersManagement: React.FC = () => {
     }
   };
 
-  // Handle delete user
+  // Handle ban/unban user (replace delete)
+  const handleBanUser = async () => {
+    if (!selectedUser) return;
+
+    setIsSubmitting(true);
+    try {
+      const newStatus = banAction === 'ban' ? 'BANNED' : 'ACTIVE';
+      await userService.updateUser(selectedUser.id, { status: newStatus });
+      
+      toast({
+        title: 'Thành công',
+        description: banAction === 'ban' 
+          ? 'Khóa tài khoản thành công' 
+          : 'Mở khóa tài khoản thành công',
+      });
+
+      setIsBanDialogOpen(false);
+      setSelectedUser(null);
+      
+      // Reload users
+      await loadUsers();
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || 
+                          error?.response?.data?.error || 
+                          error?.message || 
+                          `Không thể ${banAction === 'ban' ? 'khóa' : 'mở khóa'} người dùng`;
+      
+      toast({
+        title: 'Lỗi',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle delete user (deprecated - keeping for backward compatibility)
   const handleDeleteUser = async () => {
     if (!selectedUser) return;
 
@@ -593,7 +632,6 @@ const AdminUsersManagement: React.FC = () => {
                   <SelectItem value="CUSTOMER">Khách Hàng</SelectItem>
                   <SelectItem value="STAFF">Nhân Viên</SelectItem>
                   <SelectItem value="OPERATION">Vận Hành</SelectItem>
-                  <SelectItem value="MANAGER">Quản Lý</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -719,9 +757,34 @@ const AdminUsersManagement: React.FC = () => {
                               size="sm"
                               onClick={() => {
                                 setSelectedUser(user);
+                                setBanAction(user.status === 'BANNED' ? 'unban' : 'ban');
+                                setIsBanDialogOpen(true);
+                              }}
+                              title={user.status === 'BANNED' ? 'Mở khóa' : 'Khóa'}
+                              className={user.status === 'BANNED' 
+                                ? 'text-green-600 hover:text-green-700 dark:text-green-400' 
+                                : 'text-orange-600 hover:text-orange-700 dark:text-orange-400'}
+                            >
+                              {user.status === 'BANNED' ? (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                  <path d="M7 11V7a5 5 0 0 1 9.9-1"></path>
+                                </svg>
+                              ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                                </svg>
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedUser(user);
                                 setIsDeleteDialogOpen(true);
                               }}
-                              title="Xóa"
+                              title="Xóa (Không khuyến nghị)"
                               className="text-red-600 hover:text-red-700 dark:text-red-400"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -804,7 +867,6 @@ const AdminUsersManagement: React.FC = () => {
                   <SelectItem value="CUSTOMER">Khách Hàng</SelectItem>
                   <SelectItem value="STAFF">Nhân Viên</SelectItem>
                   <SelectItem value="OPERATION">Vận Hành</SelectItem>
-                  <SelectItem value="MANAGER">Quản Lý</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -905,7 +967,6 @@ const AdminUsersManagement: React.FC = () => {
                   <SelectItem value="CUSTOMER">Khách Hàng</SelectItem>
                   <SelectItem value="STAFF">Nhân Viên</SelectItem>
                   <SelectItem value="OPERATION">Vận Hành</SelectItem>
-                  <SelectItem value="MANAGER">Quản Lý</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1102,6 +1163,55 @@ const AdminUsersManagement: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Ban/Unban Alert Dialog */}
+      <AlertDialog open={isBanDialogOpen} onOpenChange={setIsBanDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {banAction === 'ban' ? 'Xác Nhận Khóa Tài Khoản' : 'Xác Nhận Mở Khóa Tài Khoản'}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                Bạn có chắc chắn muốn {banAction === 'ban' ? 'khóa' : 'mở khóa'} tài khoản{' '}
+                <strong>{selectedUser?.fullName}</strong>?
+              </p>
+              {banAction === 'ban' ? (
+                <p className="text-orange-600 dark:text-orange-400">
+                  ⚠️ <strong>Lưu ý:</strong> Sau khi khóa:
+                  <ul className="list-disc list-inside mt-1 space-y-1">
+                    <li>Người dùng sẽ không thể đăng nhập</li>
+                    <li>Hệ thống tự động gửi thông báo đến người dùng</li>
+                    <li>Toàn bộ dữ liệu (đơn hàng, đánh giá) được giữ nguyên</li>
+                  </ul>
+                </p>
+              ) : (
+                <p className="text-green-600 dark:text-green-400">
+                  ✓ <strong>Sau khi mở khóa:</strong>
+                  <ul className="list-disc list-inside mt-1 space-y-1">
+                    <li>Người dùng có thể đăng nhập lại</li>
+                    <li>Hệ thống tự động gửi thông báo đến người dùng</li>
+                  </ul>
+                </p>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSubmitting}>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBanUser}
+              disabled={isSubmitting}
+              className={banAction === 'ban' 
+                ? 'bg-orange-600 hover:bg-orange-700' 
+                : 'bg-green-600 hover:bg-green-700'}
+            >
+              {isSubmitting 
+                ? (banAction === 'ban' ? 'Đang khóa...' : 'Đang mở khóa...') 
+                : (banAction === 'ban' ? 'Khóa Tài Khoản' : 'Mở Khóa Tài Khoản')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Alert Dialog */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
