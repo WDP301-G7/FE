@@ -43,10 +43,29 @@ const variantMap: Record<string, { variant: "default" | "secondary" | "destructi
 
 // optional mapping for more readable labels
 const labelMap: Record<string, string> = {
-  WAITING_CUSTOMER: "Waiting Customer",
-  "UPDATE-REQUIRED": "Update Required",
-  "UPDATE_REQUIRED": "Update Required",
-  PENDING_APPROVAL: "Pending Approval",
+  PENDING: "Chờ xử lý",
+  WAITING_CUSTOMER: "Chờ khách xác nhận",
+  CONFIRMED: "Đã xác nhận",
+  PROCESSING: "Đang xử lý",
+  READY: "Sẵn sàng giao",
+  SHIPPED: "Đang giao",
+  DELIVERED: "Đã giao",
+  RETURNED: "Đã trả hàng",
+  CANCELLED: "Đã hủy",
+  COMPLETED: "Hoàn thành",
+  APPROVED: "Đã duyệt",
+  REJECTED: "Từ chối",
+  FLAGGED: "Cần kiểm tra",
+  VERIFIED: "Đã xác thực",
+  "UPDATE-REQUIRED": "Cần cập nhật",
+  "UPDATE_REQUIRED": "Cần cập nhật",
+  PENDING_APPROVAL: "Chờ phê duyệt",
+  PICKING: "Đang hái đơn",
+  PICKED: "Đã hái xong",
+  PACKING: "Đang đóng gói",
+  PACKED: "Đã đóng gói",
+  WAITING_PICKING: "Chờ hái đơn",
+  WAITING_PACKING: "Chờ đóng gói",
 };
 
 function formatStatus(status: string) {
