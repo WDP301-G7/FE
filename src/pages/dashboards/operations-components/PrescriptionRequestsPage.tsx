@@ -29,7 +29,6 @@ import {
   EyeOutlined,
   PhoneOutlined,
   FileAddOutlined,
-  CloseCircleOutlined,
   ReloadOutlined,
   DeleteOutlined,
 } from '@ant-design/icons';
@@ -63,7 +62,6 @@ const PrescriptionRequestsPage: React.FC = () => {
   const [detailOpen, setDetailOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
   const [orderOpen, setOrderOpen] = useState(false);
-  const [closeOpen, setCloseOpen] = useState(false);
 
   const [contactStatus, setContactStatus] = useState<string>('');
   const [contactNotes, setContactNotes] = useState<string>('');
@@ -83,9 +81,6 @@ const PrescriptionRequestsPage: React.FC = () => {
   const [prescriptionNotes, setPrescriptionNotes] = useState<string>('');
   const [expiryDays, setExpiryDays] = useState<number>(3);
   const [expectedReadyDate, setExpectedReadyDate] = useState<string>('');
-
-  const [closeStatus, setCloseStatus] = useState<string>('');
-  const [closeNotes, setCloseNotes] = useState<string>('');
 
   const storeOptions = useMemo(() => {
     const map = new Map<string, string>();
@@ -273,30 +268,6 @@ const PrescriptionRequestsPage: React.FC = () => {
     }
   };
 
-  const openClose = (req: PrescriptionRequestSummary) => {
-    setSelected(req as any);
-    setCloseStatus(''); setCloseNotes('');
-    setCloseOpen(true);
-  };
-
-  const submitClose = async () => {
-    if (!selected || !closeStatus) {
-      toast({ title: 'Lỗi', description: 'Vui lòng chọn trạng thái', variant: 'destructive' });
-      return;
-    }
-    setLoading(true);
-    try {
-      await operationsService.closePrescriptionRequest(selected.id, { status: closeStatus, contactNotes: closeNotes });
-      toast({ title: 'Thành công', description: 'Đóng yêu cầu thành công' });
-      setCloseOpen(false);
-      loadRequests();
-    } catch (err: any) {
-      toast({ title: 'Lỗi', description: err.response?.data?.message || 'Đóng yêu cầu thất bại', variant: 'destructive' });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Derived stats
   const pendingCount = requests.filter((r) => r.status === 'pending').length;
   const verifiedCount = requests.filter((r) => r.status === 'verified').length;
@@ -342,9 +313,6 @@ const PrescriptionRequestsPage: React.FC = () => {
           </Button>
           <Button icon={<FileAddOutlined />} size="small" type="primary" onClick={() => openOrder(record)}>
             Tạo đơn
-          </Button>
-          <Button icon={<CloseCircleOutlined />} size="small" danger onClick={() => openClose(record)}>
-            Đóng
           </Button>
         </Space>
       ),
@@ -825,41 +793,6 @@ const PrescriptionRequestsPage: React.FC = () => {
         </div>
       </Modal>
 
-      {/* Close Request Modal */}
-      <Modal
-        title="Đóng yêu cầu"
-        open={closeOpen}
-        onCancel={() => setCloseOpen(false)}
-        footer={null}
-        destroyOnClose
-      >
-        <Form layout="vertical" className="pt-2">
-          <Form.Item label="Trạng thái" required>
-            <Select
-              placeholder="Chọn trạng thái"
-              value={closeStatus || undefined}
-              onChange={setCloseStatus}
-              style={{ width: '100%' }}
-            >
-              <Option value="completed">Hoàn thành</Option>
-              <Option value="cancelled">Đã hủy</Option>
-              <Option value="update-required">Cần cập nhật</Option>
-            </Select>
-          </Form.Item>
-          <Form.Item label="Ghi chú">
-            <TextArea
-              placeholder="Nhập ghi chú..."
-              value={closeNotes}
-              onChange={(e) => setCloseNotes(e.target.value)}
-              rows={3}
-            />
-          </Form.Item>
-          <div className="flex justify-end gap-2">
-            <Button onClick={() => setCloseOpen(false)}>Hủy</Button>
-            <Button danger onClick={submitClose} loading={loading}>Xác nhận đóng</Button>
-          </div>
-        </Form>
-      </Modal>
     </motion.div>
   );
 };

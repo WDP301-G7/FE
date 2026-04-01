@@ -18,6 +18,13 @@ export interface OrderDetails {
   updatedAt?: string;
   totalPrice: number;
   totalAmount?: string | number;
+  discountAmount?: string | number | null;
+  shippingFee?: string | number | null;
+  deliveryMethod?: string | null;
+  shippingAddress?: string | null;
+  trackingNumber?: string | null;
+  shippingProvider?: string | null;
+  shippingStatus?: string | null;
   status: string;
   paymentStatus?: string;
   orderType?: string;
