@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, ClipboardList, Eye, CheckCircle, Package, Play, UserCheck, Glasses, RefreshCw, Phone, FileText, Upload, X, MapPin, Calendar, DollarSign, User, Mail } from 'lucide-react';
+import { Search, ClipboardList, Eye, CheckCircle, Package, Play, UserCheck, Glasses, RefreshCw, Phone, FileText, Upload, X, MapPin, Calendar, DollarSign, User, Mail, Loader2 } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { PrescriptionDetails } from './PrescriptionDetails';
 import { motion } from 'framer-motion';
@@ -39,8 +39,10 @@ export const MyAssignedOrders: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [simulatingOrderId, setSimulatingOrderId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [orderTypeFilter, setOrderTypeFilter] = useState('ALL');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
@@ -70,7 +72,7 @@ export const MyAssignedOrders: React.FC = () => {
 
   useEffect(() => {
     loadOrders();
-  }, [pagination.page, searchTerm, statusFilter]);
+  }, [pagination.page, searchTerm, statusFilter, orderTypeFilter]);
 
   useEffect(() => {
     const orderId = searchParams.get('orderId');
@@ -86,60 +88,126 @@ export const MyAssignedOrders: React.FC = () => {
   }, [searchParams, orders, setSearchParams]);
 
   const loadOrders = async () => {
-    console.log('\ud83d\udd04 loadOrders() CALLED - Loading all orders from API');
+    console.log('🔄 loadOrders() CALLED - Loading all orders from API');
     setLoading(true);
     try {
-      const data = await orderService.getAssignedOrders({
-        page: pagination.page,
-        limit: pagination.limit,
-        search: searchTerm,
-        status: statusFilter === 'ALL' ? undefined : statusFilter,
-      });
+      let allOrders: Order[] = [];
       
-      console.log('📊 Raw orders from API:', data.items.length, 'orders');
+      // When filter is ALL, fetch orders for all statuses individually
+      // This is because BE's getAssignedOrders defaults to only [WAITING_CUSTOMER, PROCESSING, READY] when status is undefined
+      if (statusFilter === 'ALL') {
+        console.log('🔄 Fetching ALL statuses individually...');
+        const statusesToFetch: string[] = [
+          'PENDING_PAYMENT',
+          'CONFIRMED', 
+          'WAITING_CUSTOMER', 
+          'PROCESSING', 
+          'READY',
+          'COMPLETED', // ← Important: BE excludes this by default
+          'CANCELLED',
+          'EXPIRED'
+        ];
+        
+        // Fetch orders for each status
+        const promises = statusesToFetch.map(status => 
+          orderService.getAssignedOrders({
+            page: 1,
+            limit: 1000, // Large limit to get all orders
+            search: searchTerm,
+            status: status,
+          }).catch(err => {
+            console.warn(`Failed to fetch orders for status ${status}:`, err);
+            return { items: [], pagination: { total: 0 } };
+          })
+        );
+        
+        const results = await Promise.all(promises);
+        allOrders = results.flatMap(result => result.items);
+        console.log(`📊 Fetched ${allOrders.length} orders across all statuses`);
+      } else {
+        // For specific status filter, use normal API call
+        const data = await orderService.getAssignedOrders({
+          page: pagination.page,
+          limit: pagination.limit,
+          search: searchTerm,
+          status: statusFilter,
+        });
+        allOrders = data.items;
+        console.log(`📊 Fetched ${allOrders.length} orders for status: ${statusFilter}`);
+      }
+      
       console.log('👤 Current user ID:', user?.id);
       
       // DEBUG: Check first order structure
-      if (data.items.length > 0) {
+      if (allOrders.length > 0) {
         console.log('🔍 First order structure:', {
-          orderNumber: data.items[0].orderNumber,
-          customerName: data.items[0].customerName,
-          customer: (data.items[0] as any).customer,
-          items: data.items[0].items,
-          orderItems: (data.items[0] as any).orderItems,
-          allKeys: Object.keys(data.items[0])
+          orderNumber: allOrders[0].orderNumber,
+          customerName: allOrders[0].customerName,
+          customer: (allOrders[0] as any).customer,
+          items: allOrders[0].items,
+          orderItems: (allOrders[0] as any).orderItems,
+          allKeys: Object.keys(allOrders[0])
         });
       }
       
       // ⚠️ FILTER: Only show orders assigned to THIS staff
-      // When specific status is selected, trust backend filtering
-      // When ALL selected, apply client-side filter as backup
-      let myOrders;
-      
-      if (statusFilter !== 'ALL') {
-        // Trust backend when filtering by specific status
-        // Show all orders returned (backend should have filtered by staff + status)
-        console.log(`✅ Status filter "${statusFilter}" active - showing all ${data.items.length} orders from backend`);
-        myOrders = data.items;
-      } else {
-        // For ALL orders, apply client-side filter to ensure only assigned orders show
-        myOrders = data.items.filter((order: any) => {
-          const assignedStaffId = order.handledBy || order.handler?.id || order.assignedStaffId || order.staffId;
-          const isMyOrder = assignedStaffId === user?.id;
-          
-          console.log(`Order ${order.orderNumber}: handledBy=${assignedStaffId}, isMyOrder=${isMyOrder}, status=${order.status}`);
-          
-          return isMyOrder;
-        });
+      const myOrders = allOrders.filter((order: any) => {
+        const assignedStaffId = order.handledBy || order.handler?.id || order.assignedStaffId || order.staffId;
+        const isMyOrder = assignedStaffId === user?.id;
         
-        console.log('✅ Filtered to MY orders:', myOrders.length, 'orders');
+        if (statusFilter === 'ALL') {
+          console.log(`Order ${order.orderNumber}: handledBy=${assignedStaffId}, isMyOrder=${isMyOrder}, status=${order.status}`);
+        }
+        
+        return isMyOrder;
+      });
+      
+      // Filter by orderType
+      let filteredOrders = myOrders;
+      if (orderTypeFilter !== 'ALL') {
+        if (orderTypeFilter === 'IN_STOCK_SHIP') {
+          // Có sẵn - Giao ship: must be in-stock AND have shipping address
+          filteredOrders = myOrders.filter((order: any) => {
+            const orderType = order.orderType || order.type;
+            const isInStock = isInStockOrder(orderType);
+            return isInStock && hasShippingAddress(order);
+          });
+        } else if (orderTypeFilter === 'IN_STOCK_STORE') {
+          // Có sẵn - Tại quầy: must be in-stock AND no shipping address
+          filteredOrders = myOrders.filter((order: any) => {
+            const orderType = order.orderType || order.type;
+            const isInStock = isInStockOrder(orderType);
+            return isInStock && !hasShippingAddress(order);
+          });
+        } else {
+          // Regular order type filter
+          filteredOrders = myOrders.filter((order: any) => {
+            const orderType = order.orderType || order.type;
+            return String(orderType || '') === orderTypeFilter;
+          });
+        }
+        console.log(`📦 Filtered by orderType ${orderTypeFilter}: ${filteredOrders.length} orders`);
       }
       
-      setOrders(myOrders);
-      setPagination(prev => ({ ...prev, total: myOrders.length }));
+      // Remove duplicates by order ID (in case same order appears in multiple fetches)
+      const uniqueOrders = Array.from(
+        new Map(filteredOrders.map(order => [order.id, order])).values()
+      );
+      
+      // Sort by creation date (newest first)
+      uniqueOrders.sort((a, b) => {
+        const dateA = new Date(a.createdAt || 0).getTime();
+        const dateB = new Date(b.createdAt || 0).getTime();
+        return dateB - dateA;
+      });
+      
+      console.log('✅ Filtered to MY orders:', uniqueOrders.length, 'orders');
+      
+      setOrders(uniqueOrders);
+      setPagination(prev => ({ ...prev, total: uniqueOrders.length }));
       
       // Preload product images for all orders
-      await preloadProductImages(myOrders);
+      await preloadProductImages(uniqueOrders);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -225,6 +293,79 @@ export const MyAssignedOrders: React.FC = () => {
     } else {
       console.log('✅ Opening confirm dialog for action:', action);
       setIsConfirmDialogOpen(true);
+    }
+  };
+
+  const handleSimulateDelivery = async (order: Order) => {
+    console.log('🚚 Simulating delivery for order:', order.id, 'Current shippingStatus:', order.shippingStatus);
+    setSimulatingOrderId(order.id);
+    try {
+      const result = await orderService.simulateDelivery(order.id);
+      console.log('✅ Simulate delivery result:', result);
+      
+      toast({
+        title: 'Thành công',
+        description: result.message || 'Đã cập nhật trạng thái giao hàng',
+      });
+      
+      // Update the order in state immediately for responsive UI
+      setOrders(prevOrders => 
+        prevOrders.map(o => {
+          if (o.id === order.id) {
+            // Determine new shipping status based on current status
+            let newShippingStatus = o.shippingStatus;
+            let newOrderStatus = o.status;
+            
+            if (!o.shippingStatus || o.shippingStatus === 'READY_TO_SHIP') {
+              newShippingStatus = 'PICKING';
+            } else if (o.shippingStatus === 'PICKING') {
+              newShippingStatus = 'DELIVERING';
+            } else if (o.shippingStatus === 'DELIVERING') {
+              newShippingStatus = 'DELIVERED';
+              newOrderStatus = 'COMPLETED';
+            }
+            
+            console.log(`📦 Updated order ${o.orderNumber}: ${o.shippingStatus} → ${newShippingStatus}, status: ${newOrderStatus}`);
+            
+            const updatedOrder = {
+              ...o,
+              shippingStatus: newShippingStatus,
+              status: newOrderStatus,
+            };
+            
+            // Also update selectedOrder if this is the order being viewed in detail dialog
+            if (selectedOrder && selectedOrder.id === order.id) {
+              setSelectedOrder(updatedOrder);
+            }
+            
+            return updatedOrder;
+          }
+          return o;
+        })
+      );
+    } catch (error: any) {
+      console.error('❌ Simulate delivery error:', error);
+      toast({
+        title: 'Lỗi',
+        description: error.response?.data?.message || 'Không thể cập nhật trạng thái giao hàng',
+        variant: 'destructive',
+      });
+    } finally {
+      setSimulatingOrderId(null);
+    }
+  };
+
+  const getSimulateButtonLabel = (shippingStatus?: string | null): string => {
+    switch (shippingStatus) {
+      case null:
+      case 'READY_TO_SHIP':
+        return 'Bắt đầu lấy hàng';
+      case 'PICKING':
+        return 'Xác nhận đang giao';
+      case 'DELIVERING':
+        return 'Hoàn tất đơn hàng';
+      default:
+        return 'Tiến bước giao hàng';
     }
   };
 
@@ -440,7 +581,7 @@ export const MyAssignedOrders: React.FC = () => {
         case 'ready':
           result = await orderService.markReady(selectedOrder.id);
           message = 'Đã đánh dấu hoàn thành';
-          newStatus = 'READY_FOR_PICKUP';
+          newStatus = 'READY';
           break;
         case 'complete':
           if (completionNote) {
@@ -505,9 +646,76 @@ export const MyAssignedOrders: React.FC = () => {
     return order.orderNumber || order.id || 'N/A';
   };
 
-  const getStatusBadge = (status: string) => (
-    <StatusBadge status={status} />
-  );
+  const getStatusBadge = (order: Order) => {
+    // For HOME_DELIVERY orders in READY status with active shipping status
+    if (order.deliveryMethod === 'HOME_DELIVERY' && order.status === 'READY') {
+      // If has active shipping status (not null/READY_TO_SHIP), show shipping status
+      if (order.shippingStatus && order.shippingStatus !== 'READY_TO_SHIP') {
+        return getShippingStatusBadge(order.shippingStatus);
+      }
+      // Otherwise show "Sẵn sàng giao hàng" as normal READY status
+    }
+    // Show normal order status
+    return <StatusBadge status={order.status} />;
+  };
+
+  // Helper functions from OrderOperationsPage
+  const hasShippingAddress = (order: any) => {
+    const address = order?.shippingAddress;
+    return Boolean(String(address || '').trim());
+  };
+
+  const isInStockOrder = (orderType?: string) => {
+    if (!orderType) return false;
+    const normalized = String(orderType).toUpperCase().replace(/[-\s]/g, '_');
+    return normalized.includes('IN_STOCK') || normalized.includes('INSTOCK');
+  };
+
+  const getOrderTypeTag = (order?: any) => {
+    const orderType = order?.orderType || order?.type;
+    if (!orderType) return <Badge variant="secondary">Không xác định</Badge>;
+
+    const normalized = String(orderType).toUpperCase().replace(/[-\s]/g, '_');
+
+    if (normalized.includes('PRESCRIPTION')) {
+      return <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">Đơn thuốc</Badge>;
+    }
+    if (normalized.includes('PRE_ORDER') || normalized.includes('PREORDER')) {
+      return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Đặt trước</Badge>;
+    }
+    if (normalized.includes('IN_STOCK') || normalized.includes('INSTOCK')) {
+      if (order && hasShippingAddress(order)) {
+        return <Badge variant="outline" className="bg-cyan-50 text-cyan-700 border-cyan-200">Có sẵn - Giao ship</Badge>;
+      }
+      return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Có sẵn - Tại quầy</Badge>;
+    }
+
+    return <Badge variant="secondary">{String(orderType)}</Badge>;
+  };
+
+  const getOrderTypeLabel = (orderType?: string) => {
+    if (!orderType) return 'Không xác định';
+    const normalized = String(orderType).toUpperCase().replace(/[-\s]/g, '_');
+
+    if (normalized.includes('PRESCRIPTION')) return 'Đơn thuốc';
+    if (normalized.includes('PRE_ORDER') || normalized.includes('PREORDER')) return 'Đặt trước';
+    if (normalized.includes('IN_STOCK') || normalized.includes('INSTOCK')) return 'Có sẵn';
+
+    return String(orderType);
+  };
+
+  const getShippingStatusBadge = (shippingStatus?: string | null) => {
+    switch (shippingStatus) {
+      case 'PICKING':
+        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Đang lấy hàng</Badge>;
+      case 'DELIVERING':
+        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Đang giao</Badge>;
+      case 'DELIVERED':
+        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Hoàn thành</Badge>;
+      default:
+        return null;
+    }
+  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
@@ -547,18 +755,32 @@ export const MyAssignedOrders: React.FC = () => {
               </Button>
             </div>
             <div className="flex items-center gap-2 ml-auto">
+              <Select value={orderTypeFilter} onValueChange={setOrderTypeFilter}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Loại đơn hàng" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">Tất cả loại đơn</SelectItem>
+                  <SelectItem value="PRESCRIPTION">Đơn thuốc</SelectItem>
+                  <SelectItem value="PRE_ORDER">Đặt trước</SelectItem>
+                  <SelectItem value="IN_STOCK_SHIP">Có sẵn - Giao ship</SelectItem>
+                  <SelectItem value="IN_STOCK_STORE">Có sẵn - Tại quầy</SelectItem>
+                </SelectContent>
+              </Select>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-[200px]">
                   <SelectValue placeholder="Lọc theo trạng thái" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ALL">Tất cả</SelectItem>
-                  <SelectItem value="CONFIRMED"> Đã xác nhận</SelectItem>
-                  <SelectItem value="WAITING_CUSTOMER"> Chờ làm</SelectItem>
-                  <SelectItem value="PROCESSING"> Đang làm</SelectItem>
-                  <SelectItem value="READY"> Sẵn sàng</SelectItem>
-                  <SelectItem value="COMPLETED"> Hoàn thành</SelectItem>
-                  <SelectItem value="CANCELLED"> Đã hủy</SelectItem>
+                  <SelectItem value="PENDING_PAYMENT">Chờ thanh toán</SelectItem>
+                  <SelectItem value="CONFIRMED">Đã xác nhận</SelectItem>
+                  <SelectItem value="WAITING_CUSTOMER">Đang chuẩn bị</SelectItem>
+                  <SelectItem value="PROCESSING">Đang xử lý</SelectItem>
+                  <SelectItem value="READY">Sẵn sàng giao</SelectItem>
+                  <SelectItem value="COMPLETED">Hoàn thành</SelectItem>
+                  <SelectItem value="CANCELLED">Đã hủy</SelectItem>
+                  <SelectItem value="EXPIRED">Hết hạn</SelectItem>
                 </SelectContent>
               </Select>
               <Button
@@ -585,6 +807,7 @@ export const MyAssignedOrders: React.FC = () => {
                 <TableRow>
                   <TableHead>Mã đơn</TableHead>
                   <TableHead>Khách hàng</TableHead>
+                  <TableHead>Loại đơn</TableHead>
                   <TableHead>Tổng tiền</TableHead>
                   <TableHead>Trạng thái</TableHead>
                   <TableHead>Ngày</TableHead>
@@ -594,11 +817,11 @@ export const MyAssignedOrders: React.FC = () => {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center">Đang tải...</TableCell>
+                    <TableCell colSpan={7} className="text-center">Đang tải...</TableCell>
                   </TableRow>
                 ) : !orders || orders.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center">Không có đơn hàng nào được giao cho bạn</TableCell>
+                    <TableCell colSpan={7} className="text-center">Không có đơn hàng nào được giao cho bạn</TableCell>
                   </TableRow>
                 ) : (
                   orders.map((order) => (
@@ -614,8 +837,9 @@ export const MyAssignedOrders: React.FC = () => {
                           </div>
                         </div>
                       </TableCell>
+                      <TableCell>{getOrderTypeTag(order)}</TableCell>
                       <TableCell>{formatCurrency(order.totalAmount || 0)}</TableCell>
-                      <TableCell>{getStatusBadge(order.status)}</TableCell>
+                      <TableCell>{getStatusBadge(order)}</TableCell>
                       <TableCell>{new Date(order.createdAt).toLocaleDateString()}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-1 justify-end items-center">
@@ -665,7 +889,7 @@ export const MyAssignedOrders: React.FC = () => {
                           )}
                           
                           {/* Show Complete for READY orders - Giao khách */}
-                          {order.status === 'READY' && (
+                          {order.status === 'READY' && order.deliveryMethod !== 'HOME_DELIVERY' && (
                             <Button
                               variant="ghost"
                               size="icon"
@@ -677,6 +901,27 @@ export const MyAssignedOrders: React.FC = () => {
                               className="text-green-600 hover:text-green-700 hover:bg-green-50 cursor-pointer"
                             >
                               <CheckCircle className="h-4 w-4" />
+                            </Button>
+                          )}
+                          
+                          {/* Simulate Delivery for HOME_DELIVERY orders in READY status */}
+                          {order.status === 'READY' && order.deliveryMethod === 'HOME_DELIVERY' && order.shippingStatus !== 'DELIVERED' && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSimulateDelivery(order);
+                              }}
+                              disabled={simulatingOrderId === order.id}
+                              title={getSimulateButtonLabel(order.shippingStatus)}
+                              className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {simulatingOrderId === order.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Package className="h-4 w-4" />
+                              )}
                             </Button>
                           )}
                         </div>
@@ -773,11 +1018,23 @@ export const MyAssignedOrders: React.FC = () => {
                             <p className="font-medium">{getCustomerInfo(selectedOrder).email}</p>
                           </div>
                         </div>
+                        
+                        {/* Shipping Address - Only show for HOME_DELIVERY orders */}
+                        {(selectedOrder.deliveryMethod === 'HOME_DELIVERY' || (selectedOrder as any).shippingAddress) && (
+                          <div className="flex items-start gap-3">
+                            <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
+                            <div>
+                              <p className="text-sm text-muted-foreground">Địa chỉ giao hàng</p>
+                              <p className="font-medium">{(selectedOrder as any).shippingAddress || 'Chưa có thông tin'}</p>
+                            </div>
+                          </div>
+                        )}
+                        
                         <div className="flex items-start gap-3">
                           <Package className="h-4 w-4 text-muted-foreground mt-0.5" />
                           <div>
                             <p className="text-sm text-muted-foreground">Trạng thái</p>
-                            <div className="mt-1">{getStatusBadge(selectedOrder.status)}</div>
+                            <div className="mt-1">{getStatusBadge(selectedOrder)}</div>
                           </div>
                         </div>
                       </div>

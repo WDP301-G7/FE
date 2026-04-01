@@ -16,6 +16,13 @@ export interface Review {
   createdAt: string;
   updatedAt: string;
   editableUntil: string; // createdAt + 7 days
+  
+  // Reply fields (directly on Review, not nested)
+  replyContent?: string;
+  repliedBy?: string;
+  repliedAt?: string;
+  
+  // For backward compatibility (deprecated - use above fields instead)
   reply?: ReviewReply;
 
   // Populated fields
@@ -24,10 +31,17 @@ export interface Review {
     fullName: string;
     email?: string;
     phone?: string;
+    avatarUrl?: string;
+  };
+  replier?: {
+    id: string;
+    fullName: string;
+    role?: string;
   };
   product?: {
     id: string;
     name: string;
+    type?: string;
     images?: { url?: string; imageUrl?: string }[];
   };
   orderItem?: {

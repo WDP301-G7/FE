@@ -26,7 +26,7 @@ import {
   ReloadOutlined,
   SearchOutlined,
 } from '@ant-design/icons';
-import { User, Phone, Mail, Package, DollarSign, CalendarDays } from 'lucide-react';
+import { User, Phone, Mail, Package, DollarSign, CalendarDays, MapPin } from 'lucide-react';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -67,7 +67,6 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [keyword, setKeyword] = useState('');
   const [orderTypeLocalFilter, setOrderTypeLocalFilter] = useState<string>('');
-  const [inStockModeFilter, setInStockModeFilter] = useState<string>('');
   const [staffLocalFilter, setStaffLocalFilter] = useState<string>('');
   const [selectedOrder, setSelectedOrder] = useState<OrderDetails | null>(null);
 
@@ -405,7 +404,6 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
       WAITING_CUSTOMER: 'Đang chuẩn bị',
       PROCESSING: 'Đang xử lý',
       READY: 'Sẵn sàng giao',
-      READY_FOR_PICKUP: 'Sẵn sàng giao',
       COMPLETED: 'Hoàn thành',
       CANCELLED: 'Đã hủy',
     };
@@ -434,15 +432,22 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
     const kw = keyword.trim().toLowerCase();
 
     return orders.filter((order) => {
-      if (orderTypeLocalFilter && String(order.orderType || '') !== orderTypeLocalFilter) {
-        return false;
-      }
-
-      if (inStockModeFilter) {
-        const inStock = isInStockOrder(order.orderType);
-        if (!inStock) return false;
-        if (inStockModeFilter === 'SHIP' && !hasShippingAddress(order)) return false;
-        if (inStockModeFilter === 'STORE' && hasShippingAddress(order)) return false;
+      // Handle combined order type filters
+      if (orderTypeLocalFilter) {
+        if (orderTypeLocalFilter === 'IN_STOCK_SHIP') {
+          // Có sẵn - Giao ship: must be in-stock AND have shipping address
+          const inStock = isInStockOrder(order.orderType);
+          if (!inStock || !hasShippingAddress(order)) return false;
+        } else if (orderTypeLocalFilter === 'IN_STOCK_STORE') {
+          // Có sẵn - Tại quầy: must be in-stock AND no shipping address
+          const inStock = isInStockOrder(order.orderType);
+          if (!inStock || hasShippingAddress(order)) return false;
+        } else {
+          // Regular order type filter
+          if (String(order.orderType || '') !== orderTypeLocalFilter) {
+            return false;
+          }
+        }
       }
 
       if (staffLocalFilter) {
@@ -470,9 +475,9 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
 
       return text.includes(kw);
     });
-  }, [orders, keyword, orderTypeLocalFilter, inStockModeFilter, staffLocalFilter]);
+  }, [orders, keyword, orderTypeLocalFilter, staffLocalFilter]);
 
-  const hasLocalFilters = Boolean(keyword.trim() || orderTypeLocalFilter || inStockModeFilter || staffLocalFilter);
+  const hasLocalFilters = Boolean(keyword.trim() || orderTypeLocalFilter || staffLocalFilter);
 
   // Derived stats
   const completedCount = orders.filter((o) => o.status === 'COMPLETED').length;
@@ -622,11 +627,15 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
                 onChange={(v) => setStatusFilter(v === '__all' ? '' : v)}
               >
                 <Option value="__all">Tất cả trạng thái</Option>
+                <Option value="NEW">Mới</Option>
                 <Option value="PENDING_PAYMENT">Chờ thanh toán</Option>
                 <Option value="CONFIRMED">Đã xác nhận</Option>
                 <Option value="WAITING_CUSTOMER">Đang chuẩn bị</Option>
+                <Option value="PROCESSING">Đang xử lý</Option>
                 <Option value="READY">Sẵn sàng giao</Option>
+                <Option value="COMPLETED">Hoàn thành</Option>
                 <Option value="CANCELLED">Đã hủy</Option>
+                <Option value="EXPIRED">Hết hạn</Option>
               </Select>
               <Input
                 style={{ width: 220 }}
@@ -637,23 +646,18 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
                 allowClear
               />
               <Select
-                style={{ width: 180 }}
+                style={{ width: 200 }}
                 value={orderTypeLocalFilter || '__all'}
                 onChange={(v) => setOrderTypeLocalFilter(v === '__all' ? '' : v)}
               >
                 <Option value="__all">Tất cả loại đơn</Option>
-                {orderTypeOptions.map((type) => (
-                  <Option key={type} value={type}>{getOrderTypeLabel(type)}</Option>
-                ))}
-              </Select>
-              <Select
-                style={{ width: 200 }}
-                value={inStockModeFilter || '__all'}
-                onChange={(v) => setInStockModeFilter(v === '__all' ? '' : v)}
-              >
-                <Option value="__all">Tất cả đơn có sẵn</Option>
-                <Option value="SHIP">Có sẵn - Giao ship</Option>
-                <Option value="STORE">Có sẵn - Tại quầy</Option>
+                {orderTypeOptions
+                  .filter((type) => !isInStockOrder(type))
+                  .map((type) => (
+                    <Option key={type} value={type}>{getOrderTypeLabel(type)}</Option>
+                  ))}
+                <Option value="IN_STOCK_SHIP">Có sẵn - Giao ship</Option>
+                <Option value="IN_STOCK_STORE">Có sẵn - Tại quầy</Option>
               </Select>
               <Select
                 style={{ width: 220 }}
@@ -676,7 +680,6 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
                 onClick={() => {
                   setKeyword('');
                   setOrderTypeLocalFilter('');
-                  setInStockModeFilter('');
                   setStaffLocalFilter('');
                 }}
               >
@@ -768,6 +771,18 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
                           <Text strong>{getCustomerInfo(selectedOrder).email}</Text>
                         </div>
                       </div>
+                      
+                      {/* Shipping Address - Only show for HOME_DELIVERY orders */}
+                      {(selectedOrder.deliveryMethod === 'HOME_DELIVERY' || selectedOrder.shippingAddress) && (
+                        <div className="flex items-start gap-3">
+                          <MapPin className="h-4 w-4 text-gray-500 mt-1" />
+                          <div>
+                            <div className="text-xs text-gray-500">Địa chỉ giao hàng</div>
+                            <Text strong>{selectedOrder.shippingAddress || 'Chưa có thông tin'}</Text>
+                          </div>
+                        </div>
+                      )}
+                      
                       <div className="flex items-start gap-3">
                         <Package className="h-4 w-4 text-gray-500 mt-1" />
                         <div>
@@ -964,6 +979,14 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
               <Text strong>Tổng tiền:</Text>
               <Text strong>{formatCurrency(selectedOrder.totalAmount)}</Text>
             </div>
+
+            {/* Shipping Address - For HOME_DELIVERY orders */}
+            {(selectedOrder.deliveryMethod === 'HOME_DELIVERY' || selectedOrder.shippingAddress) && (
+              <div className="flex flex-col pt-2 border-t">
+                <Text strong>Địa chỉ giao hàng:</Text>
+                <Text className="text-gray-600">{selectedOrder.shippingAddress || 'Chưa có thông tin'}</Text>
+              </div>
+            )}
 
             {/* Cảnh báo */}
             {selectedOrder.paymentStatus === 'UNPAID' && (

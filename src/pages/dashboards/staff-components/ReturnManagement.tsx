@@ -46,6 +46,7 @@ export const ReturnManagement: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState('ALL');
   const [selectedReturn, setSelectedReturn] = useState<ReturnRequest | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
@@ -64,15 +65,16 @@ export const ReturnManagement: React.FC = () => {
 
   useEffect(() => {
     loadReturns();
-  }, [pagination.page, typeFilter]);
+  }, [pagination.page, typeFilter, statusFilter]);
 
   const loadReturns = async () => {
     setLoading(true);
     try {
-      const data = await returnService.getApprovedReturns({
+      const data = await returnService.getReturns({
         page: pagination.page,
         limit: pagination.limit,
         type: typeFilter === 'ALL' ? undefined : typeFilter,
+        status: statusFilter === 'ALL' ? undefined : statusFilter,
       });
       console.log('✅ Return data from API:', data);
       console.log('📊 Returns array:', data?.data);
@@ -315,7 +317,7 @@ export const ReturnManagement: React.FC = () => {
               <RefreshCw className="h-5 w-5" />
               Quản Lý Đổi/Trả Hàng
             </CardTitle>
-            <CardDescription>Xử lý các yêu cầu đổi/trả đã được phê duyệt</CardDescription>
+            <CardDescription>Xử lý các yêu cầu đổi/trả và xem lịch sử hoàn thành</CardDescription>
           </CardHeader>
           <CardContent>
             <motion.div 
@@ -336,12 +338,22 @@ export const ReturnManagement: React.FC = () => {
                 </Button>
               </div>
               <div className="flex items-center gap-2">
-                <Select value={typeFilter} onValueChange={setTypeFilter}>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Lọc theo trạng thái" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Tất cả trạng thái</SelectItem>
+                    <SelectItem value="APPROVED">Đã phê duyệt</SelectItem>
+                    <SelectItem value="COMPLETED">Đã hoàn thành</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={typeFilter} onValueChange={setTypeFilter}>
+                  <SelectTrigger className="w-[160px]">
                     <SelectValue placeholder="Lọc theo loại" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ALL">Tất cả</SelectItem>
+                    <SelectItem value="ALL">Tất cả loại</SelectItem>
                   <SelectItem value="RETURN">Trả hàng</SelectItem>
                   <SelectItem value="EXCHANGE">Đổi hàng</SelectItem>
                   <SelectItem value="WARRANTY">Bảo hành</SelectItem>
@@ -371,6 +383,7 @@ export const ReturnManagement: React.FC = () => {
                   <TableHead>Mã đơn</TableHead>
                   <TableHead>Khách hàng</TableHead>
                   <TableHead>Loại</TableHead>
+                  <TableHead>Trạng thái</TableHead>
                   <TableHead>Sản phẩm</TableHead>
                   <TableHead>Ngày tạo</TableHead>
                   <TableHead className="text-right">Thao tác</TableHead>
@@ -379,11 +392,11 @@ export const ReturnManagement: React.FC = () => {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center">Đang tải...</TableCell>
+                    <TableCell colSpan={7} className="text-center">Đang tải...</TableCell>
                   </TableRow>
                 ) : returns.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center">Không có yêu cầu nào</TableCell>
+                    <TableCell colSpan={7} className="text-center">Không có yêu cầu nào</TableCell>
                   </TableRow>
                 ) : (
                   returns.map((returnRequest, index) => (
@@ -403,6 +416,15 @@ export const ReturnManagement: React.FC = () => {
                       </TableCell>
                       <TableCell>{getTypeBadge(returnRequest.type)}</TableCell>
                       <TableCell>
+                        {returnRequest.status === 'APPROVED' ? (
+                          <Badge variant="outline" className="bg-blue-100 text-blue-800">Đã phê duyệt</Badge>
+                        ) : returnRequest.status === 'COMPLETED' ? (
+                          <Badge variant="outline" className="bg-green-100 text-green-800">Đã hoàn thành</Badge>
+                        ) : (
+                          <Badge variant="outline">{returnRequest.status}</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
                         <div className="text-sm">
                           {getReturnItems(returnRequest)
                             .filter((item: any) => item && item.product)
@@ -421,15 +443,17 @@ export const ReturnManagement: React.FC = () => {
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleOpenComplete(returnRequest)}
-                            title="Hoàn tất xử lý"
-                            className="text-green-600 hover:text-green-700"
-                          >
-                            <CheckCircle className="h-4 w-4" />
-                          </Button>
+                          {returnRequest.status === 'APPROVED' && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleOpenComplete(returnRequest)}
+                              title="Hoàn tất xử lý"
+                              className="text-green-600 hover:text-green-700"
+                            >
+                              <CheckCircle className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </motion.tr>

@@ -5,7 +5,6 @@ import {
   ShoppingCartOutlined,
   AppstoreOutlined,
   TeamOutlined,
-  SettingOutlined,
   FileProtectOutlined,
   CalendarOutlined,
   EyeOutlined,
@@ -110,13 +109,8 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse }) => {
           label: "Quản Lý Membership",
         },
         {
-          key: "/admin/systems",
-          icon: <SettingOutlined />,
-          label: "Quản Lý Hệ Thống",
-        },
-        {
           key: "/admin/reviews",
-          icon: <SettingOutlined />,
+          icon: <AppstoreOutlined />,
           label: "Quản Lý Đánh Giá",
         }
       );

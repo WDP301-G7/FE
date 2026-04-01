@@ -49,6 +49,20 @@ export interface UsersStats {
   byStatus: Record<string, number>;
 }
 
+export interface DashboardOrderSummary {
+  totalOrders: number;
+  completed: number;
+  confirmed: number;
+  cancelled: number;
+}
+
+export interface DashboardInventorySummary {
+  totalProducts: number;
+  lowStock: number;
+  totalReserved: number;
+  totalAvailable: number;
+}
+
 export interface UserSummary {
   id: string;
   fullName: string;
@@ -245,6 +259,66 @@ interface RawPaginatedPointsHistory {
 }
 
 class AdminService {
+  private extractTotalFromListPayload(payload: any): number {
+    if (!payload) return 0;
+
+    const directTotal = payload.total ?? payload.pagination?.total ?? payload.meta?.total ?? payload.pageInfo?.totalElements;
+    if (directTotal != null) {
+      return Number(directTotal);
+    }
+
+    if (Array.isArray(payload)) {
+      return payload.length;
+    }
+
+    if (Array.isArray(payload.items)) {
+      return payload.items.length;
+    }
+
+    if (Array.isArray(payload.data)) {
+      return payload.data.length;
+    }
+
+    if (Array.isArray(payload.data?.data)) {
+      return payload.data.data.length;
+    }
+
+    return 0;
+  }
+
+  private extractInventoryItems(payload: any): Array<{ quantity: number; reservedQuantity: number }> {
+    if (!payload) return [];
+
+    if (Array.isArray(payload)) {
+      return payload;
+    }
+
+    if (Array.isArray(payload.data)) {
+      return payload.data;
+    }
+
+    if (Array.isArray(payload.items)) {
+      return payload.items;
+    }
+
+    if (Array.isArray(payload.data?.data)) {
+      return payload.data.data;
+    }
+
+    return [];
+  }
+
+  private extractInventoryPagination(payload: any): { total?: number; totalPages?: number } {
+    if (!payload) return {};
+
+    const pagination = payload.pagination || payload.meta || payload.pageInfo || payload.data?.pagination || {};
+
+    return {
+      total: pagination.total != null ? Number(pagination.total) : undefined,
+      totalPages: pagination.totalPages != null ? Number(pagination.totalPages) : undefined,
+    };
+  }
+
   private normalizeUserMembership(userId: string, raw: RawUserMembershipResponse): UserMembership {
     const normalizedCurrentTier: MembershipTier = raw.currentTier
       ? {
@@ -388,6 +462,79 @@ class AdminService {
     });
 
     return Number(response.data.data?.pagination?.total ?? 0);
+  }
+
+  /** Get order summary for admin dashboard */
+  async getDashboardOrderSummary(): Promise<DashboardOrderSummary> {
+    const [totalRes, completedRes, confirmedRes, cancelledRes] = await Promise.all([
+      api.get('/orders', { params: { page: 1, limit: 1 } }),
+      api.get('/orders', { params: { page: 1, limit: 1, status: 'COMPLETED' } }),
+      api.get('/orders', { params: { page: 1, limit: 1, status: 'CONFIRMED' } }),
+      api.get('/orders', { params: { page: 1, limit: 1, status: 'CANCELLED' } }),
+    ]);
+
+    const totalPayload = totalRes.data?.data ?? totalRes.data;
+    const completedPayload = completedRes.data?.data ?? completedRes.data;
+    const confirmedPayload = confirmedRes.data?.data ?? confirmedRes.data;
+    const cancelledPayload = cancelledRes.data?.data ?? cancelledRes.data;
+
+    return {
+      totalOrders: this.extractTotalFromListPayload(totalPayload),
+      completed: this.extractTotalFromListPayload(completedPayload),
+      confirmed: this.extractTotalFromListPayload(confirmedPayload),
+      cancelled: this.extractTotalFromListPayload(cancelledPayload),
+    };
+  }
+
+  /** Get inventory summary for admin dashboard */
+  async getDashboardInventorySummary(): Promise<DashboardInventorySummary> {
+    const limit = 200;
+    const firstRes = await api.get('/inventory', {
+      params: {
+        page: 1,
+        limit,
+      },
+    });
+
+    const firstPayload = firstRes.data?.data ?? firstRes.data;
+    const firstItems = this.extractInventoryItems(firstPayload);
+    const { total: totalFromPagination, totalPages } = this.extractInventoryPagination(firstPayload);
+
+    let allItems = [...firstItems];
+
+    if (totalPages && totalPages > 1) {
+      const requests: Promise<any>[] = [];
+      for (let page = 2; page <= totalPages; page += 1) {
+        requests.push(api.get('/inventory', { params: { page, limit } }));
+      }
+
+      const pages = await Promise.all(requests);
+      pages.forEach((res) => {
+        const payload = res.data?.data ?? res.data;
+        allItems = allItems.concat(this.extractInventoryItems(payload));
+      });
+    }
+
+    const totalReserved = allItems.reduce(
+      (sum, item) => sum + Number(item?.reservedQuantity ?? 0),
+      0
+    );
+
+    const totalAvailable = allItems.reduce(
+      (sum, item) => sum + Math.max(0, Number(item?.quantity ?? 0) - Number(item?.reservedQuantity ?? 0)),
+      0
+    );
+
+    const lowStock = allItems.filter(
+      (item) => Math.max(0, Number(item?.quantity ?? 0) - Number(item?.reservedQuantity ?? 0)) <= 5
+    ).length;
+
+    return {
+      totalProducts: Number(totalFromPagination ?? allItems.length),
+      lowStock,
+      totalReserved,
+      totalAvailable,
+    };
   }
 
   // ============ MEMBERSHIP TIER MANAGEMENT ============

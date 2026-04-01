@@ -16,7 +16,6 @@ import { ReturnManagement } from "@/pages/dashboards/staff-components/ReturnMana
 import ReturnPage from "@/pages/dashboards/operations-components/ReturnPage";
 import AdminOrdersManagement from "@/pages/dashboards/admin-components/AdminOrdersManagement";
 import AdminUsersManagement from "@/pages/dashboards/admin-components/AdminUsersManagement";
-import AdminSystemsManagement from "@/pages/dashboards/admin-components/AdminSystemsManagement";
 import { AdminProductManagement } from "@/pages/dashboards/admin-components/AdminProductManagement";
 import { AdminReviews } from "@/pages/dashboards/admin-components/AdminReviews";
 import AdminMembershipManagement from "@/pages/dashboards/admin-components/AdminMembershipManagement";
@@ -65,7 +64,6 @@ const App = () => (
                   <Route path="returns" element={<ReturnManagement />} />
                   <Route path="admin/orders" element={<AdminOrdersManagement />} />
                   <Route path="admin/users" element={<AdminUsersManagement />} />
-                  <Route path="admin/systems" element={<AdminSystemsManagement />} />
                   <Route path="admin/products" element={<AdminProductManagement />} />
                   <Route path="admin/reviews" element={<AdminReviews />} />
                   <Route path="admin/stores" element={<AdminStores />} />
