@@ -37,10 +37,16 @@ interface StaffMember {
   email: string;
 }
 
-const OrderOperationsPage: React.FC = () => {
+interface OrderOperationsPageProps {
+  allowedRoles?: string[];
+}
+
+const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
+  allowedRoles = ['operations'],
+}) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { hasRole } = useAuth();
-  if (!hasRole(['operations'])) {
+  if (!hasRole(allowedRoles)) {
     return <Navigate to="/dashboard" replace />;
   }
   const { toast } = useToast();
