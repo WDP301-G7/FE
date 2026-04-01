@@ -9,10 +9,7 @@ import {
   Plus,
   Edit2,
   Trash2,
-  TrendingUp,
   Award,
-  DollarSign,
-  Percent,
   Users,
   Save,
   X,
@@ -62,15 +59,12 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Separator } from '@/components/ui/separator';
 import {
   adminService,
   MembershipTier,
   CreateMembershipTierPayload,
   UpdateMembershipTierPayload,
   UserMembership,
-  AdjustPointsPayload,
-  PointsHistoryEntry,
 } from '@/services/admin.service';
 import { userService, User } from '@/services/user.service';
 
@@ -80,10 +74,6 @@ const AdminMembershipManagement: React.FC = () => {
 
   // ============ STATE ============
   const [tiers, setTiers] = useState<MembershipTier[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [userMembership, setUserMembership] = useState<UserMembership | null>(null);
-  const [pointsHistory, setPointsHistory] = useState<PointsHistoryEntry[]>([]);
   const [loading, setLoading] = useState(false);
   
   // User memberships for member list view
@@ -94,11 +84,9 @@ const AdminMembershipManagement: React.FC = () => {
   const [isCreateTierDialogOpen, setIsCreateTierDialogOpen] = useState(false);
   const [isEditTierDialogOpen, setIsEditTierDialogOpen] = useState(false);
   const [isDeleteTierDialogOpen, setIsDeleteTierDialogOpen] = useState(false);
-  const [isAdjustPointsDialogOpen, setIsAdjustPointsDialogOpen] = useState(false);
   const [selectedTier, setSelectedTier] = useState<MembershipTier | null>(null);
 
   // Search and filters
-  const [userSearchTerm, setUserSearchTerm] = useState('');
   const [memberSearchTerm, setMemberSearchTerm] = useState('');
   const [selectedTierFilter, setSelectedTierFilter] = useState<string>('all');
 
@@ -117,13 +105,6 @@ const AdminMembershipManagement: React.FC = () => {
     icon: '🥉',
     sortOrder: 0,
     periodDays: 365,
-  });
-
-  // Form state for points adjustment
-  const [pointsFormData, setPointsFormData] = useState<AdjustPointsPayload>({
-    amount: 0,
-    reason: '',
-    note: '',
   });
 
   // Validation errors
@@ -148,62 +129,6 @@ const AdminMembershipManagement: React.FC = () => {
       });
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchUsers = async () => {
-    try {
-      const data = await userService.getUsers({
-        page: 1,
-        limit: 100,
-      });
-      // Filter customers on frontend
-      const customers = (data.items || []).filter(
-        (user) => user.role === 'CUSTOMER'
-      );
-      setUsers(customers);
-    } catch (error) {
-      toast({
-        title: 'Lỗi',
-        description: 'Không thể tải danh sách khách hàng',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const fetchUserMembership = async (userId: string) => {
-    try {
-      const data = await adminService.getUserMembership(userId);
-      setUserMembership(data);
-    } catch (error: any) {
-      const is404 = error?.response?.status === 404;
-      toast({
-        title: 'Lỗi',
-        description: is404 
-          ? '⚠️ Backend chưa implement API GET /users/:userId/membership. Vui lòng liên hệ Backend team để implement endpoint này.'
-          : error?.response?.data?.message || 'Không thể tải thông tin membership của khách hàng',
-        variant: 'destructive',
-      });
-      // Set null membership để UI biết là chưa có data
-      setUserMembership(null);
-    }
-  };
-
-  const fetchPointsHistory = async (userId: string) => {
-    try {
-      const data = await adminService.getUserPointsHistory(userId, { page: 1, limit: 50 });
-      setPointsHistory(data.items || []);
-    } catch (error: any) {
-      const is404 = error?.response?.status === 404;
-      // Chỉ show toast nếu không phải 404 (404 có thể là user chưa có history)
-      if (!is404) {
-        toast({
-          title: 'Lỗi',
-          description: error?.response?.data?.message || 'Không thể tải lịch sử điểm',
-          variant: 'destructive',
-        });
-      }
-      setPointsHistory([]);
     }
   };
 
@@ -273,7 +198,6 @@ const AdminMembershipManagement: React.FC = () => {
 
   useEffect(() => {
     fetchTiers();
-    fetchUsers();
   }, []);
 
   // ============ VALIDATION ============
@@ -441,64 +365,13 @@ const AdminMembershipManagement: React.FC = () => {
     setSelectedTier(null);
   };
 
-  // ============ POINTS ADJUSTMENT ============
-  const openAdjustPointsDialog = async (user: User) => {
-    setSelectedUser(user);
-    await fetchUserMembership(user.id);
-    await fetchPointsHistory(user.id);
-    setIsAdjustPointsDialogOpen(true);
-  };
-
-  const handleAdjustPoints = async () => {
-    if (!selectedUser) return;
-    try {
-      setLoading(true);
-      await adminService.adjustUserPoints(selectedUser.id, pointsFormData);
-      toast({
-        title: 'Thành công',
-        description: `Đã ${pointsFormData.amount >= 0 ? 'cộng' : 'trừ'} ${Math.abs(pointsFormData.amount)} điểm`,
-      });
-      setIsAdjustPointsDialogOpen(false);
-      resetPointsForm();
-      // Refresh data
-      if (selectedUser) {
-        fetchUserMembership(selectedUser.id);
-        fetchPointsHistory(selectedUser.id);
-      }
-    } catch (error: any) {
-      toast({
-        title: 'Lỗi',
-        description: error.response?.data?.message || 'Không thể điều chỉnh điểm',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const resetPointsForm = () => {
-    setPointsFormData({
-      amount: 0,
-      reason: '',
-      note: '',
-    });
-    setSelectedUser(null);
-    setUserMembership(null);
-    setPointsHistory([]);
-  };
-
   // ============ FILTER ============
-  const filteredUsers = users.filter((user) =>
-    user.fullName.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
-    user.email?.toLowerCase().includes(userSearchTerm.toLowerCase())
-  );
-
   const filteredMembers = userMemberships.filter((membership) => {
     const matchesSearch = 
       membership.user.fullName.toLowerCase().includes(memberSearchTerm.toLowerCase()) ||
       membership.user.email?.toLowerCase().includes(memberSearchTerm.toLowerCase());
     
-    const matchesTier = selectedTierFilter === 'all' || membership.currentTier.id === selectedTierFilter;
+    const matchesTier = selectedTierFilter === 'all' || membership.currentTier?.id === selectedTierFilter;
     
     return matchesSearch && matchesTier;
   });
@@ -518,7 +391,7 @@ const AdminMembershipManagement: React.FC = () => {
             Quản lý Membership
           </h1>
           <p className="text-muted-foreground mt-1">
-            Quản lý hạng thành viên và điều chỉnh điểm tích lũy
+            Quản lý hạng thành viên của khách hàng
           </p>
         </div>
         <Button onClick={fetchTiers} variant="outline" size="sm">
@@ -537,10 +410,6 @@ const AdminMembershipManagement: React.FC = () => {
           <TabsTrigger value="members" onClick={() => !loadingMemberships && fetchAllUserMemberships()}>
             <Users className="h-4 w-4 mr-2" />
             Thành viên theo hạng
-          </TabsTrigger>
-          <TabsTrigger value="users">
-            <TrendingUp className="h-4 w-4 mr-2" />
-            Điều chỉnh điểm
           </TabsTrigger>
         </TabsList>
 
@@ -689,7 +558,7 @@ const AdminMembershipManagement: React.FC = () => {
                   </CardContent>
                 </Card>
                 {tiers.slice(0, 3).map((tier) => {
-                  const count = userMemberships.filter(m => m.currentTier.id === tier.id).length;
+                  const count = userMemberships.filter(m => m.currentTier?.id === tier.id).length;
                   return (
                     <Card key={tier.id}>
                       <CardContent className="pt-6">
@@ -755,11 +624,11 @@ const AdminMembershipManagement: React.FC = () => {
                           <div className="flex items-center gap-2">
                             <div
                               className="w-8 h-8 rounded-full flex items-center justify-center text-sm"
-                              style={{ backgroundColor: membership.currentTier.color + '20' }}
+                              style={{ backgroundColor: membership.currentTier?.color + '20' }}
                             >
-                              {membership.currentTier.icon}
+                              {membership.currentTier?.icon}
                             </div>
-                            <span className="font-semibold">{membership.currentTier.name}</span>
+                            <span className="font-semibold">{membership.currentTier?.name || 'Chưa có hạng'}</span>
                           </div>
                         </TableCell>
                         <TableCell className="text-right font-semibold">
@@ -781,66 +650,6 @@ const AdminMembershipManagement: React.FC = () => {
           </Card>
         </TabsContent>
 
-        {/* TAB 3: User Points Adjustment */}
-        <TabsContent value="users">
-          <Card>
-            <CardHeader>
-              <CardTitle>Điều chỉnh điểm tích lũy thủ công</CardTitle>
-              <CardDescription>
-                Tìm kiếm khách hàng và điều chỉnh điểm tích lũy của họ
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="mb-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Tìm kiếm khách hàng theo tên hoặc email..."
-                    value={userSearchTerm}
-                    onChange={(e) => setUserSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-
-              {filteredUsers.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  Không tìm thấy khách hàng nào
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Khách hàng</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Số điện thoại</TableHead>
-                      <TableHead className="text-right">Thao tác</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredUsers.slice(0, 20).map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell className="font-medium">{user.fullName}</TableCell>
-                        <TableCell>{user.email || '-'}</TableCell>
-                        <TableCell>{user.phone || '-'}</TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => openAdjustPointsDialog(user)}
-                          >
-                            <TrendingUp className="h-4 w-4 mr-2" />
-                            Điều chỉnh điểm
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
 
       {/* ============ CREATE TIER DIALOG ============ */}
@@ -1236,161 +1045,6 @@ const AdminMembershipManagement: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* ============ ADJUST POINTS DIALOG ============ */}
-      <Dialog open={isAdjustPointsDialogOpen} onOpenChange={setIsAdjustPointsDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Điều chỉnh điểm tích lũy</DialogTitle>
-            <DialogDescription>
-              Khách hàng: <strong>{selectedUser?.fullName}</strong>
-            </DialogDescription>
-          </DialogHeader>
-
-          {userMembership && (
-            <div className="grid grid-cols-3 gap-4 mb-4">
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Hạng hiện tại
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">{userMembership.currentTier.icon}</span>
-                    <span className="text-xl font-bold">{userMembership.currentTier.name}</span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Tổng chi tiêu
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-xl font-bold">
-                    {userMembership.accumulatedSpending != null 
-                      ? userMembership.accumulatedSpending.toLocaleString('vi-VN') + ' ₫'
-                      : '0 ₫'}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    % Giảm giá
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-xl font-bold text-green-600">
-                    {userMembership.discountPercent ?? 0}%
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          <Separator className="my-4" />
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="amount">Số điểm điều chỉnh *</Label>
-              <Input
-                id="amount"
-                type="number"
-                value={pointsFormData.amount}
-                onChange={(e) =>
-                  setPointsFormData({ ...pointsFormData, amount: Number(e.target.value) })
-                }
-                placeholder="Nhập số dương để cộng, số âm để trừ"
-              />
-              <p className="text-xs text-muted-foreground">
-                VD: 1000 để cộng 1,000 điểm | -500 để trừ 500 điểm
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="reason">Lý do *</Label>
-              <Input
-                id="reason"
-                value={pointsFormData.reason}
-                onChange={(e) => setPointsFormData({ ...pointsFormData, reason: e.target.value })}
-                placeholder="VD: Bù điểm cho đơn hàng bị lỗi"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="note">Ghi chú thêm</Label>
-              <Textarea
-                id="note"
-                value={pointsFormData.note}
-                onChange={(e) => setPointsFormData({ ...pointsFormData, note: e.target.value })}
-                placeholder="Thông tin chi tiết (không bắt buộc)"
-                rows={2}
-              />
-            </div>
-          </div>
-
-          <Separator className="my-4" />
-
-          {/* Points History */}
-          {pointsHistory.length > 0 && (
-            <div className="space-y-2">
-              <h4 className="font-semibold">Lịch sử điều chỉnh gần đây</h4>
-              <div className="max-h-40 overflow-y-auto border rounded-md">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Ngày</TableHead>
-                      <TableHead>Điểm</TableHead>
-                      <TableHead>Lý do</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pointsHistory.slice(0, 5).map((entry) => (
-                      <TableRow key={entry.id}>
-                        <TableCell className="text-xs">
-                          {new Date(entry.createdAt).toLocaleDateString('vi-VN')}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={entry.amount >= 0 ? 'default' : 'destructive'}>
-                            {entry.amount >= 0 ? '+' : ''}
-                            {entry.amount}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-xs">{entry.reason}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsAdjustPointsDialogOpen(false);
-                resetPointsForm();
-              }}
-            >
-              <X className="h-4 w-4 mr-2" />
-              Hủy
-            </Button>
-            <Button
-              onClick={handleAdjustPoints}
-              disabled={loading || !pointsFormData.amount || !pointsFormData.reason}
-            >
-              <Save className="h-4 w-4 mr-2" />
-              Xác nhận điều chỉnh
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

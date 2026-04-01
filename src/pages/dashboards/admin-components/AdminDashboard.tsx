@@ -1,11 +1,8 @@
-import React, { useState } from 'react';
-import { Row, Col, Card, Typography, Table, Tag, Switch, Space, Button, Divider, Tabs } from 'antd';
+import React from 'react';
+import { Row, Col, Card, Typography, Tag, Space, Button, Tabs } from 'antd';
 import { motion } from 'framer-motion';
 import {
   SettingOutlined,
-  SafetyCertificateOutlined,
-  AuditOutlined,
-  LockOutlined,
   AppstoreOutlined,
   CloudServerOutlined,
   ShoppingOutlined,
@@ -14,22 +11,51 @@ import {
   FileTextOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { mockLogs, actionLabels, AuditLog } from '@/mock-data/logs';
-import { mockFeatureToggles, FeatureToggle } from '@/mock-data/policies';
 import AdminOrdersManagement from './AdminOrdersManagement';
 import AdminUsersManagement from './AdminUsersManagement';
 import AdminSystemsManagement from './AdminSystemsManagement';
 import { PrescriptionApprovalManagement } from './PrescriptionApprovalManagement';
+import { adminService, MembershipTier, UsersStats } from '@/services/admin.service';
+import { useToast } from '@/hooks/use-toast';
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
 
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
 
-  // Recent activity logs
-  const recentLogs = [...mockLogs]
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-    .slice(0, 5);
+  const [dashboardLoading, setDashboardLoading] = React.useState(false);
+  const [usersStats, setUsersStats] = React.useState<UsersStats | null>(null);
+  const [membershipTiers, setMembershipTiers] = React.useState<MembershipTier[]>([]);
+  const [lowStockCount, setLowStockCount] = React.useState(0);
+
+  const fetchDashboardData = React.useCallback(async () => {
+    try {
+      setDashboardLoading(true);
+
+      const [usersStatsData, tiersData, lowStockData] = await Promise.all([
+        adminService.getUsersStats(),
+        adminService.getMembershipTiers(),
+        adminService.getLowStockCount(),
+      ]);
+
+      setUsersStats(usersStatsData);
+      setMembershipTiers(tiersData.sort((a, b) => Number(a.minSpend) - Number(b.minSpend)));
+      setLowStockCount(lowStockData);
+    } catch (error: any) {
+      toast({
+        title: 'Lỗi',
+        description: error?.response?.data?.message || 'Không thể tải dữ liệu dashboard admin',
+        variant: 'destructive',
+      });
+    } finally {
+      setDashboardLoading(false);
+    }
+  }, [toast]);
+
+  React.useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
 
   // System modules
   const systemModules = [
@@ -39,74 +65,6 @@ const AdminDashboard: React.FC = () => {
     { key: 'shipping', name: 'Tích Hợp Vận Chuyển', status: 'active', icon: <CloudServerOutlined /> },
     { key: 'analytics', name: 'Bảng Phân Tích', status: 'active', icon: <CloudServerOutlined /> },
     { key: 'notifications', name: 'Thông Báo Email', status: 'maintenance', icon: <CloudServerOutlined /> },
-  ];
-
-  const logColumns = [
-    {
-      title: 'Hành Động',
-      dataIndex: 'action',
-      key: 'action',
-      render: (action: keyof typeof actionLabels) => (
-        <Tag color="blue">{actionLabels[action]}</Tag>
-      ),
-    },
-    {
-      title: 'Người Dùng',
-      key: 'user',
-      render: (_: unknown, record: AuditLog) => (
-        <div>
-          <Text>{record.userName}</Text>
-          <br />
-          <Text className="text-muted-foreground text-xs">{record.userRole}</Text>
-        </div>
-      ),
-    },
-    {
-      title: 'Mô Tả',
-      dataIndex: 'description',
-      key: 'description',
-    },
-    {
-      title: 'Địa Chỉ IP',
-      dataIndex: 'ipAddress',
-      key: 'ipAddress',
-      render: (text: string) => <Text className="text-muted-foreground">{text}</Text>,
-    },
-    {
-      title: 'Thời Gian',
-      dataIndex: 'timestamp',
-      key: 'timestamp',
-      render: (text: string) => new Date(text).toLocaleString(),
-    },
-  ];
-
-  const featureColumns = [
-    {
-      title: 'Tính Năng',
-      dataIndex: 'name',
-      key: 'name',
-      render: (text: string) => <Text strong>{text}</Text>,
-    },
-    {
-      title: 'Danh Mục',
-      dataIndex: 'category',
-      key: 'category',
-      render: (text: string) => <Tag>{text}</Tag>,
-    },
-    {
-      title: 'Mô Tả',
-      dataIndex: 'description',
-      key: 'description',
-      render: (text: string) => (
-        <Text className="text-muted-foreground text-sm">{text}</Text>
-      ),
-    },
-    {
-      title: 'Trạng Thái',
-      dataIndex: 'isEnabled',
-      key: 'isEnabled',
-      render: (isEnabled: boolean) => <Switch checked={isEnabled} />,
-    },
   ];
 
   const quickSettings = [
@@ -126,25 +84,22 @@ const AdminDashboard: React.FC = () => {
       title: 'Cấu Hình Hệ Thống',
       description: 'Quản lý cài đặt hệ thống toàn cục',
       icon: <SettingOutlined className="text-2xl text-primary" />,
-      path: '/system-settings',
+      path: '/admin/systems',
+    },
+  ];
+
+  const quickStats = [
+    {
+      key: 'customers',
+      title: 'Số khách hàng đã đăng ký',
+      value: usersStats?.byRole?.CUSTOMER ?? 0,
+      valueClassName: '!text-foreground',
     },
     {
-      title: 'Tổng Quan Phân Quyền',
-      description: 'Xem kiểm soát truy cập theo vai trò',
-      icon: <SafetyCertificateOutlined className="text-2xl text-success" />,
-      path: '/permissions',
-    },
-    {
-      title: 'Nhật Ký Kiểm Toán',
-      description: 'Xem lại lịch sử hoạt động hệ thống',
-      icon: <AuditOutlined className="text-2xl text-info" />,
-      path: '/audit-logs',
-    },
-    {
-      title: 'Cài Đặt Bảo Mật',
-      description: 'Cấu hình chính sách bảo mật',
-      icon: <LockOutlined className="text-2xl text-warning" />,
-      path: '/system-settings',
+      key: 'low-stock',
+      title: 'Sản phẩm sắp hết hàng',
+      value: lowStockCount,
+      valueClassName: '!text-orange-600',
     },
   ];
 
@@ -188,11 +143,75 @@ const AdminDashboard: React.FC = () => {
             ))}
           </Row>
 
-          {/* System Modules Status */}
+          {/* Dashboard KPI */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5, duration: 0.5 }}
+          >
+            <Card className="dashboard-section mb-6" loading={dashboardLoading}>
+              <Title level={4} className="!text-foreground !mb-4">
+                Tổng Quan Nhanh
+              </Title>
+              <Row gutter={[16, 16]}>
+                {quickStats.map((stat) => (
+                  <Col xs={24} md={12} key={stat.key}>
+                    <Card hoverable className="stat-card h-full">
+                      <div className="text-center py-2">
+                        <Text className="text-muted-foreground">{stat.title}</Text>
+                        <Title level={3} className={`!mb-0 !mt-2 ${stat.valueClassName}`}>
+                          {stat.value}
+                        </Title>
+                      </div>
+                    </Card>
+                  </Col>
+                ))}
+              </Row>
+            </Card>
+          </motion.div>
+
+          {/* Membership Tier Widget */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.6, duration: 0.5 }}
+          >
+            <Card className="dashboard-section mb-6" loading={dashboardLoading}>
+              <div className="flex items-center justify-between mb-4">
+                <Title level={4} className="!text-foreground !mb-0">
+                  Widget Membership
+                </Title>
+                <Button onClick={() => navigate('/admin/membership')}>Chi tiết Membership</Button>
+              </div>
+              <Row gutter={[16, 16]}>
+                {membershipTiers.length === 0 ? (
+                  <Col span={24}>
+                    <Text className="text-muted-foreground">Chưa có dữ liệu tier membership</Text>
+                  </Col>
+                ) : (
+                  membershipTiers.map((tier) => (
+                    <Col xs={24} sm={12} md={8} lg={8} key={tier.id}>
+                      <Card className="h-full">
+                        <Space direction="vertical" size={4}>
+                          <Text strong>{tier.icon || '🏆'} {tier.name}</Text>
+                          <Text className="text-muted-foreground text-xs">Khách theo tier</Text>
+                          <Title level={4} className="!mb-0 !mt-1">
+                            {tier._count?.users ?? 0}
+                          </Title>
+                        </Space>
+                      </Card>
+                    </Col>
+                  ))
+                )}
+              </Row>
+            </Card>
+          </motion.div>
+
+          {/* System Modules Status */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.7, duration: 0.5 }}
           >
             <Card className="dashboard-section mb-6">
               <Title level={4} className="!text-foreground !mb-4">
@@ -216,50 +235,6 @@ const AdminDashboard: React.FC = () => {
             </Card>
           </motion.div>
 
-          {/* Feature Toggles */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.7, duration: 0.5 }}
-          >
-            <Card className="dashboard-section mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <Title level={4} className="!text-foreground !mb-0">
-                  Bật/Tắt Tính Năng
-                </Title>
-                <Button type="primary">Lưu Thay Đổi</Button>
-              </div>
-              <Table
-                dataSource={mockFeatureToggles}
-                columns={featureColumns}
-                rowKey="id"
-                pagination={false}
-              />
-            </Card>
-          </motion.div>
-
-          {/* Recent Activity */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.8, duration: 0.5 }}
-          >
-            <Card className="dashboard-section">
-              <div className="flex items-center justify-between mb-4">
-                <Title level={4} className="!text-foreground !mb-0">
-                  Hoạt Động Hệ Thống Gần Đây
-                </Title>
-                <Button onClick={() => navigate('/audit-logs')}>Xem Tất Cả Nhật Ký</Button>
-              </div>
-              <Table
-                dataSource={recentLogs}
-                columns={logColumns}
-                rowKey="id"
-                pagination={false}
-                scroll={{ x: 'max-content' }}
-              />
-            </Card>
-          </motion.div>
         </>
       ),
     },
