@@ -1,9 +1,9 @@
 import React from 'react';
 import { useAuth } from '@/context/AuthContext';
-import ManagerDashboard from './dashboards/ManagerDashboard';
-import SalesDashboard from './dashboards/SalesDashboard';
-import OperationsDashboard from './dashboards/OperationsDashboard';
-import AdminDashboard from './dashboards/AdminDashboard';
+import ManagerDashboard from './dashboards/manager-components/ManagerDashboard';
+import StaffDashboard from './dashboards/staff-components/StaffDashboard';
+import AdminDashboard from './dashboards/admin-components/AdminDashboard';
+import OperationsDashboard from './dashboards/operations-components/OperationsDashboard';
 
 /**
  * Dashboard page that renders role-specific content
@@ -13,17 +13,22 @@ const Dashboard: React.FC = () => {
   const { user } = useAuth();
 
   // Render the appropriate dashboard based on user role
-  switch (user?.role) {
-    case 'manager':
+  const role = user?.role?.toUpperCase();
+  console.log('🔍 Dashboard routing - User role:', role, 'User:', user);
+  
+  switch (role) {
+    case 'MANAGER':
       return <ManagerDashboard />;
-    case 'sales':
-      return <SalesDashboard />;
-    case 'operations':
+    case 'STAFF':
+      return <StaffDashboard />;
+    case 'OPERATION':
+    case 'OPERATIONS':
+    case 'OPERATION': // accommodate singular form from server
       return <OperationsDashboard />;
-    case 'admin':
+    case 'ADMIN':
       return <AdminDashboard />;
     default:
-      return <SalesDashboard />;
+      return <StaffDashboard />;
   }
 };
 

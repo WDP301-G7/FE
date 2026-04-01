@@ -1,11 +1,8 @@
 import React, { useState } from 'react';
-import { Layout } from 'antd';
 import { Outlet, Navigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import AppHeader from './AppHeader';
 import AppSidebar from './AppSidebar';
-
-const { Content } = Layout;
 
 const MainLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
@@ -17,15 +14,17 @@ const MainLayout: React.FC = () => {
   }
 
   return (
-    <Layout className="min-h-screen">
+    <div className="flex h-screen overflow-hidden bg-background">
       <AppSidebar collapsed={collapsed} onCollapse={setCollapsed} />
-      <Layout>
+      <div className="flex-1 flex flex-col overflow-hidden">
         <AppHeader />
-        <Content className="p-6 bg-background overflow-auto">
-          <Outlet />
-        </Content>
-      </Layout>
-    </Layout>
+        <main className="flex-1 overflow-auto bg-muted/30">
+          <div className="container mx-auto p-6">
+            <Outlet />
+          </div>
+        </main>
+      </div>
+    </div>
   );
 };
 
