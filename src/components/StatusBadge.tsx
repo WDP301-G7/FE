@@ -10,6 +10,7 @@ interface StatusBadgeProps {
 // mapping statuses (uppercased) to badge variants and optional extra color classes
 const variantMap: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; class?: string }> = {
   // order/operations statuses
+  NEW: { variant: "outline", class: "bg-blue-100 text-blue-800" },
   PENDING: { variant: "outline", class: "bg-yellow-100 text-yellow-800" },
   PENDING_PAYMENT: { variant: "outline", class: "bg-amber-100 text-amber-800" },
   WAITING_CUSTOMER: { variant: "outline", class: "bg-yellow-100 text-yellow-800" },
@@ -21,6 +22,8 @@ const variantMap: Record<string, { variant: "default" | "secondary" | "destructi
   RETURNED: { variant: "destructive", class: "bg-red-100 text-red-800" },
   CANCELLED: { variant: "destructive", class: "bg-red-100 text-red-800" },
   COMPLETED: { variant: "default", class: "bg-green-100 text-green-800" },
+  EXPIRED: { variant: "destructive", class: "bg-gray-100 text-gray-800" },
+  WAITING_PRODUCT: { variant: "outline", class: "bg-amber-100 text-amber-800" },
 
   // review statuses (guessing common values)
   APPROVED: { variant: "default", class: "bg-green-100 text-green-800" },
@@ -34,16 +37,11 @@ const variantMap: Record<string, { variant: "default" | "secondary" | "destructi
 
   // return statuses (fallback to component-specific mapping if used)
   PENDING_APPROVAL: { variant: "outline", class: "bg-yellow-100 text-yellow-800" },
-  // generic/common statuses that might appear in many contexts
-  PENDING: { variant: "outline", class: "bg-yellow-100 text-yellow-800" },
-  CANCELLED: { variant: "destructive", class: "bg-red-100 text-red-800" },
-  COMPLETED: { variant: "default", class: "bg-green-100 text-green-800" },
-  APPROVED: { variant: "default", class: "bg-green-100 text-green-800" },
-  REJECTED: { variant: "destructive", class: "bg-red-100 text-red-800" },
 };
 
 // optional mapping for more readable labels
 const labelMap: Record<string, string> = {
+  NEW: "Mới",
   PENDING: "Chờ xử lý",
   PENDING_PAYMENT: "Chờ thanh toán",
   WAITING_CUSTOMER: "Đang chuẩn bị",
@@ -55,6 +53,7 @@ const labelMap: Record<string, string> = {
   RETURNED: "Đã trả hàng",
   CANCELLED: "Đã hủy",
   COMPLETED: "Hoàn thành",
+  EXPIRED: "Hết hạn",
   APPROVED: "Đã duyệt",
   REJECTED: "Từ chối",
   FLAGGED: "Cần kiểm tra",
@@ -68,6 +67,7 @@ const labelMap: Record<string, string> = {
   PACKED: "Đã đóng gói",
   WAITING_PICKING: "Chờ hái đơn",
   WAITING_PACKING: "Chờ đóng gói",
+  WAITING_PRODUCT: "Chờ hàng",
 };
 
 function formatStatus(status: string) {

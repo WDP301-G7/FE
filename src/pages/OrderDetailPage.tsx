@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { orderService, Order } from '@/services/order.service';
 import { useToast } from '@/hooks/use-toast';
+import StatusBadge from '@/components/StatusBadge';
 
 const OrderDetailPage: React.FC = () => {
   const { orderId } = useParams<{ orderId: string }>();
@@ -40,28 +41,6 @@ const OrderDetailPage: React.FC = () => {
 
     void loadOrder();
   }, [orderId, toast]);
-
-  const statusColor = useMemo(() => {
-    switch (order?.status) {
-      case 'NEW':
-        return 'bg-slate-100 text-slate-700';
-      case 'CONFIRMED':
-      case 'PROCESSING':
-        return 'bg-blue-100 text-blue-700';
-      case 'PENDING_PAYMENT':
-        return 'bg-amber-100 text-amber-700';
-      case 'WAITING_CUSTOMER':
-        return 'bg-amber-100 text-amber-700';
-      case 'READY':
-        return 'bg-cyan-100 text-cyan-700';
-      case 'COMPLETED':
-        return 'bg-emerald-100 text-emerald-700';
-      case 'CANCELLED':
-        return 'bg-rose-100 text-rose-700';
-      default:
-        return 'bg-muted text-muted-foreground';
-    }
-  }, [order?.status]);
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('vi-VN', {
@@ -111,7 +90,7 @@ const OrderDetailPage: React.FC = () => {
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <CardTitle className="text-lg">{order.orderNumber || order.id}</CardTitle>
-                <Badge className={statusColor}>{order.status}</Badge>
+                <StatusBadge status={order.status} />
               </div>
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
