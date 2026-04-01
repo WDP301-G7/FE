@@ -89,7 +89,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       const result = await notificationService.getNotifications({ page: 1, limit: 20, ...params });
       setNotifications(result.items || []);
     } catch (error) {
-      console.error('Failed to fetch notifications:', error);
+      // Silent error handling
     } finally {
       setLoading(false);
     }
@@ -101,7 +101,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setUnreadCount(count);
       unreadRef.current = count;
     } catch (error) {
-      console.error('Failed to fetch unread notification count:', error);
+      // Silent error handling
     }
   }, []);
 
@@ -118,7 +118,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     try {
       await notificationService.markAsRead(id);
     } catch (error) {
-      console.error('Failed to mark notification as read:', error);
       await Promise.all([fetchNotifications(), refreshUnreadCount()]);
     }
   }, [fetchNotifications, refreshUnreadCount]);
@@ -132,7 +131,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     try {
       await notificationService.markAllAsRead();
     } catch (error) {
-      console.error('Failed to mark all notifications as read:', error);
       await Promise.all([fetchNotifications(), refreshUnreadCount()]);
     }
   }, [fetchNotifications, refreshUnreadCount]);
@@ -201,14 +199,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         normalizeNotification(payload);
 
       if (!candidate) {
-        if (DEBUG_NOTIFICATIONS) {
-          console.warn('⚠️ Failed to normalize notification payload:', payload);
-        }
         return;
-      }
-
-      if (DEBUG_NOTIFICATIONS) {
-        console.log('✅ Normalized notification:', candidate);
       }
 
       upsertNotification(candidate);
@@ -249,21 +240,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       if (!isNotificationEventName(eventName)) {
         return;
       }
-      if (DEBUG_NOTIFICATIONS) {
-        console.log('📨 Socket.IO event received:', { eventName, payload });
-      }
       handleIncomingNotification(payload);
     };
 
     socket.on('connect', () => {
       setIsConnected(true);
-      if (DEBUG_NOTIFICATIONS) {
-        console.log('✅ Socket.IO connected successfully', {
-          socketId: socket.id,
-          url: SOCKET_URL,
-          transports: socket.io.engine.transports,
-        });
-      }
       
       const joinPayload = { userId: user?.id, role: user?.role };
       // Send multiple join contracts because each backend names these differently.
@@ -273,10 +254,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       socket.emit('join:notifications', joinPayload);
       socket.emit('join-room', `user:${user?.id}`);
       socket.emit('joinRoom', `user:${user?.id}`);
-      
-      if (DEBUG_NOTIFICATIONS) {
-        console.log('📤 Sent join events to backend:', joinPayload);
-      }
 
       // Fetch latest notifications immediately upon connection
       void fetchNotifications();
@@ -284,9 +261,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     socket.on('disconnect', () => {
       setIsConnected(false);
-      if (DEBUG_NOTIFICATIONS) {
-        console.log('❌ Socket.IO disconnected, fallback to polling');
-      }
     });
 
     socket.on('notification', handleIncomingNotification);
@@ -302,47 +276,27 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     const syncNotifications = async () => {
       try {
-        const pollStartTime = performance.now();
-        
         const [latestUnread, result] = await Promise.all([
           notificationService.getUnreadCount(),
           notificationService.getNotifications({ page: 1, limit: 20 }),
         ]);
 
-        const pollEndTime = performance.now();
-        const pollDuration = pollEndTime - pollStartTime;
-
-        if (DEBUG_NOTIFICATIONS) {
-          console.log('🔄 Polling sync completed', {
-            unreadCount: latestUnread,
-            notificationCount: result.items?.length || 0,
-            durationMs: pollDuration.toFixed(2),
-          });
-        }
-
         // Cập nhật unread count nếu khác
         if (latestUnread !== unreadRef.current) {
           setUnreadCount(latestUnread);
           unreadRef.current = latestUnread;
-          if (DEBUG_NOTIFICATIONS) {
-            console.log('📈 Unread count changed:', { old: unreadRef.current, new: latestUnread });
-          }
         }
 
         // Luôn cập nhật notifications list từ polling
         setNotifications(result.items || []);
       } catch (error) {
-        console.error('❌ Polling sync failed:', error);
+        // Silent error handling
       }
     };
 
     pollingRef.current = setInterval(() => {
       void syncNotifications();
     }, POLLING_INTERVAL_MS);
-
-    if (DEBUG_NOTIFICATIONS) {
-      console.log('⏱️ Polling started with interval:', POLLING_INTERVAL_MS, 'ms');
-    }
 
     return () => {
       socket.off('notification', handleIncomingNotification);
