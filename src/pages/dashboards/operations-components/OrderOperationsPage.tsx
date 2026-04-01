@@ -47,7 +47,14 @@ const getFullImageUrl = (url: string | undefined | null): string => {
   return `${baseUrl}${path}`;
 };
 
-const OrderOperationsPage: React.FC = () => {
+// const OrderOperationsPage: React.FC = () => {
+// interface OrderOperationsPageProps {
+//   allowedRoles?: string[];
+// }
+
+const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
+  allowedRoles = ['operations'],
+}) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { hasRole } = useAuth();
   if (!hasRole(allowedRoles)) {
