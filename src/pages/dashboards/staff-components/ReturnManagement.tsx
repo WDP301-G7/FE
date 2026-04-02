@@ -293,6 +293,16 @@ export const ReturnManagement: React.FC = () => {
     );
   };
 
+  const getConditionLabel = (condition: string) => {
+    const conditionMap: Record<string, string> = {
+      'DEFECTIVE': 'Bị lỗi',
+      'NEW': 'Mới',
+      'GOOD': 'Tốt',
+      'LIKE_NEW': 'Như mới',
+    };
+    return conditionMap[condition] || condition;
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
   };
@@ -650,7 +660,7 @@ export const ReturnManagement: React.FC = () => {
                                   <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
                                     <span>SL: {item.quantity || 1}</span>
                                     <span>•</span>
-                                    <span>Tình trạng: {item.condition || 'N/A'}</span>
+                                    <span>Tình trạng: {getConditionLabel(item.condition || '')}</span>
                                   </div>
                                   <p className="text-sm font-medium mt-1">
                                     {item.product?.price ? formatCurrency(parseFloat(item.product.price)) : 'N/A'}
@@ -1008,7 +1018,7 @@ export const ReturnManagement: React.FC = () => {
                                   <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
                                     <span>SL: {item.quantity || 1}</span>
                                     <span>•</span>
-                                    <span>Tình trạng: {item.condition || 'N/A'}</span>
+                                    <span>Tình trạng: {getConditionLabel(item.condition || '')}</span>
                                   </div>
                                   <p className="text-sm font-medium mt-1">
                                     {item.product?.price ? formatCurrency(parseFloat(item.product.price)) : 'N/A'}

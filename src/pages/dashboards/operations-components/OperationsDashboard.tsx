@@ -113,7 +113,7 @@ const OperationsDashboard: React.FC = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1, duration: 0.5 }}
       >
-        <h1 className="text-3xl font-bold tracking-tight">Trang điều khiển vận hành</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Trang điều khiển Staff</h1>
         <p className="text-muted-foreground">Điều phối đơn hàng, đơn thuốc, cửa hàng và đánh giá</p>
       </motion.div>
 

@@ -5,14 +5,12 @@ import {
   SettingOutlined,
   ShoppingOutlined,
   TeamOutlined,
-  FileTextOutlined,
   ShopOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import AdminOrdersManagement from './AdminOrdersManagement';
 import AdminUsersManagement from './AdminUsersManagement';
 import AdminStores from './AdminStoresManagement';
-import { PrescriptionApprovalManagement } from './PrescriptionApprovalManagement';
 import {
   adminService,
   DashboardInventorySummary,
@@ -350,15 +348,6 @@ const AdminDashboard: React.FC = () => {
 
         </>
       ),
-    },
-    {
-      key: 'prescriptions',
-      label: (
-        <span>
-          <FileTextOutlined /> Duyệt Đơn Tư Vấn
-        </span>
-      ),
-      children: <PrescriptionApprovalManagement />,
     },
     {
       key: 'orders',

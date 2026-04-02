@@ -14,13 +14,10 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
 
-  // helper to normalize incoming role strings from server
+  // helper to keep role from server as-is (no normalization)
   const normalizeRole = (role: string): UserRole => {
-    const r = role.toLowerCase();
-    // some backends might return "operation" instead of "operations"
-    if (r === 'operation') return 'operations';
-    // fallback casts - it's okay if value is unexpected, hasRole will reject later
-    return r as UserRole;
+    // Return role as-is to preserve backend format (OPERATION, STAFF, etc.)
+    return role as UserRole;
   };
 
   // Load user from localStorage on mount
