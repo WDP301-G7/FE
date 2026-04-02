@@ -40,7 +40,7 @@ const { TextArea } = Input;
 
 const PrescriptionRequestsPage: React.FC = () => {
   const { hasRole } = useAuth();
-  if (!hasRole(['operations'])) {
+  if (!hasRole(['OPERATIONS', 'operations', 'OPERATION', 'operation'])) {
     return <Navigate to="/dashboard" replace />;
   }
 
