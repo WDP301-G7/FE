@@ -16,6 +16,8 @@ export interface OrderDetails {
   createdDate: string;
   createdAt?: string;
   updatedAt?: string;
+  expectedReadyDate?: string | null;
+  appointmentDate?: string | null;
   totalPrice: number;
   totalAmount?: string | number;
   discountAmount?: string | number | null;
