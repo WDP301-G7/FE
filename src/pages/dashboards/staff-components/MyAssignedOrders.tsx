@@ -721,9 +721,33 @@ export const MyAssignedOrders: React.FC = () => {
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+  const toNumber = (value?: string | number | null) => {
+    if (value === null || typeof value === 'undefined') return 0;
+    const num = typeof value === 'string' ? Number(value) : value;
+    return Number.isFinite(num) ? num : 0;
   };
+
+  const formatCurrency = (amount?: string | number | null) => {
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(toNumber(amount));
+  };
+
+  const getPricingSummary = (order: any) => {
+    const items = order?.items || order?.orderItems || [];
+    const subtotal = items.reduce((sum: number, item: any) => {
+      const qty = toNumber(item?.quantity);
+      const lineTotal = toNumber(item?.subtotal);
+      if (lineTotal > 0) return sum + lineTotal;
+      return sum + qty * toNumber(item?.price ?? item?.unitPrice);
+    }, 0);
+
+    const discount = toNumber(order?.discountAmount ?? order?.discount ?? order?.totalDiscount);
+    const shippingFee = toNumber(order?.shippingFee ?? order?.deliveryFee ?? order?.shippingCost);
+    const finalTotal = toNumber(order?.totalAmount ?? order?.totalPrice);
+
+    return { subtotal, discount, shippingFee, finalTotal };
+  };
+
+  const selectedPricing = selectedOrder ? getPricingSummary(selectedOrder) : null;
 
   return (
     <motion.div 
@@ -1140,14 +1164,31 @@ export const MyAssignedOrders: React.FC = () => {
                       </div>
                       
                       <Separator className="my-4" />
-                      
+
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-center justify-between text-muted-foreground">
+                          <span>Tạm tính sản phẩm</span>
+                          <span>{formatCurrency(selectedPricing?.subtotal)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-muted-foreground">
+                          <span>Giảm giá</span>
+                          <span>{(selectedPricing?.discount || 0) > 0 ? `- ${formatCurrency(selectedPricing?.discount)}` : formatCurrency(0)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-muted-foreground">
+                          <span>Phí vận chuyển</span>
+                          <span>{formatCurrency(selectedPricing?.shippingFee)}</span>
+                        </div>
+                      </div>
+
+                      <Separator className="my-4" />
+
                       <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-2 text-muted-foreground">
+                        <div className="flex items-center gap-2 text-muted-foreground font-medium">
                           <DollarSign className="h-4 w-4" />
-                          <span>Tổng cộng</span>
+                          <span>Tổng thanh toán</span>
                         </div>
                         <div className="text-2xl font-bold text-primary">
-                          {formatCurrency(selectedOrder.totalAmount || 0)}
+                          {formatCurrency(selectedPricing?.finalTotal)}
                         </div>
                       </div>
                     </CardContent>
@@ -1265,8 +1306,8 @@ export const MyAssignedOrders: React.FC = () => {
                       <div className="flex items-start gap-3">
                         <DollarSign className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
                         <div>
-                          <p className="text-xs text-muted-foreground">Tổng tiền</p>
-                          <p className="font-bold text-lg text-primary">{formatCurrency(selectedOrder.totalAmount || 0)}</p>
+                          <p className="text-xs text-muted-foreground">Tổng thanh toán</p>
+                          <p className="font-bold text-lg text-primary">{formatCurrency(selectedPricing?.finalTotal)}</p>
                         </div>
                       </div>
                       <div className="flex items-start gap-3">
@@ -1275,6 +1316,21 @@ export const MyAssignedOrders: React.FC = () => {
                           <p className="text-xs text-muted-foreground">Ngày tạo</p>
                           <p className="font-medium">{new Date(selectedOrder.createdAt).toLocaleDateString('vi-VN')}</p>
                         </div>
+                      </div>
+                    </div>
+
+                    <div className="grid md:grid-cols-3 gap-4 border rounded-lg p-3 bg-muted/20">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Tạm tính</p>
+                        <p className="font-medium">{formatCurrency(selectedPricing?.subtotal)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Giảm giá</p>
+                        <p className="font-medium">{(selectedPricing?.discount || 0) > 0 ? `- ${formatCurrency(selectedPricing?.discount)}` : formatCurrency(0)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Phí vận chuyển</p>
+                        <p className="font-medium">{formatCurrency(selectedPricing?.shippingFee)}</p>
                       </div>
                     </div>
 

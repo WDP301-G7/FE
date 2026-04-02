@@ -140,14 +140,9 @@ export const ReturnManagement: React.FC = () => {
           totalPriceDiff += diff;
         }
       });
-      
-      // If price difference is negative (customer exchanging for cheaper), they get refund
-      // If positive, they need to pay more
-      if (totalPriceDiff < 0) {
-        setRefundAmount(Math.abs(totalPriceDiff).toString());
-      } else {
-        setRefundAmount(totalPriceDiff.toString());
-      }
+
+      // Keep signed difference: negative means refund to customer, positive means customer pays extra.
+      setRefundAmount(totalPriceDiff.toString());
     } else {
       setRefundAmount('');
     }
