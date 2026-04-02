@@ -82,7 +82,7 @@ const StaffDashboard: React.FC = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1, duration: 0.5 }}
       >
-        <h1 className="text-3xl font-bold tracking-tight">Trang Điều Khiển Staff</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Trang Điều Khiển Operation</h1>
         <p className="text-muted-foreground">Xử lý và quản lý đơn hàng của khách hàng</p>
       </motion.div>
 
