@@ -10,6 +10,7 @@ import {
   Plus,
   Edit2,
   Eye,
+  EyeOff,
   Mail,
   Phone,
   Zap,
@@ -98,11 +99,13 @@ const AdminUsersManagement: React.FC = () => {
     email: '',
     phone: '',
     address: '',
+    password: '',
     role: 'CUSTOMER' as UserRole,
     status: 'ACTIVE' as UserStatus,
   });
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Stats
   const [stats, setStats] = useState({
@@ -194,23 +197,56 @@ const AdminUsersManagement: React.FC = () => {
       return;
     }
 
+    if (!formData.password.trim() || formData.password.length < 8) {
+      toast({
+        title: 'Lỗi',
+        description: 'Mật khẩu phải có ít nhất 8 ký tự',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validate phone number if provided
+    if (formData.phone.trim() && !/^[0-9]{10,11}$/.test(formData.phone.trim())) {
+      toast({
+        title: 'Lỗi',
+        description: 'Số điện thoại phải có 10-11 chữ số',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      const payload: Partial<typeof formData> & { avatar?: File } = {
+      // Backend create user API only accepts JSON, not FormData
+      // Avatar upload is not supported on create - only on update
+      const payload = {
         fullName: formData.fullName,
         email: formData.email,
-        phone: formData.phone,
-        address: formData.address,
+        phone: formData.phone.trim() || undefined,
+        address: formData.address.trim() || undefined,
+        password: formData.password,
         role: formData.role,
         status: formData.status,
       };
 
-      if (avatarFile) {
-        payload.avatar = avatarFile;
-      }
-
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await userService.createUser(payload as any);
+      const createdUser = await userService.createUser(payload as any);
+      
+      // If avatar was selected, upload it via update API
+      if (avatarFile && createdUser.id) {
+        try {
+          await userService.updateUser(createdUser.id, { avatar: avatarFile });
+        } catch (avatarError) {
+          console.error('Failed to upload avatar:', avatarError);
+          // Don't fail the whole operation, just show warning
+          toast({
+            title: 'Cảnh báo',
+            description: 'Tạo người dùng thành công nhưng không thể tải lên avatar',
+            variant: 'default',
+          });
+        }
+      }
       
       toast({
         title: 'Thành công',
@@ -223,21 +259,44 @@ const AdminUsersManagement: React.FC = () => {
         email: '',
         phone: '',
         address: '',
+        password: '',
         role: 'CUSTOMER',
         status: 'ACTIVE',
       });
       setAvatarFile(null);
+      setShowPassword(false);
       setIsCreateDialogOpen(false);
       
       // Reload users
       await loadUsers();
     } catch (error: any) {
-      const errorMessage = error?.response?.data?.message || 
-                          error?.response?.data?.error || 
-                          error?.message || 
-                          'Không thể tạo người dùng';
+      let errorMessage = 'Không thể tạo người dùng';
+      
+      if (error?.response?.data?.errors) {
+        // Handle validation errors array
+        const errors = error.response.data.errors;
+        const errorFields = errors.map((err: any) => {
+          const field = err.path?.join('.') || 'unknown';
+          const fieldMap: Record<string, string> = {
+            'fullName': 'Tên đầy đủ',
+            'email': 'Email',
+            'password': 'Mật khẩu',
+            'phone': 'Số điện thoại',
+            'address': 'Địa chỉ',
+          };
+          return `${fieldMap[field] || field}: ${err.message}`;
+        });
+        errorMessage = errorFields.join(', ');
+      } else if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
-        title: 'Lỗi',
+        title: 'Tạo người dùng thất bại',
         description: errorMessage,
         variant: 'destructive',
       });
@@ -389,6 +448,7 @@ const AdminUsersManagement: React.FC = () => {
       email: user.email,
       phone: user.phone || '',
       address: user.address || '',
+      password: '',
       role: user.role,
       status: user.status,
     });
@@ -427,9 +487,9 @@ const AdminUsersManagement: React.FC = () => {
   const roleLabels: Record<UserRole, string> = {
     ADMIN: 'Admin',
     MANAGER: 'Quản Lý',
-    STAFF: 'Nhân Viên',
+    STAFF: 'Vận Hành',
     CUSTOMER: 'Khách Hàng',
-    OPERATION: 'Vận Hành',
+    OPERATION: 'Nhân Viên',
   };
 
   const statusLabels: Record<UserStatus, string> = {
@@ -590,10 +650,12 @@ const AdminUsersManagement: React.FC = () => {
                     email: '',
                     phone: '',
                     address: '',
+                    password: '',
                     role: 'CUSTOMER',
                     status: 'ACTIVE',
                   });
                   setAvatarFile(null);
+                  setShowPassword(false);
                   setIsCreateDialogOpen(true);
                 }}
                 className="gap-2"
@@ -630,8 +692,8 @@ const AdminUsersManagement: React.FC = () => {
                 <SelectContent>
                   <SelectItem value="ALL">Tất Cả Vai Trò</SelectItem>
                   <SelectItem value="CUSTOMER">Khách Hàng</SelectItem>
-                  <SelectItem value="STAFF">Nhân Viên</SelectItem>
-                  <SelectItem value="OPERATION">Vận Hành</SelectItem>
+                  <SelectItem value="STAFF">Vận Hành</SelectItem>
+                  <SelectItem value="OPERATION">Nhân Viên</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -858,6 +920,27 @@ const AdminUsersManagement: React.FC = () => {
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="password">Mật Khẩu *</Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Nhập mật khẩu (tối thiểu 8 ký tự)"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="role">Vai Trò *</Label>
               <Select value={formData.role} onValueChange={(val) => setFormData({ ...formData, role: val as UserRole })}>
                 <SelectTrigger>
@@ -865,8 +948,8 @@ const AdminUsersManagement: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="CUSTOMER">Khách Hàng</SelectItem>
-                  <SelectItem value="STAFF">Nhân Viên</SelectItem>
-                  <SelectItem value="OPERATION">Vận Hành</SelectItem>
+                  <SelectItem value="STAFF">Vận Hành</SelectItem>
+                  <SelectItem value="OPERATION">Nhân Viên</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -965,8 +1048,8 @@ const AdminUsersManagement: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="CUSTOMER">Khách Hàng</SelectItem>
-                  <SelectItem value="STAFF">Nhân Viên</SelectItem>
-                  <SelectItem value="OPERATION">Vận Hành</SelectItem>
+                  <SelectItem value="STAFF">Vận Hành</SelectItem>
+                  <SelectItem value="OPERATION">Nhân Viên</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -29,6 +29,7 @@ export interface CreateUserPayload {
   fullName: string;
   email: string;
   phone?: string;
+  password: string;
   address?: string;
   avatar?: File; // binary file for avatar upload
   role: UserRole;
@@ -144,33 +145,24 @@ class UserService {
   }
 
   /**
-   * Create new user (multipart/form-data with avatar upload)
+   * Create new user (JSON request - avatar upload not supported on create)
    * POST /users
    */
   async createUser(payload: CreateUserPayload): Promise<User> {
     try {
-      const formData = new FormData();
+      // Backend expect JSON body, not FormData
+      const requestBody = {
+        fullName: payload.fullName,
+        email: payload.email,
+        password: payload.password,
+        role: payload.role,
+        status: payload.status,
+        ...(payload.phone && { phone: payload.phone }),
+        ...(payload.address && { address: payload.address }),
+        ...(payload.storeId && { storeId: payload.storeId }),
+      };
       
-      // Add text fields
-      formData.append('fullName', payload.fullName);
-      formData.append('email', payload.email);
-      formData.append('role', payload.role);
-      formData.append('status', payload.status);
-      
-      if (payload.phone) formData.append('phone', payload.phone);
-      if (payload.address) formData.append('address', payload.address);
-      if (payload.storeId) formData.append('storeId', payload.storeId);
-      
-      // Add avatar file if provided
-      if (payload.avatar) {
-        formData.append('avatar', payload.avatar);
-      }
-      
-      const response = await api.post('/users', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      const response = await api.post('/users', requestBody);
       
       const rawData = (response.data as Record<string, unknown>)?.data || response.data;
       const data = rawData as Record<string, unknown>;

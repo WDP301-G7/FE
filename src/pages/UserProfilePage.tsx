@@ -173,9 +173,9 @@ export const UserProfilePage: React.FC = () => {
   const roleLabels: Record<UserRole, string> = {
     ADMIN: 'Admin',
     MANAGER: 'Quản Lý',
-    STAFF: 'Nhân Viên',
+    STAFF: 'Vận Hành',
     CUSTOMER: 'Khách Hàng',
-    OPERATION: 'Vận Hành',
+    OPERATION: 'Nhân Viên',
   };
 
   const statusLabels: Record<UserStatus, string> = {
@@ -423,7 +423,7 @@ export const UserProfilePage: React.FC = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="CUSTOMER">Khách Hàng</SelectItem>
-                    <SelectItem value="STAFF">Nhân Viên</SelectItem>
+                    <SelectItem value="STAFF">Vận Hành</SelectItem>
                     <SelectItem value="MANAGER">Quản Lý</SelectItem>
                   </SelectContent>
                 </Select>

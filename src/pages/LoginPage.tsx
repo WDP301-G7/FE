@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -220,19 +220,6 @@ const LoginPage: React.FC = () => {
                 'Đăng nhập'
               )}
             </Button>
-
-            {/* Register Link */}
-            <div className="text-center pt-4">
-              <p className="text-sm text-gray-600">
-                Bạn chưa có tài khoản EyeCare ?{' '}
-                <Link 
-                  to="/register"
-                  className="text-teal-600 hover:text-teal-700 font-semibold"
-                >
-                  Đăng ký ngay
-                </Link>
-              </p>
-            </div>
           </motion.form>
         </motion.div>
       </div>

@@ -53,7 +53,7 @@ interface OrderOperationsPageProps {
 }
 
 const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
-  allowedRoles = ['operations'],
+  allowedRoles = ['operations', 'OPERATION', 'OPERATIONS'],
 }) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { hasRole } = useAuth();
