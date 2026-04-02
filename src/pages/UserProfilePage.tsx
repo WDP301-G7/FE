@@ -181,7 +181,7 @@ export const UserProfilePage: React.FC = () => {
   const statusLabels: Record<UserStatus, string> = {
     ACTIVE: 'Hoạt Động',
     INACTIVE: 'Chưa Hoạt Động',
-    BANNED: 'Bị Cấm',
+    BANNED: 'Bị Khóa',
   };
 
   const getRoleBadgeColor = (role: UserRole) => {
@@ -438,7 +438,7 @@ export const UserProfilePage: React.FC = () => {
                   <SelectContent>
                     <SelectItem value="ACTIVE">Hoạt Động</SelectItem>
                     <SelectItem value="INACTIVE">Chưa Hoạt Động</SelectItem>
-                    <SelectItem value="BANNED">Bị Cấm</SelectItem>
+                    <SelectItem value="BANNED">Bị Khóa</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

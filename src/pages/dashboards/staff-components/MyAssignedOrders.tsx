@@ -14,13 +14,14 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, ClipboardList, Eye, CheckCircle, Package, Play, UserCheck, Glasses, RefreshCw, Phone, FileText, Upload, X, MapPin, Calendar, DollarSign, User, Mail, Loader2 } from 'lucide-react';
+import { Search, ClipboardList, Eye, CheckCircle, Package, Play, UserCheck, Glasses, RefreshCw, Phone, FileText, Upload, X, MapPin, Calendar, DollarSign, User, Mail, Loader2, Clock } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { PrescriptionDetails } from './PrescriptionDetails';
 import { motion } from 'framer-motion';
 import { ModernImageUpload } from '@/components/dashboard/ModernImageUpload';
 import { Separator } from '@/components/ui/separator';
 import StatusBadge from '@/components/StatusBadge';
+import { Pagination } from 'antd';
 
 // Helper function to get full image URL
 const getFullImageUrl = (url: string | undefined | null): string => {
@@ -47,7 +48,10 @@ export const MyAssignedOrders: React.FC = () => {
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [actionType, setActionType] = useState<'start' | 'ready' | 'complete' | null>(null);
-  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0 });
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [totalItems, setTotalItems] = useState(0);
 
   // Prescription state
   const [prescriptionData, setPrescriptionData] = useState<any>(null);
@@ -72,7 +76,7 @@ export const MyAssignedOrders: React.FC = () => {
 
   useEffect(() => {
     loadOrders();
-  }, [pagination.page, searchTerm, statusFilter, orderTypeFilter]);
+  }, [currentPage, pageSize, searchTerm, statusFilter, orderTypeFilter]);
 
   useEffect(() => {
     const orderId = searchParams.get('orderId');
@@ -111,8 +115,8 @@ export const MyAssignedOrders: React.FC = () => {
         // Fetch orders for each status
         const promises = statusesToFetch.map(status => 
           orderService.getAssignedOrders({
-            page: 1,
-            limit: 1000, // Large limit to get all orders
+            page: currentPage,
+            limit: pageSize,
             search: searchTerm,
             status: status,
           }).catch(err => {
@@ -127,8 +131,8 @@ export const MyAssignedOrders: React.FC = () => {
       } else {
         // For specific status filter, use normal API call
         const data = await orderService.getAssignedOrders({
-          page: pagination.page,
-          limit: pagination.limit,
+          page: currentPage,
+          limit: pageSize,
           search: searchTerm,
           status: statusFilter,
         });
@@ -204,7 +208,7 @@ export const MyAssignedOrders: React.FC = () => {
       console.log('✅ Filtered to MY orders:', uniqueOrders.length, 'orders');
       
       setOrders(uniqueOrders);
-      setPagination(prev => ({ ...prev, total: uniqueOrders.length }));
+      setTotalItems(uniqueOrders.length);
       
       // Preload product images for all orders
       await preloadProductImages(uniqueOrders);
@@ -934,28 +938,19 @@ export const MyAssignedOrders: React.FC = () => {
           </motion.div>
 
           {/* Pagination */}
-          <div className="flex justify-between items-center mt-4">
-            <p className="text-sm text-muted-foreground">
-              Hiển thị {orders?.length || 0} trong tổng số {pagination.total} đơn hàng
-            </p>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={pagination.page === 1}
-                onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
-              >
-                Trước
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={pagination.page * pagination.limit >= pagination.total}
-                onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
-              >
-                Tiếp
-              </Button>
-            </div>
+          <div className="flex justify-end mt-6">
+            <Pagination
+              current={currentPage}
+              pageSize={pageSize}
+              total={totalItems}
+              showSizeChanger
+              showTotal={(total) => `Tổng ${total} đơn hàng`}
+              onChange={(page, size) => {
+                setCurrentPage(page);
+                setPageSize(size);
+              }}
+              pageSizeOptions={['10', '20', '50', '100']}
+            />
           </div>
         </CardContent>
       </Card>
@@ -1166,7 +1161,7 @@ export const MyAssignedOrders: React.FC = () => {
                         Thời gian
                       </CardTitle>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="space-y-3">
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Calendar className="h-4 w-4" />
                         <span>Ngày tạo:</span>
@@ -1174,6 +1169,41 @@ export const MyAssignedOrders: React.FC = () => {
                           {new Date(selectedOrder.createdAt).toLocaleString('vi-VN')}
                         </span>
                       </div>
+                      
+                      {/* Expected Delivery Date for PRESCRIPTION and PRE_ORDER */}
+                      {((selectedOrder as any).orderType === 'PRESCRIPTION' || (selectedOrder as any).orderType === 'PRE_ORDER') && (selectedOrder as any).expectedReadyDate && (() => {
+                        const expectedDate = new Date((selectedOrder as any).expectedReadyDate);
+                        const now = new Date();
+                        const diffTime = expectedDate.getTime() - now.getTime();
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        const isUrgent = diffDays <= 3;
+                        const isPastDue = diffDays < 0;
+                        
+                        return (
+                          <div className="flex items-start gap-2 text-sm">
+                            <Clock className={`h-4 w-4 mt-0.5 ${isPastDue ? 'text-red-600' : isUrgent ? 'text-orange-600' : 'text-green-600'}`} />
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-muted-foreground">Thời gian giao khách:</span>
+                                <span className="font-medium text-foreground">
+                                  {expectedDate.toLocaleString('vi-VN')}
+                                </span>
+                              </div>
+                              <div className={`mt-1 font-semibold ${isPastDue ? 'text-red-600' : isUrgent ? 'text-red-600' : 'text-green-600'}`}>
+                                {isPastDue ? (
+                                  `⚠️ Đã quá hạn ${Math.abs(diffDays)} ngày`
+                                ) : diffDays === 0 ? (
+                                  '⚠️ Hôm nay phải giao'
+                                ) : isUrgent ? (
+                                  `⚠️ Còn ${diffDays} ngày để giao khách`
+                                ) : (
+                                  `✓ Còn ${diffDays} ngày để giao khách`
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </CardContent>
                   </Card>
                 </TabsContent>

@@ -26,7 +26,7 @@ import {
   ReloadOutlined,
   SearchOutlined,
 } from '@ant-design/icons';
-import { User, Phone, Mail, Package, DollarSign, CalendarDays, MapPin } from 'lucide-react';
+import { User, Phone, Mail, Package, DollarSign, CalendarDays, MapPin, Clock } from 'lucide-react';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -933,15 +933,52 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
                     <CalendarDays className="h-5 w-5 text-gray-600" />
                     <Text strong style={{ fontSize: 20 }}>Thời gian</Text>
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <CalendarDays className="h-4 w-4" />
-                    <span>Ngày tạo:</span>
-                    <Text strong>{new Date(selectedOrder.createdAt || '').toLocaleString('vi-VN')}</Text>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-600 mt-2">
-                    <User className="h-4 w-4" />
-                    <span>Nhân viên:</span>
-                    <Text strong>{getAssignedStaffName(selectedOrder)}</Text>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <CalendarDays className="h-4 w-4" />
+                      <span>Ngày tạo:</span>
+                      <Text strong>{new Date(selectedOrder.createdAt || '').toLocaleString('vi-VN')}</Text>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <User className="h-4 w-4" />
+                      <span>Nhân viên:</span>
+                      <Text strong>{getAssignedStaffName(selectedOrder)}</Text>
+                    </div>
+                    
+                    {/* Expected Delivery Date for PRESCRIPTION and PRE_ORDER */}
+                    {((selectedOrder as any).orderType === 'PRESCRIPTION' || (selectedOrder as any).orderType === 'PRE_ORDER') && (selectedOrder as any).expectedReadyDate && (() => {
+                      const expectedDate = new Date((selectedOrder as any).expectedReadyDate);
+                      const now = new Date();
+                      const diffTime = expectedDate.getTime() - now.getTime();
+                      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                      const isUrgent = diffDays <= 3;
+                      const isPastDue = diffDays < 0;
+                      
+                      return (
+                        <div className="flex items-start gap-2 text-sm">
+                          <Clock className={`h-4 w-4 mt-0.5 ${isPastDue ? 'text-red-600' : isUrgent ? 'text-orange-600' : 'text-green-600'}`} />
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-600">Thời gian giao khách:</span>
+                              <Text strong>
+                                {expectedDate.toLocaleString('vi-VN')}
+                              </Text>
+                            </div>
+                            <div className={`mt-1 font-semibold ${isPastDue ? 'text-red-600' : isUrgent ? 'text-red-600' : 'text-green-600'}`}>
+                              {isPastDue ? (
+                                `⚠️ Đã quá hạn ${Math.abs(diffDays)} ngày`
+                              ) : diffDays === 0 ? (
+                                '⚠️ Hôm nay phải giao'
+                              ) : isUrgent ? (
+                                `⚠️ Còn ${diffDays} ngày để giao khách`
+                              ) : (
+                                `✓ Còn ${diffDays} ngày để giao khách`
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               </Card>
