@@ -229,9 +229,10 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
 
   const openConfirm = (order: OrderDetails) => {
     setSelectedOrder(order);
-    setAppointmentDate(
-      order.createdDate ? new Date(order.createdDate).toISOString().slice(0, 16) : ''
-    );
+    const presetDate = isPrescriptionOrder(order.orderType)
+      ? (order.expectedReadyDate ? new Date(order.expectedReadyDate).toISOString().slice(0, 16) : '')
+      : (order.createdDate ? new Date(order.createdDate).toISOString().slice(0, 16) : '');
+    setAppointmentDate(presetDate);
     setAppointmentNotes('');
     setAssignedStaffId('');
     setIsConfirmOpen(true);
@@ -248,7 +249,8 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
     }
 
     const inStock = isInStockOrder(selectedOrder.orderType);
-    if (!inStock && !appointmentDate) {
+    const prescription = isPrescriptionOrder(selectedOrder.orderType);
+    if (!inStock && !prescription && !appointmentDate) {
       toast({
         title: 'Lỗi',
         description: 'Vui lòng chọn ngày & giờ hẹn',
@@ -261,7 +263,9 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
     try {
       const isoDate = inStock
         ? new Date().toISOString()
-        : new Date(appointmentDate + ':00.000Z').toISOString();
+        : prescription
+          ? (selectedOrder.expectedReadyDate || new Date().toISOString())
+          : new Date(appointmentDate + ':00.000Z').toISOString();
       await operationsService.confirmOrder(selectedOrder.id, {
         appointmentDate: isoDate,
         appointmentNotes,
@@ -392,6 +396,12 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
     if (!orderType) return false;
     const normalized = String(orderType).toUpperCase().replace(/[-\s]/g, '_');
     return normalized.includes('IN_STOCK') || normalized.includes('INSTOCK');
+  };
+
+  const isPrescriptionOrder = (orderType?: string) => {
+    if (!orderType) return false;
+    const normalized = String(orderType).toUpperCase().replace(/[-\s]/g, '_');
+    return normalized.includes('PRESCRIPTION');
   };
 
   const getStatusLabel = (status?: string) => {
@@ -945,7 +955,7 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
 
       {/* Confirm Modal */}
       <Modal
-        title={selectedOrder && isInStockOrder(selectedOrder.orderType) ? 'Xác nhận đơn hàng' : 'Đặt lịch hẹn'}
+        title={selectedOrder && (isInStockOrder(selectedOrder.orderType) || isPrescriptionOrder(selectedOrder.orderType)) ? 'Xác nhận đơn hàng' : 'Đặt lịch hẹn'}
         open={isConfirmOpen}
         onCancel={() => setIsConfirmOpen(false)}
         footer={null}
@@ -979,6 +989,17 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
               <Text strong>Tổng tiền:</Text>
               <Text strong>{formatCurrency(selectedOrder.totalAmount)}</Text>
             </div>
+
+            {isPrescriptionOrder(selectedOrder.orderType) && (
+              <div className="flex justify-between">
+                <Text strong>Ngày dự kiến hoàn thành:</Text>
+                <Text>
+                  {selectedOrder.expectedReadyDate
+                    ? new Date(selectedOrder.expectedReadyDate).toLocaleString('vi-VN')
+                    : 'Chưa có thông tin'}
+                </Text>
+              </div>
+            )}
 
             {/* Shipping Address - For HOME_DELIVERY orders */}
             {(selectedOrder.deliveryMethod === 'HOME_DELIVERY' || selectedOrder.shippingAddress) && (
@@ -1022,7 +1043,7 @@ const OrderOperationsPage: React.FC<OrderOperationsPageProps> = ({
           </div>
         )}
         <Form layout="vertical" className="pt-2">
-          {selectedOrder && !isInStockOrder(selectedOrder.orderType) && (
+          {selectedOrder && !isInStockOrder(selectedOrder.orderType) && !isPrescriptionOrder(selectedOrder.orderType) && (
             <>
               <Form.Item label="Ngày & Giờ Hẹn" required>
                 <Input

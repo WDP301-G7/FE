@@ -26,6 +26,15 @@ import {
   ReloadOutlined,
   SearchOutlined,
 } from '@ant-design/icons';
+import {
+  User,
+  Phone,
+  Mail,
+  Package,
+  CalendarDays,
+  DollarSign,
+  Image as ImageIcon,
+} from 'lucide-react';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -210,12 +219,24 @@ export default function ReturnPage() {
     {
       title: 'Số tiền',
       key: 'amount',
-      render: (_: unknown, record: ReturnRequest) =>
-        record.type === 'RETURN'
-          ? <Text strong>{formatCurrency(record.refundAmount || 0)}</Text>
-          : record.priceDifference
+      render: (_: unknown, record: ReturnRequest) => {
+        if (record.type === 'RETURN') {
+          const amount = record.refundAmount || 0;
+          const isCompleted = record.status === 'COMPLETED';
+          return (
+            <div>
+              <Text strong>{formatCurrency(amount)}</Text>
+              <br />
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                {isCompleted ? '(Thực tế)' : '(Dự kiến)'}
+              </Text>
+            </div>
+          );
+        }
+        return record.priceDifference
           ? <Text strong>{formatCurrency(record.priceDifference)}</Text>
-          : <Text type="secondary">—</Text>,
+          : <Text type="secondary">—</Text>;
+      },
     },
     {
       title: 'Ngày tạo',
@@ -354,165 +375,293 @@ export default function ReturnPage() {
 
       {/* Detail Modal */}
       <Modal
-        title="Chi tiết Đơn Trả Hàng"
+        title={null}
         open={showDetailModal}
         onCancel={() => setShowDetailModal(false)}
         footer={null}
         destroyOnClose
-        width={680}
-        styles={{ body: { maxHeight: '75vh', overflowY: 'auto' } }}
+        width={960}
       >
         {selectedReturn && (
-          <div className="space-y-4 py-2">
-            {/* Basic info */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[
-                { label: 'Mã đơn', value: getOrderCode(selectedReturn) },
-                { label: 'Ngày tạo', value: formatDate(selectedReturn.createdAt) },
-                { label: 'Lý do', value: selectedReturn.reason },
-              ].map(({ label, value }) => (
-                <div key={label}>
-                  <Text type="secondary" style={{ fontSize: 12 }}>{label}</Text>
-                  <div><Text strong>{value}</Text></div>
-                </div>
-              ))}
-              <div>
-                <Text type="secondary" style={{ fontSize: 12 }}>Loại</Text>
-                <div>{getTypeBadge(selectedReturn.type)}</div>
-              </div>
-              <div>
-                <Text type="secondary" style={{ fontSize: 12 }}>Trạng thái</Text>
-                <div><StatusBadge status={selectedReturn.status} /></div>
-              </div>
+          <div className="py-2">
+            <div className="mb-4">
+              <Title level={3} className="!mb-1">Chi tiết đơn trả hàng</Title>
+              <Text type="secondary">Đơn #{getOrderCode(selectedReturn)}</Text>
             </div>
 
-            {/* Customer info */}
-            {selectedReturn.customer && (
-              <>
-                <Divider><Text strong>Thông tin khách hàng</Text></Divider>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {[
-                    { label: 'Tên', value: selectedReturn.customer.fullName },
-                    { label: 'Email', value: selectedReturn.customer.email },
-                    { label: 'Điện thoại', value: selectedReturn.customer.phone },
-                  ].map(({ label, value }) => (
-                    <div key={label}>
-                      <Text type="secondary" style={{ fontSize: 12 }}>{label}</Text>
-                      <div><Text>{value}</Text></div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {/* Return items */}
-            {(selectedReturn.returnItems ?? []).length > 0 && (
-              <>
-                <Divider><Text strong>Sản phẩm yêu cầu</Text></Divider>
-                <div className="space-y-2">
-                  {(selectedReturn.returnItems ?? []).map((item) => (
-                    <Card key={item.id} size="small" style={{ background: '#fafafa' }}>
-                      <Text strong>{item.product.name}</Text>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-1">
-                        {[
-                          { label: 'Số lượng', value: item.quantity },
-                          { label: 'Tình trạng', value: getConditionLabel(item.condition) },
-                          { label: 'Giá', value: formatCurrency(item.product.price) },
-                        ].map(({ label, value }) => (
-                          <div key={label}>
-                            <Text type="secondary" style={{ fontSize: 11 }}>{label}</Text>
-                            <div><Text style={{ fontSize: 12 }}>{value}</Text></div>
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+              {/* Customer Info Card */}
+              <Card>
+                <div className="p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <User className="h-5 w-5 text-gray-600" />
+                    <Text strong style={{ fontSize: 20 }}>Thông tin khách hàng</Text>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-3">
+                      {selectedReturn.customer && (
+                        <>
+                          <div className="flex items-start gap-3">
+                            <User className="h-4 w-4 text-gray-500 mt-1" />
+                            <div>
+                              <div className="text-xs text-gray-500">Họ tên</div>
+                              <Text strong>{selectedReturn.customer.fullName}</Text>
+                            </div>
                           </div>
-                        ))}
+                          <div className="flex items-start gap-3">
+                            <Phone className="h-4 w-4 text-gray-500 mt-1" />
+                            <div>
+                              <div className="text-xs text-gray-500">Số điện thoại</div>
+                              <Text strong>{selectedReturn.customer.phone}</Text>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    <div className="space-y-3">
+                      {selectedReturn.customer && (
+                        <>
+                          <div className="flex items-start gap-3">
+                            <Mail className="h-4 w-4 text-gray-500 mt-1" />
+                            <div>
+                              <div className="text-xs text-gray-500">Email</div>
+                              <Text strong>{selectedReturn.customer.email}</Text>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                      <div className="flex items-start gap-3">
+                        <Package className="h-4 w-4 text-gray-500 mt-1" />
+                        <div>
+                          <div className="text-xs text-gray-500">Trạng thái</div>
+                          <div className="mt-1"><StatusBadge status={selectedReturn.status} /></div>
+                        </div>
                       </div>
-                      {item.exchangeProduct && (
-                        <div className="mt-2 pt-2 border-t">
-                          <Text type="secondary" style={{ fontSize: 12 }}>
-                            Đổi lấy: <Text strong>{item.exchangeProduct.name}</Text>
+                      <div className="flex items-start gap-3">
+                        <Package className="h-4 w-4 text-gray-500 mt-1" />
+                        <div>
+                          <div className="text-xs text-gray-500">Loại</div>
+                          <div className="mt-1">{getTypeBadge(selectedReturn.type)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Return Reason Card */}
+              <Card>
+                <div className="p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Package className="h-5 w-5 text-gray-600" />
+                    <Text strong style={{ fontSize: 20 }}>Lý do trả hàng</Text>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <div className="text-xs text-gray-500">Lý do</div>
+                      <Text>{selectedReturn.reason}</Text>
+                    </div>
+                    {selectedReturn.description && (
+                      <div>
+                        <div className="text-xs text-gray-500">Mô tả chi tiết</div>
+                        <Text>{selectedReturn.description}</Text>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Card>
+
+              {/* Return Items Card */}
+              {(selectedReturn.returnItems ?? []).length > 0 && (
+                <Card>
+                  <div className="p-5">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Package className="h-5 w-5 text-gray-600" />
+                      <Text strong style={{ fontSize: 20 }}>Sản phẩm</Text>
+                    </div>
+
+                    <div className="border rounded-lg overflow-hidden">
+                      <Table
+                        dataSource={selectedReturn.returnItems}
+                        rowKey="id"
+                        pagination={false}
+                        size="small"
+                        columns={[
+                          {
+                            title: 'Sản phẩm',
+                            key: 'product',
+                            render: (_: unknown, item: any) => (
+                              <Text strong>{item?.product?.name || 'N/A'}</Text>
+                            ),
+                          },
+                          {
+                            title: 'SL',
+                            dataIndex: 'quantity',
+                            width: 60,
+                            align: 'center' as const,
+                          },
+                          {
+                            title: 'Tình trạng',
+                            key: 'condition',
+                            render: (_: unknown, item: any) => getConditionLabel(item.condition),
+                          },
+                          {
+                            title: 'Giá',
+                            key: 'price',
+                            align: 'right' as const,
+                            render: (_: unknown, item: any) => formatCurrency(item?.product?.price),
+                          },
+                        ]}
+                      />
+                    </div>
+
+                    {(selectedReturn.returnItems ?? []).some((item) => item.exchangeProduct) && (
+                      <div className="mt-4 pt-4 border-t space-y-2">
+                        {(selectedReturn.returnItems ?? []).map(
+                          (item) =>
+                            item.exchangeProduct && (
+                              <div key={item.id}>
+                                <Text type="secondary" style={{ fontSize: 12 }}>
+                                  {item.product.name} → <Text strong>{item.exchangeProduct.name}</Text>
+                                </Text>
+                              </div>
+                            )
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              )}
+
+              {/* Refund Information Card */}
+              {(selectedReturn.refundAmount || selectedReturn.refundMethod) && (
+                <Card>
+                  <div className="p-5">
+                    <div className="flex items-center gap-2 mb-4">
+                      <DollarSign className="h-5 w-5 text-gray-600" />
+                      <Text strong style={{ fontSize: 20 }}>
+                        {selectedReturn.status === 'COMPLETED' ? 'Hoàn tiền thực tế' : 'Dự kiến hoàn tiền'}
+                      </Text>
+                    </div>
+                    <div className="space-y-3">
+                      {selectedReturn.refundAmount && (
+                        <div>
+                          <div className="text-xs text-gray-500">
+                            {selectedReturn.status === 'COMPLETED' ? 'Số tiền thực tế' : 'Số tiền dự kiến'}
+                          </div>
+                          <div className="text-3xl font-semibold text-cyan-700 mt-1">
+                            {formatCurrency(selectedReturn.refundAmount)}
+                          </div>
+                        </div>
+                      )}
+                      {selectedReturn.refundMethod && (
+                        <div className="border-t pt-3">
+                          <div className="text-xs text-gray-500">Phương thức hoàn tiền</div>
+                          <Text strong className="mt-1">
+                            {selectedReturn.refundMethod === 'BANK_TRANSFER' ? 'Chuyển khoản ngân hàng' : 'Tiền mặt'}
                           </Text>
                         </div>
                       )}
-                    </Card>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {/* Description */}
-            {selectedReturn.description && (
-              <>
-                <Divider />
-                <div>
-                  <Text type="secondary" style={{ fontSize: 12 }}>Mô tả chi tiết</Text>
-                  <div><Text>{selectedReturn.description}</Text></div>
-                </div>
-              </>
-            )}
-
-            {/* Images */}
-            {selectedReturn.images && selectedReturn.images.length > 0 && (
-              <>
-                <Divider><Text strong>Hình ảnh</Text></Divider>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                  {selectedReturn.images.map((image) => (
-                    <div key={image.id}>
-                      <img src={image.imageUrl} alt={image.imageType} className="w-full h-32 object-cover rounded border" />
-                      <Text type="secondary" style={{ fontSize: 11, display: 'block', textAlign: 'center', marginTop: 4 }}>
-                        {image.imageType === 'CUSTOMER_PRODUCT' || image.imageType === 'CUSTOMER_DEFECT' ? 'Ảnh khách hàng' : 'Ảnh nhân viên'}
-                      </Text>
                     </div>
-                  ))}
-                </div>
-              </>
-            )}
+                  </div>
+                </Card>
+              )}
 
-            {/* Rejection reason */}
-            {selectedReturn.rejectionReason && (
-              <Card size="small" style={{ background: '#fff1f0', border: '1px solid #ffa39e' }}>
-                <Text type="secondary" style={{ fontSize: 12 }}>Lý do từ chối</Text>
-                <div><Text type="danger">{selectedReturn.rejectionReason}</Text></div>
+              {/* Images Card */}
+              {selectedReturn.images && selectedReturn.images.length > 0 && (
+                <Card>
+                  <div className="p-5">
+                    <div className="flex items-center gap-2 mb-4">
+                      <ImageIcon className="h-5 w-5 text-gray-600" />
+                      <Text strong style={{ fontSize: 20 }}>Hình ảnh ({selectedReturn.images.length})</Text>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      {selectedReturn.images.map((image) => (
+                        <div key={image.id} className="text-center">
+                          <img
+                            src={image.imageUrl}
+                            alt={image.imageType}
+                            className="w-full h-28 object-cover rounded border"
+                          />
+                          <Text type="secondary" style={{ fontSize: 10, display: 'block', marginTop: 4 }}>
+                            {image.imageType === 'CUSTOMER_PRODUCT' || image.imageType === 'CUSTOMER_DEFECT'
+                              ? 'KH'
+                              : 'NV'}
+                          </Text>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </Card>
+              )}
+
+              {/* Rejection Reason Card */}
+              {selectedReturn.rejectionReason && (
+                <Card style={{ background: '#fff1f0', border: '1px solid #ffa39e' }}>
+                  <div className="p-5">
+                    <Text strong style={{ color: '#cf1322', fontSize: 16 }}>Lý do từ chối</Text>
+                    <Text className="block mt-2" type="danger">
+                      {selectedReturn.rejectionReason}
+                    </Text>
+                  </div>
+                </Card>
+              )}
+
+              {/* Completion Note Card */}
+              {selectedReturn.completionNote && (
+                <Card>
+                  <div className="p-5">
+                    <div className="flex items-center gap-2 mb-4">
+                      <CalendarDays className="h-5 w-5 text-gray-600" />
+                      <Text strong style={{ fontSize: 20 }}>Ghi chú hoàn thành</Text>
+                    </div>
+                    <Text>{selectedReturn.completionNote}</Text>
+                  </div>
+                </Card>
+              )}
+
+              {/* Timeline Card */}
+              <Card>
+                <div className="p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <CalendarDays className="h-5 w-5 text-gray-600" />
+                    <Text strong style={{ fontSize: 20 }}>Thời gian</Text>
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <CalendarDays className="h-4 w-4" />
+                      <span>Ngày tạo:</span>
+                      <Text strong>{formatDate(selectedReturn.createdAt)}</Text>
+                    </div>
+                    {selectedReturn.approvedAt && (
+                      <div className="flex items-center gap-2 text-gray-600">
+                        <CheckCircleOutlined className="h-4 w-4" />
+                        <span>Ngày phê duyệt:</span>
+                        <Text strong>{formatDate(selectedReturn.approvedAt)}</Text>
+                      </div>
+                    )}
+                    {selectedReturn.completedAt && (
+                      <div className="flex items-center gap-2 text-gray-600">
+                        <CheckCircleOutlined className="h-4 w-4" />
+                        <span>Ngày hoàn thành:</span>
+                        <Text strong>{formatDate(selectedReturn.completedAt)}</Text>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </Card>
-            )}
-
-            {/* Refund info */}
-            {(selectedReturn.refundAmount || selectedReturn.refundMethod) && (
-              <Card size="small" style={{ background: '#f6ffed', border: '1px solid #b7eb8f' }}>
-                <Text strong style={{ color: '#389e0d' }}>Thông tin hoàn tiền</Text>
-                <div className="space-y-1 mt-1">
-                  {selectedReturn.refundAmount && (
-                    <div>
-                      <Text type="secondary" style={{ fontSize: 12 }}>Số tiền</Text>
-                      <div><Text strong>{formatCurrency(selectedReturn.refundAmount)}</Text></div>
-                    </div>
-                  )}
-                  {selectedReturn.refundMethod && (
-                    <div>
-                      <Text type="secondary" style={{ fontSize: 12 }}>Phương thức</Text>
-                      <div><Text>{selectedReturn.refundMethod === 'BANK_TRANSFER' ? 'Chuyển khoản' : 'Tiền mặt'}</Text></div>
-                    </div>
-                  )}
-                </div>
-              </Card>
-            )}
-
-            {/* Completion note */}
-            {selectedReturn.completionNote && (
-              <div>
-                <Text type="secondary" style={{ fontSize: 12 }}>Ghi chú hoàn thành</Text>
-                <div><Text>{selectedReturn.completionNote}</Text></div>
-              </div>
-            )}
+            </div>
 
             {/* Action buttons */}
-            <Divider />
-            <div className="flex gap-2 flex-wrap">
+            <Divider className="mt-6 mb-4" />
+            <div className="flex gap-2 flex-wrap justify-end">
               {selectedReturn.status === 'PENDING' && (
                 <>
-                  <Button type="primary" icon={<CheckCircleOutlined />} onClick={() => setShowApproveModal(true)}>
-                    Phê duyệt
-                  </Button>
                   <Button danger icon={<CloseCircleOutlined />} onClick={() => setShowRejectModal(true)}>
                     Từ chối
+                  </Button>
+                  <Button type="primary" icon={<CheckCircleOutlined />} onClick={() => setShowApproveModal(true)}>
+                    Phê duyệt
                   </Button>
                 </>
               )}

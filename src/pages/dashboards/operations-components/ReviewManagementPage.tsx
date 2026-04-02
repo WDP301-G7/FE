@@ -1,15 +1,25 @@
-import React, { useEffect, useState } from "react";
-import { useAuth } from "@/context/AuthContext";
-import { Navigate } from "react-router-dom";
-import { useToast } from "@/hooks/use-toast";
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useAuth } from '@/context/AuthContext';
+import { Navigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import {
-  Review,
-  updateReviewReply,
-  addReviewReply,
-  getReviews,
-  deleteReview,
-} from "@/services/review.service";
-import StatusBadge from "@/components/StatusBadge";
+  Star,
+  MessageSquare,
+  Package,
+  User,
+  Calendar,
+  Image as ImageIcon,
+  Mail,
+  Phone,
+  ShoppingBag,
+  Clock,
+  CheckCircle2,
+  Pencil,
+} from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import * as reviewService from '@/services/review.service';
+import type { Review, GetReviewsParams } from '@/services/review.service';
+import { productService } from '@/services/product.service';
 import {
   Card,
   Typography,
@@ -19,19 +29,18 @@ import {
   Space,
   Select,
   Modal,
-  Form,
   Input,
   Rate,
   Divider,
-} from "antd";
-import { motion } from "framer-motion";
+  Row,
+  Col,
+} from 'antd';
 import {
   EyeOutlined,
-  DeleteOutlined,
   ReloadOutlined,
   SearchOutlined,
-  StarFilled,
-} from "@ant-design/icons";
+  MessageOutlined,
+} from '@ant-design/icons';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -39,411 +48,723 @@ const { TextArea } = Input;
 
 const ReviewManagementPage: React.FC = () => {
   const { hasRole } = useAuth();
-  if (!hasRole(["OPERATIONS", "operations", "OPERATION", "operation"])) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
   const { toast } = useToast();
 
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(false);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+  });
 
-  const [statusFilter, setStatusFilter] = useState("");
-  const [ratingFilter, setRatingFilter] = useState("");
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [ratingFilter, setRatingFilter] = useState<string>('ALL');
 
   const [selectedReview, setSelectedReview] = useState<Review | null>(null);
-  const [replyText, setReplyText] = useState<string>("");
-  const [editingReply, setEditingReply] = useState<boolean>(false);
-  const [openDetail, setOpenDetail] = useState(false);
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+  const [isReplyDialogOpen, setIsReplyDialogOpen] = useState(false);
+
+  const [replyContent, setReplyContent] = useState('');
   const [replyLoading, setReplyLoading] = useState(false);
 
-  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0 });
+  const [productImages, setProductImages] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    loadReviews();
-  }, [pagination.page, statusFilter, ratingFilter]);
+  const [stats, setStats] = useState({
+    total: 0,
+    published: 0,
+    hidden: 0,
+    avgRating: 0,
+  });
 
-  const loadReviews = async () => {
+  const preloadProductImages = useCallback(async (reviewItems: Review[]) => {
+    const newImageCache: Record<string, string> = {};
+    const uniqueProductIds = new Set<string>();
+
+    reviewItems.forEach((review) => {
+      if (review.productId) {
+        uniqueProductIds.add(review.productId);
+      }
+    });
+
+    try {
+      const productPromises = Array.from(uniqueProductIds).map(async (productId) => {
+        try {
+          const product = await productService.getProduct(productId);
+          if (product.images && product.images.length > 0) {
+            const firstImage = product.images[0];
+            const imageUrl = firstImage.imageUrl;
+            if (imageUrl) {
+              newImageCache[productId] = imageUrl;
+            }
+          }
+        } catch {
+          // Skip invalid products/images silently
+        }
+      });
+
+      await Promise.all(productPromises);
+      setProductImages((prevCache) => ({ ...prevCache, ...newImageCache }));
+    } catch {
+      // Keep UI stable if image preload fails
+    }
+  }, []);
+
+  const loadReviews = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await getReviews({
+      const params: GetReviewsParams = {
         page: pagination.page,
         limit: pagination.limit,
-        status: statusFilter || undefined,
-        rating: ratingFilter ? Number(ratingFilter) : undefined,
+      };
+
+      if (statusFilter !== 'ALL') {
+        params.status = statusFilter as 'PUBLISHED' | 'HIDDEN';
+      }
+
+      if (ratingFilter !== 'ALL') {
+        params.rating = parseInt(ratingFilter, 10);
+      }
+
+      const data = await reviewService.getReviews(params);
+      const items = data?.items || [];
+      const total = data?.total || 0;
+
+      setReviews(items);
+      setPagination((prev) => ({ ...prev, total }));
+
+      await preloadProductImages(items);
+
+      const published = items.filter((r) => r.status === 'PUBLISHED').length;
+      const hidden = items.filter((r) => r.status === 'HIDDEN').length;
+      const avgRating =
+        items.length > 0
+          ? items.reduce((sum, r) => sum + r.rating, 0) / items.length
+          : 0;
+
+      setStats({
+        total,
+        published,
+        hidden,
+        avgRating: Math.round(avgRating * 10) / 10,
       });
-      setReviews(res.items || []);
-      setPagination((prev) => ({ ...prev, total: res.total }));
-    } catch (error: any) {
+    } catch (error) {
+      setReviews([]);
+      setPagination((prev) => ({ ...prev, total: 0 }));
+      setStats({
+        total: 0,
+        published: 0,
+        hidden: 0,
+        avgRating: 0,
+      });
+
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : 'Backend chưa có API endpoint /reviews. Vui lòng liên hệ team backend.';
+
       toast({
-        title: "Lỗi",
-        description: error.response?.data?.message || "Tải đánh giá thất bại",
-        variant: "destructive",
+        title: 'Lỗi khi tải đánh giá',
+        description: errorMessage,
+        variant: 'destructive',
       });
     } finally {
       setLoading(false);
     }
-  };
+  }, [pagination.page, pagination.limit, statusFilter, ratingFilter, preloadProductImages, toast]);
 
-  const handleDelete = (id: string) => {
-    Modal.confirm({
-      title: "Xác nhận xoá",
-      content: "Bạn có chắc muốn xoá đánh giá này không?",
-      okText: "Xoá",
-      okType: "danger",
-      cancelText: "Huỷ",
-      onOk: async () => {
-        try {
-          await deleteReview(id);
-          toast({ title: "Thành công", description: "Xoá đánh giá thành công" });
-          loadReviews();
-        } catch (error: any) {
-          toast({
-            title: "Lỗi",
-            description: error.response?.data?.message || "Xoá thất bại",
-            variant: "destructive",
-          });
+  useEffect(() => {
+    loadReviews();
+  }, [loadReviews]);
+
+  const loadProductImage = async (review: Review) => {
+    if (!review.productId) return;
+    if (productImages[review.productId]) return;
+
+    try {
+      const product = await productService.getProduct(review.productId);
+      if (product.images && product.images.length > 0) {
+        const firstImage = product.images[0];
+        const imageUrl = firstImage.imageUrl;
+        if (imageUrl) {
+          setProductImages((prev) => ({ ...prev, [review.productId]: imageUrl }));
         }
-      },
-    });
+      }
+    } catch {
+      // Ignore product image load errors
+    }
   };
 
-  const openDetailReview = (review: Review) => {
-    setSelectedReview(review);
-    setReplyText(review.replyContent || "");
-    setEditingReply(false);
-    setOpenDetail(true);
+  const handleViewDetails = async (review: Review) => {
+    try {
+      const fullReview = await reviewService.getReviewById(review.id);
+      setSelectedReview(fullReview);
+      setIsDetailDialogOpen(true);
+      await loadProductImage(fullReview);
+    } catch {
+      toast({
+        title: 'Lỗi',
+        description: 'Không thể tải chi tiết đánh giá',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleReply = async (review: Review) => {
+    try {
+      const freshReview = await reviewService.getReviewById(review.id);
+      setSelectedReview(freshReview);
+      setReplyContent(freshReview.replyContent || '');
+      setIsReplyDialogOpen(true);
+      await loadProductImage(freshReview);
+    } catch {
+      toast({
+        title: 'Lỗi',
+        description: 'Không thể tải thông tin đánh giá',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleSubmitReply = async () => {
-    if (!selectedReview) return;
-    if (!replyText.trim()) {
-      toast({ title: "Lỗi", description: "Nội dung phản hồi trống", variant: "destructive" });
+    if (!selectedReview || !replyContent.trim()) {
+      toast({
+        title: 'Lỗi',
+        description: 'Vui lòng nhập nội dung phản hồi',
+        variant: 'destructive',
+      });
       return;
     }
+
+    if (replyContent.length > 500) {
+      toast({
+        title: 'Lỗi',
+        description: 'Nội dung phản hồi không được quá 500 ký tự',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setReplyLoading(true);
     try {
-      let updated: Review;
-      if (selectedReview.replyContent && editingReply) {
-        updated = await updateReviewReply(selectedReview.id, replyText.trim());
+      const data = { replyContent: replyContent.trim() };
+
+      if (selectedReview.replyContent) {
+        await reviewService.updateReviewReply(selectedReview.id, data);
+        toast({ title: 'Thành công', description: 'Đã cập nhật phản hồi' });
       } else {
-        updated = await addReviewReply(selectedReview.id, replyText.trim());
+        await reviewService.addReviewReply(selectedReview.id, data);
+        toast({ title: 'Thành công', description: 'Đã thêm phản hồi' });
       }
-      setSelectedReview(updated);
-      setEditingReply(false);
-      toast({
-        title: "Thành công",
-        description: selectedReview.replyContent && editingReply ? "Phản hồi đã được cập nhật" : "Đã gửi phản hồi",
-      });
+
+      const updatedReview = await reviewService.getReviewById(selectedReview.id);
+      setSelectedReview(updatedReview);
+      setIsReplyDialogOpen(false);
+      setReplyContent('');
       loadReviews();
-    } catch (err: any) {
+    } catch (error: unknown) {
+      let errorMessage = 'Không thể gửi phản hồi';
+      let shouldRetryWithUpdate = false;
+
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { status?: number; data?: { message?: string } } };
+
+        if (axiosError.response?.status === 409) {
+          shouldRetryWithUpdate = true;
+        } else if (axiosError.response?.data?.message) {
+          errorMessage = axiosError.response.data.message;
+        }
+      }
+
+      if (shouldRetryWithUpdate) {
+        try {
+          const data = { replyContent: replyContent.trim() };
+          await reviewService.updateReviewReply(selectedReview.id, data);
+          toast({ title: 'Thành công', description: 'Đã cập nhật phản hồi' });
+
+          const updatedReview = await reviewService.getReviewById(selectedReview.id);
+          setSelectedReview(updatedReview);
+          setIsReplyDialogOpen(false);
+          setReplyContent('');
+          loadReviews();
+          setReplyLoading(false);
+          return;
+        } catch {
+          errorMessage = 'Không thể cập nhật phản hồi. Vui lòng thử lại.';
+        }
+      }
+
       toast({
-        title: "Lỗi",
-        description: err.response?.data?.message || "Không thể gửi phản hồi",
-        variant: "destructive",
+        title: 'Lỗi',
+        description: errorMessage,
+        variant: 'destructive',
       });
     } finally {
       setReplyLoading(false);
     }
   };
 
-  // Derived stats
-  const avgRating =
-    reviews.length > 0
-      ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
-      : "0";
-  const pendingCount = reviews.filter((r) => r.status === "pending").length;
-  const repliedCount = reviews.filter((r) => r.replyContent).length;
+  const getStarRating = (rating: number) => (
+    <div className="flex items-center gap-1">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <Star
+          key={star}
+          className={`h-4 w-4 ${star <= rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
+        />
+      ))}
+    </div>
+  );
+
+  const getFullImageUrl = (url: string): string => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url;
+    }
+    const baseUrl = 'https://wdp.up.railway.app';
+    return url.startsWith('/') ? `${baseUrl}${url}` : `${baseUrl}/${url}`;
+  };
+
+  const getProductImageUrl = (review: Review): string => {
+    if (review.productId && productImages[review.productId]) {
+      return getFullImageUrl(productImages[review.productId]);
+    }
+    if (review.product?.images && review.product.images.length > 0) {
+      const firstImage = review.product.images[0];
+      return getFullImageUrl(firstImage?.imageUrl || firstImage?.url || '');
+    }
+    return '';
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('vi-VN', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  if (!hasRole(['OPERATIONS', 'operations', 'OPERATION', 'operation'])) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  const filteredReviews = useMemo(() => {
+    const keyword = searchTerm.trim().toLowerCase();
+    if (!keyword) return reviews;
+
+    return reviews.filter((review) => {
+      const searchable = [
+        review.product?.name,
+        review.customer?.fullName,
+        review.customer?.email,
+        review.customer?.phone,
+        review.comment,
+        review.status,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return searchable.includes(keyword);
+    });
+  }, [reviews, searchTerm]);
 
   const columns = [
     {
-      title: "Sản phẩm",
-      key: "product",
+      title: 'Sản phẩm',
+      key: 'product',
       render: (_: unknown, record: Review) => (
-        <Text strong>{record.product?.name || "—"}</Text>
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-md bg-gray-100">
+            {getProductImageUrl(record) ? (
+              <img
+                src={getProductImageUrl(record)}
+                alt={record.product?.name || 'Product'}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <Package className="h-5 w-5 text-muted-foreground" />
+            )}
+          </div>
+          <Text strong>{record.product?.name || 'N/A'}</Text>
+        </div>
       ),
     },
     {
-      title: "Khách hàng",
-      key: "customer",
+      title: 'Khách hàng',
+      key: 'customer',
       render: (_: unknown, record: Review) => (
-        <Text>{record.customer?.fullName || "—"}</Text>
+        <Space>
+          <User className="h-4 w-4 text-muted-foreground" />
+          <Text>{record.customer?.fullName || 'N/A'}</Text>
+        </Space>
       ),
     },
     {
-      title: "Đơn hàng",
-      key: "order",
+      title: 'Đánh giá',
+      dataIndex: 'rating',
+      key: 'rating',
+      render: (rating: number) => <Rate disabled defaultValue={rating} style={{ fontSize: 14 }} />,
+    },
+    {
+      title: 'Nội dung',
+      key: 'comment',
       render: (_: unknown, record: Review) => (
-        <Text style={{ fontSize: 12 }}>
-          {record.order?.orderNumber || record.orderId || "—"}
-        </Text>
+        <div className="max-w-xs">
+          <Text ellipsis>{record.comment || '(Không có nội dung)'}</Text>
+          {record.images && record.images.length > 0 && (
+            <div>
+              <Tag className="mt-1" color="default">
+                <ImageIcon className="mr-1 inline h-3 w-3" />
+                {record.images.length} ảnh
+              </Tag>
+            </div>
+          )}
+        </div>
       ),
     },
     {
-      title: "Đánh giá",
-      dataIndex: "rating",
-      key: "rating",
-      render: (val: number) => (
-        <Rate disabled defaultValue={val} style={{ fontSize: 14 }} />
+      title: 'Trạng thái',
+      key: 'status',
+      render: (_: unknown, record: Review) => (
+        <Space size={4}>
+          <Tag color={record.status === 'PUBLISHED' ? 'green' : 'default'}>
+            {record.status === 'PUBLISHED' ? 'Hiển thị' : 'Đã ẩn'}
+          </Tag>
+          {record.replyContent && <Tag color="blue">Đã phản hồi</Tag>}
+        </Space>
       ),
     },
     {
-      title: "Bình luận",
-      dataIndex: "comment",
-      key: "comment",
-      render: (val: string) => (
-        <Text ellipsis style={{ maxWidth: 200 }}>
-          {val || "—"}
-        </Text>
+      title: 'Ngày tạo',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      render: (value: string) => (
+        <Space size={4}>
+          <Calendar className="h-3 w-3 text-muted-foreground" />
+          <Text type="secondary">{new Date(value).toLocaleDateString('vi-VN')}</Text>
+        </Space>
       ),
     },
     {
-      title: "Trạng thái",
-      dataIndex: "status",
-      key: "status",
-      render: (val: string) => (val ? <StatusBadge status={val} /> : <Text>—</Text>),
-    },
-    {
-      title: "Ngày tạo",
-      dataIndex: "createdAt",
-      key: "createdAt",
-      render: (val: string) => (
-        <Text>{val ? new Date(val).toLocaleDateString("vi-VN") : "—"}</Text>
-      ),
-    },
-    {
-      title: "Phản hồi",
-      dataIndex: "reply",
-      key: "reply",
-      render: (val: string) =>
-        val ? (
-          <Tag color="green">Đã phản hồi</Tag>
-        ) : (
-          <Tag color="orange">Chưa phản hồi</Tag>
-        ),
-    },
-    {
-      title: "Hành động",
-      key: "actions",
-      align: "right" as const,
+      title: 'Hành động',
+      key: 'actions',
+      align: 'right' as const,
       render: (_: unknown, record: Review) => (
         <Space>
           <Button
             icon={<EyeOutlined />}
             size="small"
-            onClick={() => openDetailReview(record)}
+            onClick={() => handleViewDetails(record)}
           >
             Xem
           </Button>
           <Button
-            icon={<DeleteOutlined />}
+            icon={<MessageOutlined />}
             size="small"
-            danger
-            onClick={() => handleDelete(record.id)}
+            onClick={() => handleReply(record)}
+            type="primary"
           >
-            Xoá
+            {record.replyContent ? 'Cập nhật' : 'Phản hồi'}
           </Button>
         </Space>
       ),
     },
   ];
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.4 } },
-  };
-
   return (
     <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
       className="space-y-6"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: 'easeOut' }}
     >
-      {/* Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {[
-          { label: "Tổng đánh giá", value: pagination.total },
-          { label: "Điểm TB", value: avgRating },
-          { label: "Chờ duyệt", value: pendingCount },
-          { label: "Đã phản hồi", value: repliedCount },
-        ].map((stat, i) => (
-          <motion.div
-            key={stat.label}
-            variants={itemVariants}
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: i * 0.1, duration: 0.3 }}
-          >
-            <Card className="stat-card">
-              <div className="space-y-2">
-                <Text className="text-muted-foreground">{stat.label}</Text>
-                <Title level={3} className="!mb-0 !text-foreground">
-                  {stat.value}
-                </Title>
-              </div>
-            </Card>
-          </motion.div>
-        ))}
-      </div>
+      <Row gutter={[16, 16]}>
+        <Col xs={24} md={12} lg={6}>
+          <Card>
+            <Text type="secondary">Tổng đánh giá</Text>
+            <Title level={3} className="!mt-2 !mb-0">{stats.total}</Title>
+          </Card>
+        </Col>
+        <Col xs={24} md={12} lg={6}>
+          <Card>
+            <Text type="secondary">Điểm trung bình</Text>
+            <Title level={3} className="!mt-2 !mb-0">{stats.avgRating}</Title>
+          </Card>
+        </Col>
+        <Col xs={24} md={12} lg={6}>
+          <Card>
+            <Text type="secondary">Đang hiển thị</Text>
+            <Title level={3} className="!mt-2 !mb-0">{stats.published}</Title>
+          </Card>
+        </Col>
+        <Col xs={24} md={12} lg={6}>
+          <Card>
+            <Text type="secondary">Đã ẩn</Text>
+            <Title level={3} className="!mt-2 !mb-0">{stats.hidden}</Title>
+          </Card>
+        </Col>
+      </Row>
 
-      {/* Main Table Card */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5, duration: 0.5 }}
-      >
-        <Card className="dashboard-section">
-          <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-            <Title level={4} className="!text-foreground !mb-0">
-              Quản lý Đánh giá
-            </Title>
-            <Space wrap>
-              <Select
-                style={{ width: 180 }}
-                value={statusFilter || "__all"}
-                onChange={(v) => {
-                  setStatusFilter(v === "__all" ? "" : v);
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-              >
-                <Option value="__all">Tất cả trạng thái</Option>
-                <Option value="approved">Đã duyệt</Option>
-                <Option value="pending">Chờ duyệt</Option>
-                <Option value="rejected">Bị từ chối</Option>
-              </Select>
-              <Select
-                style={{ width: 150 }}
-                value={ratingFilter || "__all"}
-                onChange={(v) => {
-                  setRatingFilter(v === "__all" ? "" : v);
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-              >
-                <Option value="__all">Tất cả sao</Option>
-                {[5, 4, 3, 2, 1].map((n) => (
-                  <Option key={n} value={String(n)}>
-                    {n} sao
-                  </Option>
-                ))}
-              </Select>
-              <Button
-                icon={<ReloadOutlined />}
-                onClick={() => { setPagination((p) => ({ ...p, page: 1 })); loadReviews(); }}
-                loading={loading}
-              >
-                Làm mới
-              </Button>
-            </Space>
-          </div>
+      <Card>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <Title level={4} className="!mb-0">Quản lý đánh giá</Title>
+          <Space wrap>
+            <Input
+              allowClear
+              placeholder="Tìm theo sản phẩm, khách hàng..."
+              prefix={<SearchOutlined />}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{ width: 280 }}
+            />
 
-          <Table
-            dataSource={reviews}
-            columns={columns}
-            rowKey="id"
-            loading={loading}
-            pagination={{
-              current: pagination.page,
-              pageSize: pagination.limit,
-              total: pagination.total,
-              showSizeChanger: true,
-              showTotal: (total) => `Tổng ${total} đánh giá`,
-              onChange: (page, pageSize) =>
-                setPagination((prev) => ({ ...prev, page, limit: pageSize })),
-            }}
-            scroll={{ x: "max-content" }}
-          />
-        </Card>
-      </motion.div>
+            <Select value={statusFilter} onChange={setStatusFilter} style={{ width: 170 }}>
+              <Option value="ALL">Tất cả trạng thái</Option>
+              <Option value="PUBLISHED">Đang hiển thị</Option>
+              <Option value="HIDDEN">Đã ẩn</Option>
+            </Select>
 
-      {/* Detail Modal */}
+            <Select value={ratingFilter} onChange={setRatingFilter} style={{ width: 140 }}>
+              <Option value="ALL">Tất cả sao</Option>
+              <Option value="5">5 sao</Option>
+              <Option value="4">4 sao</Option>
+              <Option value="3">3 sao</Option>
+              <Option value="2">2 sao</Option>
+              <Option value="1">1 sao</Option>
+            </Select>
+
+            <Button icon={<ReloadOutlined />} loading={loading} onClick={loadReviews}>
+              Làm mới
+            </Button>
+          </Space>
+        </div>
+
+        <Table
+          rowKey="id"
+          loading={loading}
+          dataSource={filteredReviews}
+          columns={columns}
+          scroll={{ x: 'max-content' }}
+          pagination={false}
+        />
+
+        <div className="mt-4 flex items-center justify-between">
+          <Text type="secondary">
+            Hiển thị {filteredReviews.length} / {pagination.total} đánh giá
+          </Text>
+          <Space>
+            <Button
+              disabled={pagination.page === 1}
+              onClick={() => setPagination((prev) => ({ ...prev, page: prev.page - 1 }))}
+            >
+              Trước
+            </Button>
+            <Button
+              disabled={pagination.page * pagination.limit >= pagination.total}
+              onClick={() => setPagination((prev) => ({ ...prev, page: prev.page + 1 }))}
+            >
+              Sau
+            </Button>
+          </Space>
+        </div>
+      </Card>
+
       <Modal
-        title="Chi tiết Đánh giá"
-        open={openDetail}
-        onCancel={() => setOpenDetail(false)}
-        footer={<Button onClick={() => setOpenDetail(false)}>Đóng</Button>}
+        title="Chi tiết đánh giá"
+        open={isDetailDialogOpen}
+        onCancel={() => setIsDetailDialogOpen(false)}
+        footer={<Button onClick={() => setIsDetailDialogOpen(false)}>Đóng</Button>}
+        width={980}
         destroyOnClose
-        width={560}
       >
         {selectedReview && (
-          <div className="space-y-3 py-2">
-            {[
-              { label: "Sản phẩm", value: selectedReview.product?.name || "—" },
-              { label: "Khách hàng", value: selectedReview.customer?.fullName || "—" },
-              {
-                label: "Đơn hàng",
-                value: selectedReview.order?.orderNumber || selectedReview.orderId || "N/A",
-              },
-              {
-                label: "Bình luận",
-                value: selectedReview.comment || "Không có bình luận",
-              },
-              {
-                label: "Ngày tạo",
-                value: new Date(selectedReview.createdAt).toLocaleString("vi-VN"),
-              },
-            ].map(({ label, value }) => (
-              <div key={label}>
-                <Text type="secondary" style={{ fontSize: 12 }}>{label}</Text>
-                <div><Text strong>{value}</Text></div>
-              </div>
-            ))}
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+            <Card title="Thông tin khách hàng & sản phẩm">
+              <Row gutter={[16, 16]}>
+                <Col xs={24} md={12}>
+                  <Space direction="vertical" size={10} style={{ width: '100%' }}>
+                    <Space>
+                      <User className="h-4 w-4 text-muted-foreground" />
+                      <Text strong>{selectedReview.customer?.fullName || 'N/A'}</Text>
+                    </Space>
+                    <Space>
+                      <Mail className="h-4 w-4 text-muted-foreground" />
+                      <Text>{selectedReview.customer?.email || 'N/A'}</Text>
+                    </Space>
+                    <Space>
+                      <Phone className="h-4 w-4 text-muted-foreground" />
+                      <Text>{selectedReview.customer?.phone || 'N/A'}</Text>
+                    </Space>
+                  </Space>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Space align="start" size={12}>
+                    {getProductImageUrl(selectedReview) ? (
+                      <img
+                        src={getProductImageUrl(selectedReview)}
+                        alt={selectedReview.product?.name || 'Product'}
+                        className="h-16 w-16 rounded-md border object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-16 w-16 items-center justify-center rounded-md border bg-gray-100">
+                        <Package className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                    )}
+                    <Space direction="vertical" size={4}>
+                      <Text strong>{selectedReview.product?.name || 'N/A'}</Text>
+                      <Text type="secondary">ID: {selectedReview.productId}</Text>
+                      <Text type="secondary">{formatDate(selectedReview.createdAt)}</Text>
+                    </Space>
+                  </Space>
+                </Col>
+              </Row>
+            </Card>
 
-            <div>
-              <Text type="secondary" style={{ fontSize: 12 }}>Đánh giá</Text>
-              <div>
-                <Rate disabled defaultValue={selectedReview.rating} style={{ fontSize: 16 }} />
-              </div>
-            </div>
+            <Card title="Nội dung đánh giá">
+              <Space direction="vertical" size={14} style={{ width: '100%' }}>
+                <Space>
+                  {getStarRating(selectedReview.rating)}
+                  <Text strong>{selectedReview.rating}/5</Text>
+                  <Tag color={selectedReview.status === 'PUBLISHED' ? 'green' : 'default'}>
+                    {selectedReview.status === 'PUBLISHED' ? 'Đang hiển thị' : 'Đã ẩn'}
+                  </Tag>
+                </Space>
 
-            <div>
-              <Text type="secondary" style={{ fontSize: 12 }}>Trạng thái</Text>
-              <div>
-                {selectedReview.status ? <StatusBadge status={selectedReview.status} /> : "—"}
-              </div>
-            </div>
-
-            <Divider orientation="left">
-              <Text strong>Phản hồi của nhân viên</Text>
-            </Divider>
-
-            {!editingReply && selectedReview.replyContent ? (
-              <div className="space-y-2">
-                <Text>{selectedReview.replyContent}</Text>
-                <div>
-                  <Button size="small" onClick={() => setEditingReply(true)}>
-                    Sửa phản hồi
-                  </Button>
+                <div className="rounded-md border bg-slate-50 p-3">
+                  <Text>{selectedReview.comment || 'Không có nội dung'}</Text>
                 </div>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <TextArea
-                  placeholder="Nhập nội dung phản hồi..."
-                  value={replyText}
-                  onChange={(e) => setReplyText(e.target.value)}
-                  rows={3}
-                />
-                <div className="flex gap-2">
-                  {editingReply && (
-                    <Button onClick={() => setEditingReply(false)}>Huỷ</Button>
-                  )}
+
+                {selectedReview.images && selectedReview.images.length > 0 && (
+                  <>
+                    <Text type="secondary">Hình ảnh đính kèm ({selectedReview.images.length})</Text>
+                    <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+                      {selectedReview.images.map((image) => (
+                        <img
+                          key={image.id}
+                          src={image.imageUrl}
+                          alt="Review"
+                          className="h-36 w-full rounded-md border object-cover"
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
+              </Space>
+            </Card>
+
+            {selectedReview.replyContent ? (
+              <Card
+                title="Phản hồi từ shop"
+                extra={
                   <Button
-                    type="primary"
-                    onClick={handleSubmitReply}
-                    loading={replyLoading}
+                    icon={<Pencil className="h-4 w-4" />}
+                    onClick={() => {
+                      setIsDetailDialogOpen(false);
+                      handleReply(selectedReview);
+                    }}
                   >
-                    {selectedReview.replyContent && editingReply ? "Cập nhật phản hồi" : "Gửi phản hồi"}
+                    Chỉnh sửa
                   </Button>
+                }
+              >
+                <div className="rounded-md border bg-slate-50 p-3">
+                  <Text>{selectedReview.replyContent}</Text>
+                  <Divider className="my-3" />
+                  <Space size={4}>
+                    <Text type="secondary">Bởi: {selectedReview.replier?.fullName || 'N/A'}</Text>
+                    <Text type="secondary">•</Text>
+                    <Text type="secondary">{formatDate(selectedReview.repliedAt || selectedReview.updatedAt)}</Text>
+                  </Space>
                 </div>
-              </div>
+              </Card>
+            ) : (
+              <Card>
+                <div className="text-center py-4">
+                  <Text type="secondary">Chưa có phản hồi cho đánh giá này</Text>
+                  <div className="mt-3">
+                    <Button
+                      type="primary"
+                      onClick={() => {
+                        setIsDetailDialogOpen(false);
+                        handleReply(selectedReview);
+                      }}
+                    >
+                      Thêm phản hồi
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            {selectedReview.editableUntil && (
+              <Card>
+                <Space size={8}>
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <Text type="secondary">
+                    Khách hàng có thể chỉnh sửa đến: {formatDate(selectedReview.editableUntil)}
+                  </Text>
+                </Space>
+              </Card>
             )}
           </div>
+        )}
+      </Modal>
+
+      <Modal
+        title={selectedReview?.replyContent ? 'Cập nhật phản hồi' : 'Thêm phản hồi'}
+        open={isReplyDialogOpen}
+        onCancel={() => {
+          setIsReplyDialogOpen(false);
+          setReplyContent('');
+        }}
+        onOk={handleSubmitReply}
+        okText={selectedReview?.replyContent ? 'Cập nhật phản hồi' : 'Gửi phản hồi'}
+        confirmLoading={replyLoading}
+        okButtonProps={{ disabled: !replyContent.trim() }}
+        width={760}
+        destroyOnClose
+      >
+        {selectedReview && (
+          <Space direction="vertical" size={16} style={{ width: '100%' }}>
+            <Card size="small">
+              <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                <Space>
+                  {getStarRating(selectedReview.rating)}
+                  <Text strong>{selectedReview.rating}/5</Text>
+                  <Text type="secondary">{selectedReview.customer?.fullName || 'N/A'}</Text>
+                </Space>
+                <Text type="secondary">{selectedReview.product?.name || 'N/A'}</Text>
+                {selectedReview.comment && <Text>{selectedReview.comment}</Text>}
+              </Space>
+            </Card>
+
+            {selectedReview.replyContent && (
+              <Card size="small">
+                <Text strong>Phản hồi hiện tại</Text>
+                <div className="mt-2 rounded-md border bg-slate-50 p-2">
+                  <Text>{selectedReview.replyContent}</Text>
+                </div>
+              </Card>
+            )}
+
+            <div>
+              <Text strong>Nội dung phản hồi</Text>
+              <TextArea
+                placeholder="Nhập nội dung phản hồi của shop..."
+                value={replyContent}
+                onChange={(e) => setReplyContent(e.target.value)}
+                rows={7}
+                maxLength={500}
+                style={{ marginTop: 8 }}
+              />
+              <div className="mt-1 text-right">
+                <Text type="secondary">{replyContent.length}/500</Text>
+              </div>
+            </div>
+          </Space>
         )}
       </Modal>
     </motion.div>
