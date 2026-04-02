@@ -81,6 +81,7 @@ const PrescriptionRequestsPage: React.FC = () => {
   const [prescriptionNotes, setPrescriptionNotes] = useState<string>('');
   const [expiryDays, setExpiryDays] = useState<number>(3);
   const [expectedReadyDate, setExpectedReadyDate] = useState<string>('');
+  const [orderFormErrors, setOrderFormErrors] = useState<Record<string, string>>({});
 
   const storeOptions = useMemo(() => {
     const map = new Map<string, string>();
@@ -203,6 +204,7 @@ const PrescriptionRequestsPage: React.FC = () => {
     setLeftSphere(0); setLeftCylinder(0); setLeftAxis(0);
     setPupillaryDistance(62); setPrescriptionNotes('');
     setExpiryDays(3); setExpectedReadyDate('');
+    setOrderFormErrors({});
     await loadProducts();
     setOrderOpen(true);
     setLoading(false);
@@ -234,11 +236,76 @@ const PrescriptionRequestsPage: React.FC = () => {
       ...prev,
       { productId: id, name: prod.name, quantity: 1, unitPrice: parseFloat(prod.price as any) || 0 },
     ]);
+    setOrderFormErrors((prev) => {
+      const next = { ...prev };
+      delete next.products;
+      return next;
+    });
+  };
+
+  const clearOrderError = (key: string) => {
+    setOrderFormErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const validateOrderForm = () => {
+    const errors: Record<string, string> = {};
+
+    if (!selected) errors.general = 'Không tìm thấy yêu cầu đơn thuốc để tạo đơn hàng.';
+    if (orderItems.length === 0) errors.products = 'Vui lòng thêm ít nhất 1 sản phẩm.';
+
+    orderItems.forEach((item, index) => {
+      if (!item.productId) errors[`item-${index}-product`] = 'Sản phẩm không hợp lệ.';
+      if (!Number.isFinite(item.quantity) || item.quantity <= 0) {
+        errors[`item-${index}-quantity`] = 'Số lượng phải lớn hơn 0.';
+      }
+      if (!Number.isFinite(item.unitPrice) || item.unitPrice < 0) {
+        errors[`item-${index}-unitPrice`] = 'Đơn giá phải lớn hơn hoặc bằng 0.';
+      }
+    });
+
+    const validateRange = (key: string, label: string, value: number, min: number, max: number) => {
+      if (!Number.isFinite(value) || value < min || value > max) {
+        errors[key] = `${label} phải nằm trong khoảng ${min} đến ${max}.`;
+      }
+    };
+
+    validateRange('rightSphere', 'SPH mắt phải', rightSphere, -20, 20);
+    validateRange('rightCylinder', 'CYL mắt phải', rightCylinder, -10, 10);
+    validateRange('rightAxis', 'Axis mắt phải', rightAxis, 0, 180);
+    validateRange('leftSphere', 'SPH mắt trái', leftSphere, -20, 20);
+    validateRange('leftCylinder', 'CYL mắt trái', leftCylinder, -10, 10);
+    validateRange('leftAxis', 'Axis mắt trái', leftAxis, 0, 180);
+    validateRange('pupillaryDistance', 'Khoảng cách đồng tử (PD)', pupillaryDistance, 40, 80);
+
+    if (!Number.isFinite(expiryDays) || expiryDays < 1 || expiryDays > 365) {
+      errors.expiryDays = 'Ngày hết hạn phải từ 1 đến 365 ngày.';
+    }
+
+    if (expectedReadyDate) {
+      const readyDate = new Date(expectedReadyDate);
+      if (Number.isNaN(readyDate.getTime())) {
+        errors.expectedReadyDate = 'Ngày dự kiến hoàn thành không hợp lệ.';
+      } else if (readyDate.getTime() < Date.now()) {
+        errors.expectedReadyDate = 'Ngày dự kiến hoàn thành phải ở hiện tại hoặc tương lai.';
+      }
+    }
+
+    if (prescriptionNotes.length > 500) {
+      errors.prescriptionNotes = 'Ghi chú đơn thuốc tối đa 500 ký tự.';
+    }
+
+    setOrderFormErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const submitOrder = async () => {
-    if (!selected || orderItems.length === 0) {
-      toast({ title: 'Lỗi', description: 'Vui lòng thêm ít nhất 1 sản phẩm', variant: 'destructive' });
+    if (!validateOrderForm()) {
+      toast({ title: 'Dữ liệu chưa hợp lệ', description: 'Vui lòng kiểm tra các trường đang báo lỗi.', variant: 'destructive' });
       return;
     }
     setLoading(true);
@@ -622,6 +689,12 @@ const PrescriptionRequestsPage: React.FC = () => {
           </div>
 
           <Form layout="vertical" className="space-y-4">
+            {orderFormErrors.general && (
+              <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {orderFormErrors.general}
+              </div>
+            )}
+
             <Card>
               <div className="p-5">
                 <div className="flex items-center gap-2 mb-4">
@@ -671,7 +744,12 @@ const PrescriptionRequestsPage: React.FC = () => {
                   <Text strong style={{ fontSize: 20 }}>Sản phẩm</Text>
                 </div>
 
-                <Form.Item label="Thêm sản phẩm" required>
+                <Form.Item
+                  label="Thêm sản phẩm"
+                  required
+                  validateStatus={orderFormErrors.products ? 'error' : ''}
+                  help={orderFormErrors.products}
+                >
                   <Select
                     placeholder="Chọn sản phẩm để thêm"
                     style={{ width: '100%' }}
@@ -695,23 +773,27 @@ const PrescriptionRequestsPage: React.FC = () => {
                         <InputNumber
                           min={1}
                           value={item.quantity}
+                          status={orderFormErrors[`item-${index}-quantity`] ? 'error' : ''}
                           style={{ width: '100%' }}
-                          onChange={(val) =>
+                          onChange={(val) => {
+                            clearOrderError(`item-${index}-quantity`);
                             setOrderItems((prev) =>
                               prev.map((i, idx) => (idx === index ? { ...i, quantity: val as number } : i))
-                            )
-                          }
+                            );
+                          }}
                         />
                         <InputNumber
                           min={0}
                           value={item.unitPrice}
+                          status={orderFormErrors[`item-${index}-unitPrice`] ? 'error' : ''}
                           style={{ width: '100%' }}
                           formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                          onChange={(val) =>
+                          onChange={(val) => {
+                            clearOrderError(`item-${index}-unitPrice`);
                             setOrderItems((prev) =>
                               prev.map((i, idx) => (idx === index ? { ...i, unitPrice: val as number } : i))
-                            )
-                          }
+                            );
+                          }}
                         />
                         <Button
                           icon={<DeleteOutlined />}
@@ -719,6 +801,11 @@ const PrescriptionRequestsPage: React.FC = () => {
                           danger
                           onClick={() => setOrderItems((prev) => prev.filter((_, idx) => idx !== index))}
                         />
+                        {(orderFormErrors[`item-${index}-quantity`] || orderFormErrors[`item-${index}-unitPrice`]) && (
+                          <div className="md:col-span-4 text-xs text-red-600">
+                            {orderFormErrors[`item-${index}-quantity`] || orderFormErrors[`item-${index}-unitPrice`]}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </Card>
@@ -739,12 +826,26 @@ const PrescriptionRequestsPage: React.FC = () => {
                 <Divider style={{ marginTop: 0 }} />
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {[
-                    { label: 'Độ cầu (SPH)', val: rightSphere, set: setRightSphere, step: 0.25 },
-                    { label: 'Độ loạn (CYL)', val: rightCylinder, set: setRightCylinder, step: 0.25 },
-                    { label: 'Trục (Axis)', val: rightAxis, set: setRightAxis, step: 1 },
-                  ].map(({ label, val, set, step }) => (
-                    <Form.Item key={label} label={<Text style={{ fontSize: 12 }}>{label}</Text>} style={{ marginBottom: 0 }}>
-                      <InputNumber step={step} value={val} onChange={(v) => set(v as number)} style={{ width: '100%' }} />
+                    { key: 'rightSphere', label: 'Độ cầu (SPH)', val: rightSphere, set: setRightSphere, step: 0.25 },
+                    { key: 'rightCylinder', label: 'Độ loạn (CYL)', val: rightCylinder, set: setRightCylinder, step: 0.25 },
+                    { key: 'rightAxis', label: 'Trục (Axis)', val: rightAxis, set: setRightAxis, step: 1 },
+                  ].map(({ key, label, val, set, step }) => (
+                    <Form.Item
+                      key={label}
+                      label={<Text style={{ fontSize: 12 }}>{label}</Text>}
+                      style={{ marginBottom: 0 }}
+                      validateStatus={orderFormErrors[key] ? 'error' : ''}
+                      help={orderFormErrors[key]}
+                    >
+                      <InputNumber
+                        step={step}
+                        value={val}
+                        onChange={(v) => {
+                          clearOrderError(key);
+                          set(v as number);
+                        }}
+                        style={{ width: '100%' }}
+                      />
                     </Form.Item>
                   ))}
                 </div>
@@ -755,32 +856,95 @@ const PrescriptionRequestsPage: React.FC = () => {
                 <Divider style={{ marginTop: 0 }} />
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {[
-                    { label: 'Độ cầu (SPH)', val: leftSphere, set: setLeftSphere, step: 0.25 },
-                    { label: 'Độ loạn (CYL)', val: leftCylinder, set: setLeftCylinder, step: 0.25 },
-                    { label: 'Trục (Axis)', val: leftAxis, set: setLeftAxis, step: 1 },
-                  ].map(({ label, val, set, step }) => (
-                    <Form.Item key={label} label={<Text style={{ fontSize: 12 }}>{label}</Text>} style={{ marginBottom: 0 }}>
-                      <InputNumber step={step} value={val} onChange={(v) => set(v as number)} style={{ width: '100%' }} />
+                    { key: 'leftSphere', label: 'Độ cầu (SPH)', val: leftSphere, set: setLeftSphere, step: 0.25 },
+                    { key: 'leftCylinder', label: 'Độ loạn (CYL)', val: leftCylinder, set: setLeftCylinder, step: 0.25 },
+                    { key: 'leftAxis', label: 'Trục (Axis)', val: leftAxis, set: setLeftAxis, step: 1 },
+                  ].map(({ key, label, val, set, step }) => (
+                    <Form.Item
+                      key={label}
+                      label={<Text style={{ fontSize: 12 }}>{label}</Text>}
+                      style={{ marginBottom: 0 }}
+                      validateStatus={orderFormErrors[key] ? 'error' : ''}
+                      help={orderFormErrors[key]}
+                    >
+                      <InputNumber
+                        step={step}
+                        value={val}
+                        onChange={(v) => {
+                          clearOrderError(key);
+                          set(v as number);
+                        }}
+                        style={{ width: '100%' }}
+                      />
                     </Form.Item>
                   ))}
                 </div>
 
                 <Divider />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Form.Item label="Khoảng cách đồng tử (PD)" style={{ marginBottom: 0 }}>
-                    <InputNumber value={pupillaryDistance} onChange={(v) => setPupillaryDistance(v as number)} style={{ width: '100%' }} />
+                  <Form.Item
+                    label="Khoảng cách đồng tử (PD)"
+                    style={{ marginBottom: 0 }}
+                    validateStatus={orderFormErrors.pupillaryDistance ? 'error' : ''}
+                    help={orderFormErrors.pupillaryDistance}
+                  >
+                    <InputNumber
+                      value={pupillaryDistance}
+                      onChange={(v) => {
+                        clearOrderError('pupillaryDistance');
+                        setPupillaryDistance(v as number);
+                      }}
+                      style={{ width: '100%' }}
+                    />
                   </Form.Item>
-                  <Form.Item label="Ngày hết hạn (ngày)" style={{ marginBottom: 0 }}>
-                    <InputNumber min={1} value={expiryDays} onChange={(v) => setExpiryDays(v as number)} style={{ width: '100%' }} />
+                  <Form.Item
+                    label="Ngày hết hạn (ngày)"
+                    style={{ marginBottom: 0 }}
+                    validateStatus={orderFormErrors.expiryDays ? 'error' : ''}
+                    help={orderFormErrors.expiryDays}
+                  >
+                    <InputNumber
+                      min={1}
+                      value={expiryDays}
+                      onChange={(v) => {
+                        clearOrderError('expiryDays');
+                        setExpiryDays(v as number);
+                      }}
+                      style={{ width: '100%' }}
+                    />
                   </Form.Item>
                 </div>
 
-                <Form.Item label="Ghi chú đơn thuốc" style={{ marginBottom: 0 }}>
-                  <TextArea value={prescriptionNotes} onChange={(e) => setPrescriptionNotes(e.target.value)} rows={2} />
+                <Form.Item
+                  label="Ghi chú đơn thuốc"
+                  style={{ marginBottom: 0 }}
+                  validateStatus={orderFormErrors.prescriptionNotes ? 'error' : ''}
+                  help={orderFormErrors.prescriptionNotes}
+                >
+                  <TextArea
+                    value={prescriptionNotes}
+                    onChange={(e) => {
+                      clearOrderError('prescriptionNotes');
+                      setPrescriptionNotes(e.target.value);
+                    }}
+                    rows={2}
+                  />
                 </Form.Item>
 
-                <Form.Item label="Ngày dự kiến hoàn thành" style={{ marginBottom: 0 }}>
-                  <Input type="datetime-local" value={expectedReadyDate} onChange={(e) => setExpectedReadyDate(e.target.value)} />
+                <Form.Item
+                  label="Ngày dự kiến hoàn thành"
+                  style={{ marginBottom: 0 }}
+                  validateStatus={orderFormErrors.expectedReadyDate ? 'error' : ''}
+                  help={orderFormErrors.expectedReadyDate}
+                >
+                  <Input
+                    type="datetime-local"
+                    value={expectedReadyDate}
+                    onChange={(e) => {
+                      clearOrderError('expectedReadyDate');
+                      setExpectedReadyDate(e.target.value);
+                    }}
+                  />
                 </Form.Item>
               </div>
             </Card>
