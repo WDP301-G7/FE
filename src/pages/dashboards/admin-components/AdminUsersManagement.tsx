@@ -427,9 +427,9 @@ const AdminUsersManagement: React.FC = () => {
   const roleLabels: Record<UserRole, string> = {
     ADMIN: 'Admin',
     MANAGER: 'Quản Lý',
-    STAFF: 'Nhân Viên',
+    STAFF: 'Vận Hành',
     CUSTOMER: 'Khách Hàng',
-    OPERATION: 'Vận Hành',
+    OPERATION: 'Nhân Viên',
   };
 
   const statusLabels: Record<UserStatus, string> = {
@@ -630,8 +630,8 @@ const AdminUsersManagement: React.FC = () => {
                 <SelectContent>
                   <SelectItem value="ALL">Tất Cả Vai Trò</SelectItem>
                   <SelectItem value="CUSTOMER">Khách Hàng</SelectItem>
-                  <SelectItem value="STAFF">Nhân Viên</SelectItem>
-                  <SelectItem value="OPERATION">Vận Hành</SelectItem>
+                  <SelectItem value="STAFF">Vận Hành</SelectItem>
+                  <SelectItem value="OPERATION">Nhân Viên</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -865,8 +865,8 @@ const AdminUsersManagement: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="CUSTOMER">Khách Hàng</SelectItem>
-                  <SelectItem value="STAFF">Nhân Viên</SelectItem>
-                  <SelectItem value="OPERATION">Vận Hành</SelectItem>
+                  <SelectItem value="STAFF">Vận Hành</SelectItem>
+                  <SelectItem value="OPERATION">Nhân Viên</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -965,8 +965,8 @@ const AdminUsersManagement: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="CUSTOMER">Khách Hàng</SelectItem>
-                  <SelectItem value="STAFF">Nhân Viên</SelectItem>
-                  <SelectItem value="OPERATION">Vận Hành</SelectItem>
+                  <SelectItem value="STAFF">Vận Hành</SelectItem>
+                  <SelectItem value="OPERATION">Nhân Viên</SelectItem>
                 </SelectContent>
               </Select>
             </div>

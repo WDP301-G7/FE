@@ -25,9 +25,18 @@ import {
 import { NotificationItem } from '@/services/notification.service';
 import { Bell, CheckCheck, Circle, LogOut, Settings, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { UserRole } from '@/services/user.service';
 
 const AppHeader: React.FC = () => {
   const { user, logout } = useAuth();
+
+  const roleLabels: Record<UserRole, string> = {
+    ADMIN: 'Admin',
+    MANAGER: 'Quản Lý',
+    STAFF: 'Vận Hành',
+    CUSTOMER: 'Khách Hàng',
+    OPERATION: 'Nhân Viên',
+  };
   const {
     notifications,
     unreadCount,
@@ -288,7 +297,7 @@ const AppHeader: React.FC = () => {
                       getRoleBadgeColor(user?.role || '')
                     )}
                   >
-                    {user?.role}
+                    {user?.role ? roleLabels[user.role as UserRole] || user.role : ''}
                   </Badge>
                 </div>
               </Button>
